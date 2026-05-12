@@ -19,7 +19,13 @@ if config.config_file_name is not None:
 
 from icloud_index_service.config import get_settings
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+
+def set_database_url(database_url: str) -> None:
+    # ConfigParser treats "%" as interpolation syntax, so preserve encoded DSNs.
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+
+
+set_database_url(get_settings().database_url)
 
 target_metadata = Base.metadata
 

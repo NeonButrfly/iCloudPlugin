@@ -124,3 +124,21 @@ def test_alembic_upgrade_sql_fails_fast_without_database_settings():
     )
 
     assert result.returncode != 0
+
+
+def test_alembic_upgrade_sql_supports_percent_encoded_database_url():
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head", "--sql"],
+        cwd=repo_root,
+        env=_alembic_env(
+            POSTGRES_USER="icloud:user",
+            POSTGRES_PASSWORD="se/cret:@value",
+        ),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "CREATE TABLE files" in result.stdout
