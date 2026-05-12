@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
+from urllib.parse import quote
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
@@ -18,8 +19,10 @@ class Settings(BaseModel):
     @computed_field
     @property
     def database_url(self) -> str:
+        encoded_user = quote(self.postgres_user, safe="")
+        encoded_password = quote(self.postgres_password, safe="")
         return (
-            f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
+            f"postgresql+psycopg://{encoded_user}:{encoded_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 

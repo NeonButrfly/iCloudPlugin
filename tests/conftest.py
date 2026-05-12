@@ -1,10 +1,10 @@
 import pytest
 
-from icloud_index_service.config import get_settings
+from icloud_index_service.db import clear_database_caches
 
 
 @pytest.fixture(autouse=True)
 def clear_cached_service_config():
-    get_settings.cache_clear()
+    clear_database_caches()
     yield
-    get_settings.cache_clear()
+    clear_database_caches()
