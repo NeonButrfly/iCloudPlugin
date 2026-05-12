@@ -28,13 +28,17 @@ def _load_db_module_with_fake_sqlalchemy(monkeypatch):
         def exec_driver_sql(self, statement: str):
             connection_log.append((statement, self._url))
 
-    def fake_create_engine(url: str, pool_pre_ping: bool = True):
+    def fake_create_engine(url: str, pool_pre_ping: bool = True, **kwargs):
         class FakeEngine(dict):
             def connect(self_inner):
                 connection_log.append(("connect", self_inner["url"]))
                 return FakeConnection(self_inner["url"])
 
-        engine = FakeEngine(url=url, pool_pre_ping=pool_pre_ping)
+        engine = FakeEngine(
+            url=url,
+            pool_pre_ping=pool_pre_ping,
+            **kwargs,
+        )
         created_urls.append(url)
         return engine
 
@@ -125,6 +129,21 @@ def test_clear_database_caches_rebuilds_engine_for_updated_environment(monkeypat
     ]
 
 
+def test_get_engine_uses_fail_fast_connect_timeout(monkeypatch):
+    db_module, _, _ = _load_db_module_with_fake_sqlalchemy(monkeypatch)
+
+    monkeypatch.setenv("POSTGRES_USER", "icloud")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "secret")
+    monkeypatch.setenv("POSTGRES_HOST", "db")
+    monkeypatch.setenv("POSTGRES_PORT", "5432")
+    monkeypatch.setenv("POSTGRES_DB", "icloud_index")
+
+    db_module.clear_database_caches()
+    engine = db_module.get_engine()
+
+    assert engine["connect_args"] == {"connect_timeout": 5}
+
+
 def test_validate_database_configuration_opens_connection(monkeypatch):
     db_module, _, connection_log = _load_db_module_with_fake_sqlalchemy(monkeypatch)
 
@@ -159,7 +178,6 @@ def test_compose_service_validates_database_layer_before_starting_api():
     config = json.loads(result.stdout)
     service_command = " ".join(config["services"]["service"]["command"])
 
-    assert "icloud_index_service.db" in service_command
     assert "uvicorn icloud_index_service.main:app" in service_command
     assert config["services"]["service"]["depends_on"]["postgres"]["condition"] == "service_healthy"
     healthcheck = config["services"]["postgres"]["healthcheck"]

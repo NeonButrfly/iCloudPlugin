@@ -11,7 +11,11 @@ from icloud_index_service.config import get_settings
 def get_engine() -> Any:
     from sqlalchemy import create_engine
 
-    return create_engine(get_settings().database_url, pool_pre_ping=True)
+    return create_engine(
+        get_settings().database_url,
+        pool_pre_ping=True,
+        connect_args={"connect_timeout": 5},
+    )
 
 
 @lru_cache
