@@ -19,7 +19,12 @@ def test_build_auth_status_payload_can_reflect_current_session_state():
     assert build_auth_status_payload(
         session_state="authenticated",
         database_state="ok",
-    ) == {"status": "authenticated", "database": "ok"}
+        startup_validation_error="RuntimeError: database unavailable",
+    ) == {
+        "status": "authenticated",
+        "database": "ok",
+        "startup_validation_error": "RuntimeError: database unavailable",
+    }
 
 
 def test_auth_status_endpoint_reports_needs_bootstrap_when_startup_validation_succeeds(monkeypatch):
@@ -33,12 +38,24 @@ def test_auth_status_endpoint_reports_needs_bootstrap_when_startup_validation_su
         "validate_database_configuration",
         fake_validate_database_configuration,
     )
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
     with TestClient(main_module.app) as client:
         response = client.get("/auth/status")
 
     assert response.status_code == 200
     assert response.json() == build_auth_status_payload(database_state="ok")
     assert validation_calls == ["validated"]
+
+
+def test_auth_status_endpoint_reports_current_database_reachability(monkeypatch):
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: False)
+
+    with TestClient(main_module.app) as client:
+        response = client.get("/auth/status")
+
+    assert response.status_code == 200
+    assert response.json() == build_auth_status_payload(database_state="unavailable")
 
 
 def test_auth_status_endpoint_stays_reachable_when_startup_validation_fails(monkeypatch):
@@ -53,9 +70,13 @@ def test_auth_status_endpoint_stays_reachable_when_startup_validation_fails(monk
         "validate_database_configuration",
         fake_validate_database_configuration,
     )
+    monkeypatch.setattr(main_module, "check_database_health", lambda: False)
     with TestClient(main_module.app) as client:
         response = client.get("/auth/status")
 
     assert response.status_code == 200
-    assert response.json() == build_auth_status_payload(database_state="unavailable")
+    assert response.json() == build_auth_status_payload(
+        database_state="unavailable",
+        startup_validation_error="RuntimeError: database unavailable",
+    )
     assert validation_calls == ["validated"]

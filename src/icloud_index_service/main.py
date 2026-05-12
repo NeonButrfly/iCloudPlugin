@@ -13,10 +13,16 @@ from icloud_index_service.services.auth_session_manager import DEFAULT_AUTH_SESS
 def initialize_runtime_state(app: FastAPI) -> None:
     if not hasattr(app.state, "auth_session_state"):
         app.state.auth_session_state = DEFAULT_AUTH_SESSION_STATE
+    if not hasattr(app.state, "database_healthcheck"):
+        app.state.database_healthcheck = lambda: check_database_health()
     if not hasattr(app.state, "database_startup_status"):
         app.state.database_startup_status = "unknown"
     if not hasattr(app.state, "database_startup_error"):
         app.state.database_startup_error = None
+
+
+def format_startup_validation_error(exc: Exception) -> str:
+    return f"{type(exc).__name__}: {exc}"
 
 
 @asynccontextmanager
@@ -26,7 +32,7 @@ async def lifespan(app: FastAPI):
         validate_database_configuration()
     except Exception as exc:
         app.state.database_startup_status = "unavailable"
-        app.state.database_startup_error = str(exc)
+        app.state.database_startup_error = format_startup_validation_error(exc)
     else:
         app.state.database_startup_status = "ok"
         app.state.database_startup_error = None
