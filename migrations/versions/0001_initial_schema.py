@@ -25,7 +25,10 @@ def upgrade() -> None:
         sa.Column("session_state", sa.String(length=50), nullable=False),
         sa.Column("dsid", sa.String(length=255), nullable=True),
         sa.Column("cookies_json", sa.Text(), nullable=True),
+        sa.Column("refreshed_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
+        sa.UniqueConstraint("account_identifier"),
+        sa.UniqueConstraint("dsid"),
     )
     op.create_table(
         "files",
@@ -35,7 +38,7 @@ def upgrade() -> None:
         sa.Column("path", sa.Text(), nullable=False),
         sa.Column("mime_type", sa.String(length=255), nullable=False),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column("size_bytes", sa.Integer(), nullable=True),
+        sa.Column("size_bytes", sa.BigInteger(), nullable=True),
         sa.UniqueConstraint("external_id"),
     )
     op.create_table(
@@ -54,6 +57,7 @@ def upgrade() -> None:
         sa.Column("content_hash", sa.String(length=128), nullable=True),
         sa.Column("extracted_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(["file_id"], ["files.id"]),
+        sa.UniqueConstraint("file_id"),
     )
     op.create_table(
         "jobs",

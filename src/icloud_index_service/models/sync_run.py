@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from icloud_index_service.models.base import Base
-
-
-def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+from icloud_index_service.models.base import Base, utc_now
 
 
 class SyncRun(Base):
