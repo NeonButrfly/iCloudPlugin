@@ -11,6 +11,7 @@ from icloud_index_service.config import Settings, get_settings
 def _load_db_module_with_fake_sqlalchemy(monkeypatch):
     created_urls: list[str] = []
     connection_log: list[tuple[str, str]] = []
+    disposal_log: list[str] = []
 
     fake_sqlalchemy = types.ModuleType("sqlalchemy")
 
@@ -33,6 +34,9 @@ def _load_db_module_with_fake_sqlalchemy(monkeypatch):
             def connect(self_inner):
                 connection_log.append(("connect", self_inner["url"]))
                 return FakeConnection(self_inner["url"])
+
+            def dispose(self_inner):
+                disposal_log.append(self_inner["url"])
 
         engine = FakeEngine(
             url=url,
@@ -62,7 +66,7 @@ def _load_db_module_with_fake_sqlalchemy(monkeypatch):
     import icloud_index_service.db as db_module
 
     db_module = importlib.reload(db_module)
-    return db_module, created_urls, connection_log
+    return db_module, created_urls, connection_log, disposal_log
 
 
 def test_settings_build_database_url():
@@ -97,7 +101,7 @@ def test_get_settings_loads_database_config_from_environment(monkeypatch):
 
 
 def test_clear_database_caches_rebuilds_engine_for_updated_environment(monkeypatch):
-    db_module, created_urls, _ = _load_db_module_with_fake_sqlalchemy(monkeypatch)
+    db_module, created_urls, _, disposal_log = _load_db_module_with_fake_sqlalchemy(monkeypatch)
 
     monkeypatch.setenv("POSTGRES_USER", "icloud")
     monkeypatch.setenv("POSTGRES_PASSWORD", "first-pass")
@@ -127,10 +131,11 @@ def test_clear_database_caches_rebuilds_engine_for_updated_environment(monkeypat
         "postgresql+psycopg://icloud:first-pass@db:5432/icloud_index",
         "postgresql+psycopg://icloud:next%2Fpass@db:5432/icloud_index_v2",
     ]
+    assert disposal_log == ["postgresql+psycopg://icloud:first-pass@db:5432/icloud_index"]
 
 
 def test_get_engine_uses_fail_fast_connect_timeout(monkeypatch):
-    db_module, _, _ = _load_db_module_with_fake_sqlalchemy(monkeypatch)
+    db_module, _, _, _ = _load_db_module_with_fake_sqlalchemy(monkeypatch)
 
     monkeypatch.setenv("POSTGRES_USER", "icloud")
     monkeypatch.setenv("POSTGRES_PASSWORD", "secret")
@@ -145,7 +150,7 @@ def test_get_engine_uses_fail_fast_connect_timeout(monkeypatch):
 
 
 def test_validate_database_configuration_opens_connection(monkeypatch):
-    db_module, _, connection_log = _load_db_module_with_fake_sqlalchemy(monkeypatch)
+    db_module, _, connection_log, _ = _load_db_module_with_fake_sqlalchemy(monkeypatch)
 
     monkeypatch.setenv("POSTGRES_USER", "icloud")
     monkeypatch.setenv("POSTGRES_PASSWORD", "secret")

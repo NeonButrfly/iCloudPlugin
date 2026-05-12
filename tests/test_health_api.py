@@ -6,30 +6,41 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 import icloud_index_service.main as main_module
-from icloud_index_service.main import app
 
 
-def test_health_endpoint_reports_ok():
-    client = TestClient(app)
-    response = client.get("/health")
-
-    assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
-
-
-def test_app_startup_validates_database_when_override_disabled(monkeypatch):
-    validation_calls: list[str] = []
-
-    def fake_validate_database_configuration() -> None:
-        validation_calls.append("validated")
-
-    monkeypatch.delenv("ICLOUD_INDEX_SKIP_DB_STARTUP_VALIDATION", raising=False)
-    monkeypatch.setattr(main_module, "validate_database_configuration", fake_validate_database_configuration)
+def test_health_endpoint_reports_ok(monkeypatch):
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
 
     with TestClient(main_module.app) as client:
         response = client.get("/health")
 
     assert response.status_code == 200
+    assert response.json() == {"status": "ok", "database": "ok"}
+
+
+def test_health_endpoint_reports_database_unavailable(monkeypatch):
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: False)
+
+    with TestClient(main_module.app) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 503
+    assert response.json() == {"status": "degraded", "database": "unavailable"}
+
+
+def test_app_startup_validates_database(monkeypatch):
+    validation_calls: list[str] = []
+
+    def fake_validate_database_configuration() -> None:
+        validation_calls.append("validated")
+
+    monkeypatch.setattr(main_module, "validate_database_configuration", fake_validate_database_configuration)
+
+    with TestClient(main_module.app):
+        pass
+
     assert validation_calls == ["validated"]
 
 

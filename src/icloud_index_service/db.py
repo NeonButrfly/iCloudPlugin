@@ -31,6 +31,8 @@ def get_session_factory() -> Any:
 
 
 def clear_database_caches() -> None:
+    if get_engine.cache_info().currsize:
+        get_engine().dispose()
     get_session_factory.cache_clear()
     get_engine.cache_clear()
     get_settings.cache_clear()
