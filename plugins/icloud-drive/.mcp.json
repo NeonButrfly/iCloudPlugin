@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "icloud-drive": {
+      "command": "python",
+      "args": [
+        "-m",
+        "icloud_plugin_mcp.server"
+      ]
+    }
+  }
+}
