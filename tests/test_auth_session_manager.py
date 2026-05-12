@@ -80,3 +80,24 @@ def test_auth_status_endpoint_stays_reachable_when_startup_validation_fails(monk
         startup_validation_error="RuntimeError: database unavailable",
     )
     assert validation_calls == ["validated"]
+
+
+def test_auth_status_endpoint_suppresses_startup_error_after_live_database_recovery(monkeypatch):
+    validation_calls: list[str] = []
+
+    def fake_validate_database_configuration() -> None:
+        validation_calls.append("validated")
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(
+        main_module,
+        "validate_database_configuration",
+        fake_validate_database_configuration,
+    )
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    with TestClient(main_module.app) as client:
+        response = client.get("/auth/status")
+
+    assert response.status_code == 200
+    assert response.json() == build_auth_status_payload(database_state="ok")
+    assert validation_calls == ["validated"]

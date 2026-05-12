@@ -22,6 +22,8 @@ def auth_status(request: Request) -> dict[str, str]:
     if callable(database_healthcheck):
         database_state = "ok" if database_healthcheck() else "unavailable"
     startup_validation_error = getattr(request.app.state, "database_startup_error", None)
+    if database_state == "ok":
+        startup_validation_error = None
     return build_auth_status_payload(
         session_state=session_state,
         database_state=database_state,
