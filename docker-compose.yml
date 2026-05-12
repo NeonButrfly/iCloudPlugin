@@ -5,6 +5,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-icloud}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
       POSTGRES_DB: ${POSTGRES_DB:-icloud_index}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-icloud} -d ${POSTGRES_DB:-icloud_index}
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
     ports:
       - "${POSTGRES_PUBLISHED_PORT:-5432}:5432"
     volumes:
@@ -30,7 +38,8 @@ services:
     ports:
       - "${SERVICE_PORT:-8080}:8080"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres-data:

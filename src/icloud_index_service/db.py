@@ -33,7 +33,8 @@ def clear_database_caches() -> None:
 
 
 def validate_database_configuration() -> None:
-    get_engine()
+    with get_engine().connect() as connection:
+        connection.exec_driver_sql("SELECT 1")
 
 
 def get_session() -> Generator[Any, None, None]:

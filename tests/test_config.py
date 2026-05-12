@@ -10,11 +10,31 @@ from icloud_index_service.config import Settings, get_settings
 
 def _load_db_module_with_fake_sqlalchemy(monkeypatch):
     created_urls: list[str] = []
+    connection_log: list[tuple[str, str]] = []
 
     fake_sqlalchemy = types.ModuleType("sqlalchemy")
 
+    class FakeConnection:
+        def __init__(self, url: str):
+            self._url = url
+
+        def __enter__(self):
+            connection_log.append(("enter", self._url))
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            connection_log.append(("exit", self._url))
+
+        def exec_driver_sql(self, statement: str):
+            connection_log.append((statement, self._url))
+
     def fake_create_engine(url: str, pool_pre_ping: bool = True):
-        engine = {"url": url, "pool_pre_ping": pool_pre_ping}
+        class FakeEngine(dict):
+            def connect(self_inner):
+                connection_log.append(("connect", self_inner["url"]))
+                return FakeConnection(self_inner["url"])
+
+        engine = FakeEngine(url=url, pool_pre_ping=pool_pre_ping)
         created_urls.append(url)
         return engine
 
@@ -38,7 +58,7 @@ def _load_db_module_with_fake_sqlalchemy(monkeypatch):
     import icloud_index_service.db as db_module
 
     db_module = importlib.reload(db_module)
-    return db_module, created_urls
+    return db_module, created_urls, connection_log
 
 
 def test_settings_build_database_url():
@@ -73,7 +93,7 @@ def test_get_settings_loads_database_config_from_environment(monkeypatch):
 
 
 def test_clear_database_caches_rebuilds_engine_for_updated_environment(monkeypatch):
-    db_module, created_urls = _load_db_module_with_fake_sqlalchemy(monkeypatch)
+    db_module, created_urls, _ = _load_db_module_with_fake_sqlalchemy(monkeypatch)
 
     monkeypatch.setenv("POSTGRES_USER", "icloud")
     monkeypatch.setenv("POSTGRES_PASSWORD", "first-pass")
@@ -105,6 +125,26 @@ def test_clear_database_caches_rebuilds_engine_for_updated_environment(monkeypat
     ]
 
 
+def test_validate_database_configuration_opens_connection(monkeypatch):
+    db_module, _, connection_log = _load_db_module_with_fake_sqlalchemy(monkeypatch)
+
+    monkeypatch.setenv("POSTGRES_USER", "icloud")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "secret")
+    monkeypatch.setenv("POSTGRES_HOST", "db")
+    monkeypatch.setenv("POSTGRES_PORT", "5432")
+    monkeypatch.setenv("POSTGRES_DB", "icloud_index")
+
+    db_module.clear_database_caches()
+    db_module.validate_database_configuration()
+
+    assert connection_log == [
+        ("connect", "postgresql+psycopg://icloud:secret@db:5432/icloud_index"),
+        ("enter", "postgresql+psycopg://icloud:secret@db:5432/icloud_index"),
+        ("SELECT 1", "postgresql+psycopg://icloud:secret@db:5432/icloud_index"),
+        ("exit", "postgresql+psycopg://icloud:secret@db:5432/icloud_index"),
+    ]
+
+
 def test_compose_service_validates_database_layer_before_starting_api():
     repo_root = Path(__file__).resolve().parents[1]
     result = subprocess.run(
@@ -121,3 +161,6 @@ def test_compose_service_validates_database_layer_before_starting_api():
 
     assert "icloud_index_service.db" in service_command
     assert "uvicorn icloud_index_service.main:app" in service_command
+    assert config["services"]["service"]["depends_on"]["postgres"]["condition"] == "service_healthy"
+    healthcheck = config["services"]["postgres"]["healthcheck"]
+    assert "pg_isready" in " ".join(healthcheck["test"])
