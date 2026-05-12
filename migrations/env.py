@@ -17,12 +17,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-try:
-    from icloud_index_service.config import get_settings
+from icloud_index_service.config import get_settings
 
-    config.set_main_option("sqlalchemy.url", get_settings().database_url)
-except Exception:
-    pass
+config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
 target_metadata = Base.metadata
 

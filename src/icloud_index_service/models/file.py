@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import BigInteger, Boolean, String, Text
+from sqlalchemy import BigInteger, Boolean, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from icloud_index_service.models.base import Base
@@ -13,5 +13,10 @@ class FileRecord(Base):
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     path: Mapped[str] = mapped_column(Text, nullable=False)
     mime_type: Mapped[str] = mapped_column(String(255), nullable=False)
-    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default=false(),
+        nullable=False,
+    )
     size_bytes: Mapped[int | None] = mapped_column(BigInteger, default=None)
