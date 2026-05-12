@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from icloud_index_service.models.base import Base, utc_now
@@ -15,6 +15,7 @@ class SyncRun(Base):
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default_factory=utc_now,
+        server_default=func.now(),
         nullable=False,
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)

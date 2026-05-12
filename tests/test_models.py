@@ -8,6 +8,7 @@ from sqlalchemy import BigInteger
 from icloud_index_service.models.auth_session import AuthSession
 from icloud_index_service.models.extracted_content import ExtractedContent
 from icloud_index_service.models.file import FileRecord
+from icloud_index_service.models.sync_run import SyncRun
 
 
 def test_file_record_defaults_to_active():
@@ -41,6 +42,18 @@ def test_auth_session_metadata_identifies_authoritative_session_per_account():
     assert table.c.account_identifier.unique is True
     assert table.c.dsid.unique is True
     assert table.c.refreshed_at.nullable is False
+
+
+def test_timestamp_models_expose_matching_server_defaults():
+    timestamp_columns = [
+        SyncRun.__table__.c.started_at,
+        ExtractedContent.__table__.c.extracted_at,
+        AuthSession.__table__.c.refreshed_at,
+    ]
+
+    for column in timestamp_columns:
+        assert column.server_default is not None
+        assert "now()" in str(column.server_default.arg)
 
 
 def test_initial_migration_captures_authoritative_schema_rules():
