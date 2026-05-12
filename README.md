@@ -17,6 +17,7 @@ Later tasks add database wiring, Apple session bootstrap, crawling, extraction, 
 
 - `docker compose up --build` works without creating `.env`
 - copy `.env.example` to `.env` only if you want to override the default ports or credentials
+- use `POSTGRES_PUBLISHED_PORT` to change the host-facing database port without changing the service's internal Postgres connection on `5432`
 - the plugin's MCP entrypoint is an inline placeholder stub for Task 1, not the full Task 7 server
 
 ## Local test

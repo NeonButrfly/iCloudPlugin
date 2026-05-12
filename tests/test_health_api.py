@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -32,3 +33,20 @@ def test_plugin_mcp_wiring_uses_task1_owned_stub():
 
     assert result.returncode == 0
     assert "task 1" in result.stdout.lower()
+
+
+def test_compose_db_host_port_override_keeps_internal_postgres_port():
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ | {"POSTGRES_PUBLISHED_PORT": "6543"}
+    result = subprocess.run(
+        ["docker", "compose", "config"],
+        cwd=repo_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert 'published: "6543"' in result.stdout
+    assert "POSTGRES_PORT: \"5432\"" in result.stdout
