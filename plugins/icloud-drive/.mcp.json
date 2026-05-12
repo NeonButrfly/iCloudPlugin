@@ -3,7 +3,8 @@
     "icloud-drive": {
       "command": "python",
       "args": [
-        "src/icloud_plugin_mcp/server.py"
+        "-c",
+        "import sys; print('Task 1 MCP stub'); raise SystemExit(0)"
       ]
     }
   }
