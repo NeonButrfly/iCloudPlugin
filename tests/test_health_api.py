@@ -39,7 +39,7 @@ def test_compose_db_host_port_override_keeps_internal_postgres_port():
     repo_root = Path(__file__).resolve().parents[1]
     env = os.environ | {"POSTGRES_PUBLISHED_PORT": "6543"}
     result = subprocess.run(
-        ["docker", "compose", "config"],
+        ["docker", "compose", "config", "--format", "json"],
         cwd=repo_root,
         env=env,
         capture_output=True,
@@ -48,5 +48,10 @@ def test_compose_db_host_port_override_keeps_internal_postgres_port():
     )
 
     assert result.returncode == 0
-    assert 'published: "6543"' in result.stdout
-    assert "POSTGRES_PORT: \"5432\"" in result.stdout
+    config = json.loads(result.stdout)
+    postgres_port = config["services"]["postgres"]["ports"][0]
+    service_env = config["services"]["service"]["environment"]
+
+    assert postgres_port["target"] == 5432
+    assert postgres_port["published"] == "6543"
+    assert service_env["POSTGRES_PORT"] == "5432"
