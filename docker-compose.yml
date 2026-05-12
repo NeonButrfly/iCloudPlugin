@@ -1,8 +1,6 @@
 services:
   postgres:
     image: postgres:16
-    env_file:
-      - .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-icloud}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
@@ -15,8 +13,14 @@ services:
   service:
     image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
     working_dir: /app
-    env_file:
-      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-icloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-icloud_index}
+      PLUGIN_SERVICE_URL: ${PLUGIN_SERVICE_URL:-http://127.0.0.1:8080}
+      PLUGIN_API_TOKEN: ${PLUGIN_API_TOKEN:-change-me}
     command: uv run uvicorn icloud_index_service.main:app --host 0.0.0.0 --port 8080
     volumes:
       - .:/app
