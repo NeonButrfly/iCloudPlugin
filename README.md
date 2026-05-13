@@ -14,6 +14,16 @@ The repository now includes:
 
 The current implementation is read-only and iCloud-only.
 
+## Readiness note
+
+The browser-assisted Apple web client is not finished yet. The live refresh path in
+`src/icloud_index_service/services/icloud_web_client.py` still raises a not-ready
+placeholder error, so:
+
+- indexed search, file-detail retrieval, MCP wiring, and upgrade hooks are implemented
+- live direct iCloud Drive session bootstrap and refresh crawling still need the real
+  Apple web client/session flow
+
 ## Runtime notes
 
 - `docker compose up --build` works without creating `.env`
@@ -22,6 +32,7 @@ The current implementation is read-only and iCloud-only.
 - the service container validates DB connectivity with `SELECT 1` before serving HTTP
 - the worker applies extraction when payloads are available and records best-effort extraction failures without failing the whole refresh
 - the plugin launcher in `plugins/icloud-drive/.mcp.json` starts the real MCP proxy, with a repo-local bootstrap fallback when the package import path is not already installed
+- refresh jobs will still fail until the real Apple web client replaces the placeholder implementation
 
 ## Local plugin
 

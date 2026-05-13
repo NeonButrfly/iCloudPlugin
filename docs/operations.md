@@ -12,6 +12,9 @@ docker compose up --build
 2. Complete the Apple web sign-in flow from a normal browser on another machine if the Linux host is headless.
 3. Confirm `/auth/status` reports a usable session before relying on fresh refresh jobs.
 
+Current limitation:
+- the browser-assisted Apple web client in the repo is still a placeholder, so the service can report auth/bootstrap status but cannot yet complete a live iCloud Drive refresh crawl end to end
+
 ## Local plugin
 
 1. Run `python -m pip install -e .` from the repo root.
