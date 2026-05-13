@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import create_engine, select
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from icloud_index_service.api.refresh import request_refresh
@@ -444,15 +444,19 @@ def test_recover_stale_running_jobs_fails_legacy_rows_without_valid_claimed_at(t
                 }
             ),
         )
-        session.add_all([missing_claim_job, malformed_claim_job])
+        session.add(missing_claim_job)
         session.commit()
 
-        recovered_count = recover_stale_running_jobs(session, stale_after_seconds=60)
+        first_recovered_count = recover_stale_running_jobs(session, stale_after_seconds=60)
+        session.add(malformed_claim_job)
+        session.commit()
+        second_recovered_count = recover_stale_running_jobs(session, stale_after_seconds=60)
         stored_jobs = session.scalars(select(Job).order_by(Job.id.asc())).all()
     finally:
         session.close()
 
-    assert recovered_count == 2
+    assert first_recovered_count == 1
+    assert second_recovered_count == 1
     assert [job.status for job in stored_jobs] == [JOB_STATUS_FAILED, JOB_STATUS_FAILED]
     assert all(job.error_message is not None for job in stored_jobs)
     assert all("claimed_at" in job.error_message for job in stored_jobs)
@@ -716,6 +720,50 @@ def test_enqueue_metadata_refresh_uses_postgres_advisory_lock_for_coalescing():
             {"lock_key": job_runner_module.REFRESH_ENQUEUE_LOCK_KEY},
         )
     ]
+
+
+def test_enqueue_metadata_refresh_returns_existing_job_after_active_refresh_unique_violation(
+    tmp_path,
+    monkeypatch,
+):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+    original_commit = session.commit
+
+    def racing_commit() -> None:
+        competing_session = session_factory()
+        try:
+            competing_session.add(
+                Job(
+                    job_type=METADATA_REFRESH_JOB_TYPE,
+                    status=JOB_STATUS_QUEUED,
+                    payload_json=json.dumps(
+                        {
+                            "source": "refresh-endpoint",
+                            "attempt_count": 0,
+                            "max_attempts": 3,
+                        }
+                    ),
+                )
+            )
+            competing_session.commit()
+        finally:
+            competing_session.close()
+        raise IntegrityError("INSERT INTO jobs", {}, RuntimeError("unique violation"))
+
+    monkeypatch.setattr(session, "commit", racing_commit)
+
+    try:
+        coalesced_job = enqueue_metadata_refresh(session)
+        stored_jobs = session.scalars(select(Job).order_by(Job.id.asc())).all()
+    finally:
+        monkeypatch.setattr(session, "commit", original_commit)
+        session.close()
+
+    assert coalesced_job is not None
+    assert len(stored_jobs) == 1
+    assert coalesced_job.id == stored_jobs[0].id
+    assert stored_jobs[0].status == JOB_STATUS_QUEUED
 
 
 def test_request_refresh_coalesces_duplicate_running_work(tmp_path):

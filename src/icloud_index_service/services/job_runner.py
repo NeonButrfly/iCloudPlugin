@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import inspect, select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from icloud_index_service.models.job import Job
@@ -117,6 +118,25 @@ def _acquire_refresh_enqueue_lock(session: Session) -> None:
     session.execute(
         text("SELECT pg_advisory_xact_lock(:lock_key)"),
         {"lock_key": REFRESH_ENQUEUE_LOCK_KEY},
+    )
+
+
+def _find_existing_active_metadata_refresh_job(session: Session) -> Job | None:
+    existing_job = session.scalar(
+        select(Job)
+        .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
+        .where(Job.status == JOB_STATUS_RUNNING)
+        .order_by(Job.id.asc())
+        .limit(1)
+    )
+    if existing_job is not None:
+        return existing_job
+    return session.scalar(
+        select(Job)
+        .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
+        .where(Job.status == JOB_STATUS_QUEUED)
+        .order_by(Job.id.asc())
+        .limit(1)
     )
 
 
@@ -326,21 +346,7 @@ def claim_next_metadata_refresh_job(
 def enqueue_metadata_refresh(session: Session) -> Job:
     ensure_refresh_job_schema_ready(session)
     _acquire_refresh_enqueue_lock(session)
-    existing_job = session.scalar(
-        select(Job)
-        .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
-        .where(Job.status == JOB_STATUS_RUNNING)
-        .order_by(Job.id.asc())
-        .limit(1)
-    )
-    if existing_job is None:
-        existing_job = session.scalar(
-            select(Job)
-            .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
-            .where(Job.status == JOB_STATUS_QUEUED)
-            .order_by(Job.id.asc())
-            .limit(1)
-        )
+    existing_job = _find_existing_active_metadata_refresh_job(session)
     if existing_job is not None:
         return existing_job
 
@@ -356,7 +362,14 @@ def enqueue_metadata_refresh(session: Session) -> Job:
         ),
     )
     session.add(job)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        existing_job = _find_existing_active_metadata_refresh_job(session)
+        if existing_job is not None:
+            return existing_job
+        raise
     session.refresh(job)
     return job
 
