@@ -47,6 +47,11 @@ class FakeICloudWebClient(ICloudWebClient):
         return list(self._remote_items)
 
 
+class TransientFailureICloudWebClient(ICloudWebClient):
+    def list_drive_items(self) -> list[dict[str, object]]:
+        raise RuntimeError("temporary upstream failure")
+
+
 def test_normalize_remote_item_preserves_storage_shape_for_later_routing():
     raw = {
         "id": "abc",
@@ -187,6 +192,38 @@ def test_recover_stale_running_jobs_requeues_expired_claims(tmp_path):
     assert "stale running job" in reloaded_job.error_message.lower()
 
 
+def test_recover_stale_running_jobs_leaves_legacy_rows_without_valid_claimed_at_untouched(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    try:
+        missing_claim_job = Job(
+            job_type=METADATA_REFRESH_JOB_TYPE,
+            status=JOB_STATUS_RUNNING,
+            payload_json=json.dumps({"source": "refresh-endpoint"}),
+        )
+        malformed_claim_job = Job(
+            job_type=METADATA_REFRESH_JOB_TYPE,
+            status=JOB_STATUS_RUNNING,
+            payload_json=json.dumps(
+                {
+                    "source": "refresh-endpoint",
+                    "claimed_at": "not-a-timestamp",
+                }
+            ),
+        )
+        session.add_all([missing_claim_job, malformed_claim_job])
+        session.commit()
+
+        recovered_count = recover_stale_running_jobs(session, stale_after_seconds=60)
+        stored_jobs = session.scalars(select(Job).order_by(Job.id.asc())).all()
+    finally:
+        session.close()
+
+    assert recovered_count == 0
+    assert [job.status for job in stored_jobs] == [JOB_STATUS_RUNNING, JOB_STATUS_RUNNING]
+
+
 def test_run_next_job_marks_placeholder_client_as_failed_not_completed(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     session = session_factory()
@@ -204,6 +241,48 @@ def test_run_next_job_marks_placeholder_client_as_failed_not_completed(tmp_path)
     assert "not ready" in failed_job.error_message.lower()
     assert stored_job is not None
     assert stored_job.status == JOB_STATUS_FAILED
+
+
+def test_run_next_job_requeues_transient_failures_until_attempt_budget_is_exhausted(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    try:
+        queued_job = enqueue_metadata_refresh(session)
+        first_result = run_next_job(session, client=TransientFailureICloudWebClient())
+        first_status = first_result.status
+        first_error_message = first_result.error_message
+        first_payload = json.loads(first_result.payload_json or "{}")
+
+        second_result = run_next_job(session, client=TransientFailureICloudWebClient())
+        second_status = second_result.status
+        second_error_message = second_result.error_message
+        second_payload = json.loads(second_result.payload_json or "{}")
+
+        third_result = run_next_job(session, client=TransientFailureICloudWebClient())
+        third_status = third_result.status
+        third_error_message = third_result.error_message
+        third_payload = json.loads(third_result.payload_json or "{}")
+        final_stored_job = session.scalar(select(Job).where(Job.id == queued_job.id))
+    finally:
+        session.close()
+
+    assert first_status == JOB_STATUS_QUEUED
+    assert first_error_message is not None
+    assert first_payload["attempt_count"] == 1
+    assert first_payload["max_attempts"] == 3
+
+    assert second_status == JOB_STATUS_QUEUED
+    assert second_error_message is not None
+    assert second_payload["attempt_count"] == 2
+    assert second_payload["max_attempts"] == 3
+
+    assert third_status == JOB_STATUS_FAILED
+    assert third_error_message is not None
+    assert third_payload["attempt_count"] == 3
+    assert third_payload["max_attempts"] == 3
+    assert final_stored_job is not None
+    assert final_stored_job.status == JOB_STATUS_FAILED
 
 
 def test_worker_loop_polls_and_processes_refresh_jobs_enqueued_after_startup(tmp_path):

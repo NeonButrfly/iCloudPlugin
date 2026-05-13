@@ -10,6 +10,7 @@ from icloud_index_service.models.job import Job
 from icloud_index_service.services.crawler import crawl_metadata
 from icloud_index_service.services.icloud_web_client import (
     ICloudWebClient,
+    ICloudWebClientNotReadyError,
     create_icloud_web_client,
 )
 
@@ -22,6 +23,9 @@ REQUIRED_REFRESH_JOB_TABLES = ("jobs", "sync_runs")
 DEFAULT_STALE_RUNNING_SECONDS = 300
 CLAIMED_AT_FIELD = "claimed_at"
 WORKER_ID_FIELD = "worker_id"
+ATTEMPT_COUNT_FIELD = "attempt_count"
+MAX_ATTEMPTS_FIELD = "max_attempts"
+DEFAULT_MAX_ATTEMPTS = 3
 
 
 class SchemaNotReadyError(RuntimeError):
@@ -76,6 +80,24 @@ def _parse_claimed_at(payload: dict[str, object]) -> datetime | None:
     return claimed_at.astimezone(timezone.utc)
 
 
+def _parse_attempt_count(payload: dict[str, object]) -> int:
+    raw_attempt_count = payload.get(ATTEMPT_COUNT_FIELD, 0)
+    if isinstance(raw_attempt_count, bool):
+        return 0
+    if isinstance(raw_attempt_count, int):
+        return max(raw_attempt_count, 0)
+    return 0
+
+
+def _parse_max_attempts(payload: dict[str, object]) -> int:
+    raw_max_attempts = payload.get(MAX_ATTEMPTS_FIELD, DEFAULT_MAX_ATTEMPTS)
+    if isinstance(raw_max_attempts, bool):
+        return DEFAULT_MAX_ATTEMPTS
+    if isinstance(raw_max_attempts, int) and raw_max_attempts > 0:
+        return raw_max_attempts
+    return DEFAULT_MAX_ATTEMPTS
+
+
 def recover_stale_running_jobs(
     session: Session,
     *,
@@ -97,7 +119,7 @@ def recover_stale_running_jobs(
     for job in running_jobs:
         payload = _deserialize_payload(job.payload_json)
         claimed_at = _parse_claimed_at(payload)
-        if claimed_at is not None and claimed_at > stale_cutoff:
+        if claimed_at is None or claimed_at > stale_cutoff:
             continue
 
         payload.pop(CLAIMED_AT_FIELD, None)
@@ -140,6 +162,8 @@ def claim_next_metadata_refresh_job(
             return None
 
         payload = _deserialize_payload(queued_job.payload_json)
+        payload[ATTEMPT_COUNT_FIELD] = _parse_attempt_count(payload) + 1
+        payload[MAX_ATTEMPTS_FIELD] = _parse_max_attempts(payload)
         payload[CLAIMED_AT_FIELD] = claimed_at.isoformat()
         if worker_id is not None:
             payload[WORKER_ID_FIELD] = worker_id
@@ -167,7 +191,13 @@ def enqueue_metadata_refresh(session: Session) -> Job:
     job = Job(
         job_type=METADATA_REFRESH_JOB_TYPE,
         status=JOB_STATUS_QUEUED,
-        payload_json=json.dumps({"source": "refresh-endpoint"}),
+        payload_json=json.dumps(
+            {
+                "source": "refresh-endpoint",
+                ATTEMPT_COUNT_FIELD: 0,
+                MAX_ATTEMPTS_FIELD: DEFAULT_MAX_ATTEMPTS,
+            }
+        ),
     )
     session.add(job)
     session.commit()
@@ -203,14 +233,39 @@ def run_next_job(
         job.status = JOB_STATUS_COMPLETED
         payload.pop(CLAIMED_AT_FIELD, None)
         payload.pop(WORKER_ID_FIELD, None)
+        payload.pop(ATTEMPT_COUNT_FIELD, None)
+        payload.pop(MAX_ATTEMPTS_FIELD, None)
         payload["source"] = "refresh-endpoint"
         payload["items_seen"] = len(items)
         payload["auth_mode"] = active_client.auth_mode
         job.payload_json = _serialize_payload(payload)
         job.error_message = None
     except Exception as exc:
-        job.status = JOB_STATUS_FAILED
-        job.error_message = f"{type(exc).__name__}: {exc}"
+        payload = _deserialize_payload(job.payload_json)
+        attempt_count = _parse_attempt_count(payload)
+        max_attempts = _parse_max_attempts(payload)
+
+        payload.pop(CLAIMED_AT_FIELD, None)
+        payload.pop(WORKER_ID_FIELD, None)
+        payload[ATTEMPT_COUNT_FIELD] = attempt_count
+        payload[MAX_ATTEMPTS_FIELD] = max_attempts
+        job.payload_json = _serialize_payload(payload)
+
+        if isinstance(exc, ICloudWebClientNotReadyError):
+            job.status = JOB_STATUS_FAILED
+            job.error_message = f"{type(exc).__name__}: {exc}"
+        elif attempt_count < max_attempts:
+            job.status = JOB_STATUS_QUEUED
+            job.error_message = (
+                f"Retrying refresh job after transient crawl failure "
+                f"({attempt_count}/{max_attempts}): {type(exc).__name__}: {exc}"
+            )
+        else:
+            job.status = JOB_STATUS_FAILED
+            job.error_message = (
+                f"Refresh job exhausted retry budget "
+                f"({attempt_count}/{max_attempts}): {type(exc).__name__}: {exc}"
+            )
 
     session.commit()
     session.refresh(job)
