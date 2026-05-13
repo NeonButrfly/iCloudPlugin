@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fastapi import Request
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -281,3 +282,36 @@ def test_search_and_file_endpoints_accept_plain_session_dependency_overrides(
     ]
     assert file_response.status_code == 200
     assert file_response.json()["file_id"] == file_id
+
+
+def test_search_and_file_endpoints_accept_request_aware_dependency_overrides(
+    tmp_path,
+    monkeypatch,
+):
+    session_factory = _build_session_factory(tmp_path)
+    file_id = _seed_indexed_file(session_factory)
+    opened_sessions: list[Session] = []
+    seen_paths: list[str] = []
+
+    def override_get_session(request: Request) -> Session:
+        seen_paths.append(request.url.path)
+        session = session_factory()
+        opened_sessions.append(session)
+        return session
+
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = override_get_session
+
+    try:
+        with TestClient(main_module.app) as client:
+            search_response = client.get("/search", params={"query": "budget", "limit": 5})
+            file_response = client.get(f"/files/{file_id}")
+    finally:
+        main_module.app.dependency_overrides.clear()
+        for session in opened_sessions:
+            session.close()
+
+    assert search_response.status_code == 200
+    assert file_response.status_code == 200
+    assert seen_paths == ["/search", f"/files/{file_id}"]

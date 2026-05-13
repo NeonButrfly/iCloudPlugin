@@ -237,11 +237,17 @@ def _persist_refresh_results(
                 session.flush()
             continue
 
-        extracted_text = extract_text_content(
-            path=file_record.path,
-            mime_type=file_record.mime_type,
-            payload=payload,
-        )
+        try:
+            extracted_text = extract_text_content(
+                path=file_record.path,
+                mime_type=file_record.mime_type,
+                payload=payload,
+            )
+        except Exception:
+            if extracted_content is not None:
+                session.delete(extracted_content)
+                session.flush()
+            continue
         if not extracted_text:
             if extracted_content is not None:
                 session.delete(extracted_content)

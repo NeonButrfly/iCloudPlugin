@@ -435,6 +435,90 @@ def test_run_next_job_clears_stale_extracted_content_when_refresh_can_no_longer_
     assert stored_content is None
 
 
+def test_run_next_job_treats_extraction_failures_as_best_effort_and_keeps_refresh_completed(
+    tmp_path,
+    monkeypatch,
+):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    def fake_extract_text_content(*, path: str, mime_type: str, payload: bytes) -> str:
+        if path.endswith("Broken.txt"):
+            raise RuntimeError("parser exploded")
+        return "Good extracted text"
+
+    monkeypatch.setattr(job_runner_module, "extract_text_content", fake_extract_text_content)
+
+    try:
+        stale_file = FileRecord(
+            external_id="broken-file",
+            name="Broken.txt",
+            path="/Finance/Broken.txt",
+            mime_type="text/plain",
+            size_bytes=20,
+        )
+        session.add(stale_file)
+        session.commit()
+        session.refresh(stale_file)
+        session.add(
+            ExtractedContent(
+                file_id=stale_file.id,
+                content_text="stale extracted text",
+                content_hash="stale-hash",
+            )
+        )
+        session.commit()
+
+        enqueue_metadata_refresh(session)
+        completed_job = run_next_job(
+            session,
+            client=FakeICloudWebClient(
+                [
+                    {
+                        "id": "broken-file",
+                        "name": "Broken.txt",
+                        "path": "/Finance/Broken.txt",
+                        "extension": "txt",
+                        "contentType": "text/plain",
+                        "content_bytes": b"bad payload",
+                        "size": 20,
+                    },
+                    {
+                        "id": "good-file",
+                        "name": "Good.txt",
+                        "path": "/Finance/Good.txt",
+                        "extension": "txt",
+                        "contentType": "text/plain",
+                        "content_bytes": b"good payload",
+                        "size": 12,
+                    },
+                ]
+            ),
+        )
+        broken_content = session.scalar(
+            select(ExtractedContent).where(ExtractedContent.file_id == stale_file.id)
+        )
+        good_file = session.scalar(
+            select(FileRecord).where(FileRecord.external_id == "good-file")
+        )
+        good_content = session.scalar(
+            select(ExtractedContent).join(
+                FileRecord,
+                ExtractedContent.file_id == FileRecord.id,
+            )
+            .where(FileRecord.external_id == "good-file")
+        )
+    finally:
+        session.close()
+
+    assert completed_job is not None
+    assert completed_job.status == JOB_STATUS_COMPLETED
+    assert broken_content is None
+    assert good_file is not None
+    assert good_content is not None
+    assert good_content.content_text == "Good extracted text"
+
+
 def test_claim_next_metadata_refresh_job_only_allows_one_worker_to_claim_same_job(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     setup_session = session_factory()
