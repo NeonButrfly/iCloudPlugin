@@ -6,7 +6,9 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from icloud_index_service.api.auth import router as auth_router
+from icloud_index_service.api.files import router as files_router
 from icloud_index_service.api.refresh import router as refresh_router
+from icloud_index_service.api.search import router as search_router
 from icloud_index_service.db import validate_database_configuration
 from icloud_index_service.services.auth_session_manager import DEFAULT_AUTH_SESSION_STATE
 
@@ -43,7 +45,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 initialize_runtime_state(app)
 app.include_router(auth_router)
+app.include_router(files_router)
 app.include_router(refresh_router)
+app.include_router(search_router)
 
 
 def check_database_health() -> bool:
