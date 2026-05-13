@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -134,3 +135,25 @@ def test_compose_passes_icloud_auth_environment_to_service_and_worker():
         assert container_env["ICLOUD_APPLE_PASSWORD"] == "secret"
         assert container_env["ICLOUD_COOKIE_DIRECTORY"] == ".runtime/pyicloud"
         assert container_env["ICLOUD_MAX_DOWNLOAD_BYTES"] == "1048576"
+
+
+def test_app_import_registers_sync_run_metadata_for_refresh_jobs():
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from icloud_index_service.main import app; "
+                "from icloud_index_service.models.base import Base; "
+                "print(sorted(Base.metadata.tables.keys()))"
+            ),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "sync_runs" in result.stdout

@@ -4,6 +4,7 @@ from collections.abc import Generator
 from functools import lru_cache
 from typing import Any
 
+import icloud_index_service.models  # noqa: F401 - register all ORM tables on startup
 from icloud_index_service.config import get_settings
 
 
