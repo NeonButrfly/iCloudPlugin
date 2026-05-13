@@ -22,6 +22,7 @@ JOB_STATUS_FAILED = "failed"
 REQUIRED_REFRESH_JOB_TABLES = ("jobs", "sync_runs")
 DEFAULT_STALE_RUNNING_SECONDS = 300
 CLAIMED_AT_FIELD = "claimed_at"
+HEARTBEAT_AT_FIELD = "heartbeat_at"
 WORKER_ID_FIELD = "worker_id"
 ATTEMPT_COUNT_FIELD = "attempt_count"
 MAX_ATTEMPTS_FIELD = "max_attempts"
@@ -67,17 +68,24 @@ def _serialize_payload(payload: dict[str, object]) -> str:
     return json.dumps(payload)
 
 
-def _parse_claimed_at(payload: dict[str, object]) -> datetime | None:
-    claimed_at_raw = payload.get(CLAIMED_AT_FIELD)
-    if not isinstance(claimed_at_raw, str):
+def _parse_iso_timestamp(raw_value: object) -> datetime | None:
+    if not isinstance(raw_value, str):
         return None
     try:
-        claimed_at = datetime.fromisoformat(claimed_at_raw)
+        parsed_value = datetime.fromisoformat(raw_value)
     except ValueError:
         return None
-    if claimed_at.tzinfo is None:
-        return claimed_at.replace(tzinfo=timezone.utc)
-    return claimed_at.astimezone(timezone.utc)
+    if parsed_value.tzinfo is None:
+        return parsed_value.replace(tzinfo=timezone.utc)
+    return parsed_value.astimezone(timezone.utc)
+
+
+def _parse_claimed_at(payload: dict[str, object]) -> datetime | None:
+    return _parse_iso_timestamp(payload.get(CLAIMED_AT_FIELD))
+
+
+def _parse_heartbeat_at(payload: dict[str, object]) -> datetime | None:
+    return _parse_iso_timestamp(payload.get(HEARTBEAT_AT_FIELD))
 
 
 def _parse_attempt_count(payload: dict[str, object]) -> int:
@@ -96,6 +104,25 @@ def _parse_max_attempts(payload: dict[str, object]) -> int:
     if isinstance(raw_max_attempts, int) and raw_max_attempts > 0:
         return raw_max_attempts
     return DEFAULT_MAX_ATTEMPTS
+
+
+def renew_refresh_job_heartbeat(
+    session: Session,
+    job_id: int,
+    *,
+    now: datetime | None = None,
+) -> Job | None:
+    ensure_refresh_job_schema_ready(session)
+    job = session.get(Job, job_id)
+    if job is None or job.job_type != METADATA_REFRESH_JOB_TYPE or job.status != JOB_STATUS_RUNNING:
+        return job
+
+    payload = _deserialize_payload(job.payload_json)
+    payload[HEARTBEAT_AT_FIELD] = (now or _utc_now()).isoformat()
+    job.payload_json = _serialize_payload(payload)
+    session.commit()
+    session.refresh(job)
+    return job
 
 
 def recover_stale_running_jobs(
@@ -119,10 +146,21 @@ def recover_stale_running_jobs(
     for job in running_jobs:
         payload = _deserialize_payload(job.payload_json)
         claimed_at = _parse_claimed_at(payload)
-        if claimed_at is None or claimed_at > stale_cutoff:
+        if claimed_at is None:
+            job.status = JOB_STATUS_FAILED
+            job.error_message = (
+                "Failed running refresh job with missing or invalid claimed_at lease "
+                "metadata so it does not stay wedged or duplicate active work."
+            )
+            recovered_jobs.append(job)
+            continue
+
+        heartbeat_at = _parse_heartbeat_at(payload) or claimed_at
+        if heartbeat_at > stale_cutoff:
             continue
 
         payload.pop(CLAIMED_AT_FIELD, None)
+        payload.pop(HEARTBEAT_AT_FIELD, None)
         payload.pop(WORKER_ID_FIELD, None)
         job.status = JOB_STATUS_QUEUED
         job.payload_json = _serialize_payload(payload)
@@ -162,9 +200,10 @@ def claim_next_metadata_refresh_job(
             return None
 
         payload = _deserialize_payload(queued_job.payload_json)
-        payload[ATTEMPT_COUNT_FIELD] = _parse_attempt_count(payload) + 1
+        payload[ATTEMPT_COUNT_FIELD] = _parse_attempt_count(payload)
         payload[MAX_ATTEMPTS_FIELD] = _parse_max_attempts(payload)
         payload[CLAIMED_AT_FIELD] = claimed_at.isoformat()
+        payload[HEARTBEAT_AT_FIELD] = claimed_at.isoformat()
         if worker_id is not None:
             payload[WORKER_ID_FIELD] = worker_id
 
@@ -227,11 +266,16 @@ def run_next_job(
         return None
 
     active_client = client or create_icloud_web_client()
+
+    def heartbeat() -> None:
+        renew_refresh_job_heartbeat(session, job.id)
+
     try:
-        items = crawl_metadata(active_client)
+        items = crawl_metadata(active_client, heartbeat=heartbeat)
         payload = _deserialize_payload(job.payload_json)
         job.status = JOB_STATUS_COMPLETED
         payload.pop(CLAIMED_AT_FIELD, None)
+        payload.pop(HEARTBEAT_AT_FIELD, None)
         payload.pop(WORKER_ID_FIELD, None)
         payload.pop(ATTEMPT_COUNT_FIELD, None)
         payload.pop(MAX_ATTEMPTS_FIELD, None)
@@ -242,10 +286,11 @@ def run_next_job(
         job.error_message = None
     except Exception as exc:
         payload = _deserialize_payload(job.payload_json)
-        attempt_count = _parse_attempt_count(payload)
+        attempt_count = _parse_attempt_count(payload) + 1
         max_attempts = _parse_max_attempts(payload)
 
         payload.pop(CLAIMED_AT_FIELD, None)
+        payload.pop(HEARTBEAT_AT_FIELD, None)
         payload.pop(WORKER_ID_FIELD, None)
         payload[ATTEMPT_COUNT_FIELD] = attempt_count
         payload[MAX_ATTEMPTS_FIELD] = max_attempts

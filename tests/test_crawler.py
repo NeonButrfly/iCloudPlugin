@@ -24,6 +24,7 @@ from icloud_index_service.services.job_runner import (
     claim_next_metadata_refresh_job,
     enqueue_metadata_refresh,
     recover_stale_running_jobs,
+    renew_refresh_job_heartbeat,
     run_next_job,
 )
 from icloud_index_service.worker import run_worker_loop
@@ -43,12 +44,16 @@ class FakeICloudWebClient(ICloudWebClient):
         super().__init__(auth_mode="browser-assisted-apple-web")
         self._remote_items = remote_items
 
-    def list_drive_items(self) -> list[dict[str, object]]:
+    def list_drive_items(self, *, heartbeat=None) -> list[dict[str, object]]:
+        if heartbeat is not None:
+            heartbeat()
         return list(self._remote_items)
 
 
 class TransientFailureICloudWebClient(ICloudWebClient):
-    def list_drive_items(self) -> list[dict[str, object]]:
+    def list_drive_items(self, *, heartbeat=None) -> list[dict[str, object]]:
+        if heartbeat is not None:
+            heartbeat()
         raise RuntimeError("temporary upstream failure")
 
 
@@ -158,6 +163,24 @@ def test_claim_next_metadata_refresh_job_only_allows_one_worker_to_claim_same_jo
     assert second_claim is None
 
 
+def test_claim_next_metadata_refresh_job_does_not_increment_attempt_count_before_a_failure(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    try:
+        enqueue_metadata_refresh(session)
+        claimed_job = claim_next_metadata_refresh_job(session, worker_id="worker-a")
+    finally:
+        session.close()
+
+    claimed_payload = json.loads(claimed_job.payload_json or "{}")
+
+    assert claimed_job is not None
+    assert claimed_job.status == JOB_STATUS_RUNNING
+    assert claimed_payload["attempt_count"] == 0
+    assert claimed_payload["max_attempts"] == 3
+
+
 def test_recover_stale_running_jobs_requeues_expired_claims(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     session = session_factory()
@@ -192,7 +215,47 @@ def test_recover_stale_running_jobs_requeues_expired_claims(tmp_path):
     assert "stale running job" in reloaded_job.error_message.lower()
 
 
-def test_recover_stale_running_jobs_leaves_legacy_rows_without_valid_claimed_at_untouched(tmp_path):
+def test_renew_refresh_job_heartbeat_keeps_a_running_job_out_of_stale_recovery(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+    claimed_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    try:
+        running_job = Job(
+            job_type=METADATA_REFRESH_JOB_TYPE,
+            status=JOB_STATUS_RUNNING,
+            payload_json=json.dumps(
+                {
+                    "source": "refresh-endpoint",
+                    "claimed_at": claimed_at.isoformat(),
+                    "heartbeat_at": claimed_at.isoformat(),
+                }
+            ),
+        )
+        session.add(running_job)
+        session.commit()
+        session.refresh(running_job)
+
+        renew_refresh_job_heartbeat(
+            session,
+            running_job.id,
+            now=claimed_at + timedelta(minutes=10),
+        )
+        recovered_count = recover_stale_running_jobs(
+            session,
+            stale_after_seconds=60,
+            now=claimed_at + timedelta(minutes=10, seconds=30),
+        )
+        reloaded_job = session.scalar(select(Job).where(Job.id == running_job.id))
+    finally:
+        session.close()
+
+    assert recovered_count == 0
+    assert reloaded_job is not None
+    assert reloaded_job.status == JOB_STATUS_RUNNING
+
+
+def test_recover_stale_running_jobs_fails_legacy_rows_without_valid_claimed_at(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     session = session_factory()
 
@@ -220,8 +283,10 @@ def test_recover_stale_running_jobs_leaves_legacy_rows_without_valid_claimed_at_
     finally:
         session.close()
 
-    assert recovered_count == 0
-    assert [job.status for job in stored_jobs] == [JOB_STATUS_RUNNING, JOB_STATUS_RUNNING]
+    assert recovered_count == 2
+    assert [job.status for job in stored_jobs] == [JOB_STATUS_FAILED, JOB_STATUS_FAILED]
+    assert all(job.error_message is not None for job in stored_jobs)
+    assert all("claimed_at" in job.error_message for job in stored_jobs)
 
 
 def test_run_next_job_marks_placeholder_client_as_failed_not_completed(tmp_path):

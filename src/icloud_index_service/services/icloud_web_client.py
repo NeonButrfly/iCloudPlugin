@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 
 BROWSER_ASSISTED_AUTH_MODE = "browser-assisted-apple-web"
+HeartbeatCallback = Callable[[], None]
 
 
 class ICloudWebClientNotReadyError(RuntimeError):
@@ -14,7 +16,11 @@ class ICloudWebClient:
     def __init__(self, auth_mode: str = BROWSER_ASSISTED_AUTH_MODE) -> None:
         self.auth_mode = auth_mode
 
-    def list_drive_items(self) -> list[dict[str, object]]:
+    def list_drive_items(
+        self,
+        *,
+        heartbeat: HeartbeatCallback | None = None,
+    ) -> list[dict[str, object]]:
         raise ICloudWebClientNotReadyError(
             "The browser-assisted Apple web client is not ready for refresh jobs yet."
         )

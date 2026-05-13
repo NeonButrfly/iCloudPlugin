@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from icloud_index_service.services.icloud_web_client import ICloudWebClient
+from icloud_index_service.services.icloud_web_client import (
+    HeartbeatCallback,
+    ICloudWebClient,
+)
 
 
 def normalize_remote_item(raw: dict[str, object]) -> dict[str, object]:
@@ -21,5 +24,12 @@ def normalize_remote_item(raw: dict[str, object]) -> dict[str, object]:
     }
 
 
-def crawl_metadata(client: ICloudWebClient) -> list[dict[str, object]]:
-    return [normalize_remote_item(item) for item in client.list_drive_items()]
+def crawl_metadata(
+    client: ICloudWebClient,
+    *,
+    heartbeat: HeartbeatCallback | None = None,
+) -> list[dict[str, object]]:
+    return [
+        normalize_remote_item(item)
+        for item in client.list_drive_items(heartbeat=heartbeat)
+    ]
