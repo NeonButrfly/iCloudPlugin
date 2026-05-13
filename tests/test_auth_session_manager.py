@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 import icloud_index_service.main as main_module
 from icloud_index_service.services.auth_session_manager import (
     build_auth_status_payload,
+    detect_auth_session_state,
     redact_cookie_value,
 )
 
@@ -25,6 +26,20 @@ def test_build_auth_status_payload_can_reflect_current_session_state():
         "database": "ok",
         "startup_validation_error": "RuntimeError: database unavailable",
     }
+
+
+def test_detect_auth_session_state_requires_credentials(monkeypatch):
+    monkeypatch.delenv("ICLOUD_APPLE_ID", raising=False)
+    monkeypatch.delenv("ICLOUD_APPLE_PASSWORD", raising=False)
+
+    assert detect_auth_session_state() == "needs-bootstrap"
+
+
+def test_detect_auth_session_state_reports_configured_when_credentials_exist(monkeypatch):
+    monkeypatch.setenv("ICLOUD_APPLE_ID", "user@example.com")
+    monkeypatch.setenv("ICLOUD_APPLE_PASSWORD", "secret")
+
+    assert detect_auth_session_state() == "configured"
 
 
 def test_auth_status_endpoint_reports_needs_bootstrap_when_startup_validation_succeeds(monkeypatch):

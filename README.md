@@ -16,13 +16,13 @@ The current implementation is read-only and iCloud-only.
 
 ## Readiness note
 
-The browser-assisted Apple web client is not finished yet. The live refresh path in
-`src/icloud_index_service/services/icloud_web_client.py` still raises a not-ready
-placeholder error, so:
+The live refresh path now uses a real `pyicloud`-backed iCloud Drive client in
+`src/icloud_index_service/services/icloud_web_client.py`, but it still depends on
+valid Apple credentials plus a trusted Apple session:
 
-- indexed search, file-detail retrieval, MCP wiring, and upgrade hooks are implemented
-- live direct iCloud Drive session bootstrap and refresh crawling still need the real
-  Apple web client/session flow
+- indexed search, file-detail retrieval, MCP wiring, upgrade hooks, and direct Drive traversal are implemented
+- refresh jobs require `ICLOUD_APPLE_ID` and `ICLOUD_APPLE_PASSWORD`
+- accounts protected by 2FA/2SA still need one trusted interactive `pyicloud` bootstrap so the persisted cookie directory can be reused by the service
 
 ## Runtime notes
 
@@ -32,7 +32,7 @@ placeholder error, so:
 - the service container validates DB connectivity with `SELECT 1` before serving HTTP
 - the worker applies extraction when payloads are available and records best-effort extraction failures without failing the whole refresh
 - the plugin launcher in `plugins/icloud-drive/.mcp.json` starts the real MCP proxy, with a repo-local bootstrap fallback when the package import path is not already installed
-- refresh jobs will still fail until the real Apple web client replaces the placeholder implementation
+- the direct iCloud client reads `ICLOUD_APPLE_ID`, `ICLOUD_APPLE_PASSWORD`, optional `ICLOUD_COOKIE_DIRECTORY`, and `ICLOUD_MAX_DOWNLOAD_BYTES`
 
 ## Local plugin
 

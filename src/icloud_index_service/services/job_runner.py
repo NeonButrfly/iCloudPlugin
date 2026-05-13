@@ -547,7 +547,6 @@ def run_next_job(
     if job is None:
         return None
 
-    active_client = client or create_icloud_web_client()
     lease_payload_json = job.payload_json
 
     def heartbeat() -> None:
@@ -564,6 +563,7 @@ def run_next_job(
         lease_payload_json = renewed_job.payload_json
 
     try:
+        active_client = client or create_icloud_web_client()
         raw_items = active_client.list_drive_items(heartbeat=heartbeat)
         items = [normalize_remote_item(item) for item in raw_items]
         extraction_failures = _persist_refresh_results(

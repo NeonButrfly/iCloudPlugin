@@ -1,12 +1,23 @@
 from __future__ import annotations
 
+import os
+
 DEFAULT_AUTH_SESSION_STATE = "needs-bootstrap"
 FULLY_MASKED_SECRET_MAX_LENGTH = 8
+
 
 def redact_cookie_value(raw: str) -> str:
     if len(raw) <= FULLY_MASKED_SECRET_MAX_LENGTH:
         return "*" * len(raw)
     return f"{raw[:2]}{'*' * (len(raw) - 4)}{raw[-2:]}"
+
+
+def detect_auth_session_state() -> str:
+    apple_id = os.environ.get("ICLOUD_APPLE_ID", "").strip()
+    password = os.environ.get("ICLOUD_APPLE_PASSWORD", "").strip()
+    if apple_id and password:
+        return "configured"
+    return DEFAULT_AUTH_SESSION_STATE
 
 
 def build_auth_status_payload(

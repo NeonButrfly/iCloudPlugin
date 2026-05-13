@@ -10,12 +10,15 @@ from icloud_index_service.api.files import router as files_router
 from icloud_index_service.api.refresh import router as refresh_router
 from icloud_index_service.api.search import router as search_router
 from icloud_index_service.db import validate_database_configuration
-from icloud_index_service.services.auth_session_manager import DEFAULT_AUTH_SESSION_STATE
+from icloud_index_service.services.auth_session_manager import (
+    DEFAULT_AUTH_SESSION_STATE,
+    detect_auth_session_state,
+)
 
 
 def initialize_runtime_state(app: FastAPI) -> None:
     if not hasattr(app.state, "auth_session_state"):
-        app.state.auth_session_state = DEFAULT_AUTH_SESSION_STATE
+        app.state.auth_session_state = detect_auth_session_state()
     if not hasattr(app.state, "database_healthcheck"):
         app.state.database_healthcheck = lambda: check_database_health()
     if not hasattr(app.state, "database_startup_status"):
