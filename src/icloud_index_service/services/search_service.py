@@ -55,6 +55,13 @@ def build_database_unavailable_detail(
     return payload
 
 
+def build_auth_needed_response(*, has_cached_results: bool) -> dict[str, object]:
+    return {
+        "auth_status": "needs-bootstrap",
+        "has_cached_results": has_cached_results,
+    }
+
+
 def _escape_like_fragment(value: str) -> str:
     return (
         value.replace(LIKE_ESCAPE_CHAR, LIKE_ESCAPE_CHAR * 2)

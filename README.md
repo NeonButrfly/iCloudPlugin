@@ -1,30 +1,48 @@
 # iCloud Index Plugin
 
-This repository contains the early scaffold for a private iCloud Drive indexing stack and its companion Codex plugin.
+This repository contains a private iCloud Drive indexing stack and its companion local MCP plugin.
 
 ## Current state
 
-Task 1 and Task 2 currently wire up:
+The repository now includes:
 
-- a minimal FastAPI service with `/health`
-- Python project metadata and pytest import path setup
-- service configuration that builds a Postgres SQLAlchemy DSN from environment values
-- cached database engine/session wiring plus a startup validation step that attempts a real database connection before `uvicorn` starts
-- a Docker Compose stack for `service` and `postgres`, including a Postgres healthcheck so the API waits for database readiness before startup
-- a repo-local plugin manifest, MCP config, and inline Task 1 MCP stub entrypoint
+- a FastAPI service with `/health`, `/auth/status`, `/refresh`, `/search`, and `/files/{file_id}`
+- Docker Compose wiring for `postgres`, `migrate`, `service`, and `worker`
+- metadata refresh jobs, stale-job recovery, extraction, and indexed file search
+- a thin local MCP plugin that proxies search, file details, excerpts, and refresh calls to the service
+- planning hooks for future AI categorization and markdown collection generation
 
-Later tasks add database wiring, Apple session bootstrap, crawling, extraction, and the MCP server implementation.
+The current implementation is read-only and iCloud-only.
 
-## Baseline runtime wiring
+## Runtime notes
 
 - `docker compose up --build` works without creating `.env`
 - copy `.env.example` to `.env` only if you want to override the default ports or credentials
 - use `POSTGRES_PUBLISHED_PORT` to change the host-facing database port without changing the service's internal Postgres connection on `5432`
 - the service container validates DB connectivity with `SELECT 1` before serving HTTP
-- the plugin's MCP entrypoint is an inline placeholder stub for Task 1, not the full Task 7 server
+- the worker applies extraction when payloads are available and records best-effort extraction failures without failing the whole refresh
+- the plugin launcher in `plugins/icloud-drive/.mcp.json` starts the real MCP proxy, with a repo-local bootstrap fallback when the package import path is not already installed
 
-## Local test
+## Local plugin
+
+- plugin path: `plugins/icloud-drive`
+- MCP tool surface:
+  - `search_icloud_files`
+  - `get_icloud_file`
+  - `get_icloud_file_excerpt`
+  - `refresh_icloud_index`
+- install command:
 
 ```bash
-python -m pytest tests/test_health_api.py tests/test_config.py -v
+python -m pip install -e .
 ```
+
+## Validation
+
+Focused service and plugin checks:
+
+```bash
+python -m pytest tests/test_health_api.py tests/test_search_api.py tests/test_plugin_client.py -v
+```
+
+For operations guidance, see [docs/operations.md](/C:/Code/iCloudPlugin/docs/operations.md).
