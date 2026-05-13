@@ -107,3 +107,30 @@ def test_compose_runs_migrations_before_service_and_worker():
     assert migrate_service["command"] == ["uv", "run", "alembic", "upgrade", "head"]
     assert service_depends_on["migrate"]["condition"] == "service_completed_successfully"
     assert worker_depends_on["migrate"]["condition"] == "service_completed_successfully"
+
+
+def test_compose_passes_icloud_auth_environment_to_service_and_worker():
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ | {
+        "ICLOUD_APPLE_ID": "user@example.com",
+        "ICLOUD_APPLE_PASSWORD": "secret",
+    }
+    result = subprocess.run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=repo_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    config = json.loads(result.stdout)
+    service_env = config["services"]["service"]["environment"]
+    worker_env = config["services"]["worker"]["environment"]
+
+    for container_env in (service_env, worker_env):
+        assert container_env["ICLOUD_APPLE_ID"] == "user@example.com"
+        assert container_env["ICLOUD_APPLE_PASSWORD"] == "secret"
+        assert container_env["ICLOUD_COOKIE_DIRECTORY"] == ".runtime/pyicloud"
+        assert container_env["ICLOUD_MAX_DOWNLOAD_BYTES"] == "1048576"
