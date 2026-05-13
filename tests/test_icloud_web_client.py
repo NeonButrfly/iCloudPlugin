@@ -172,3 +172,74 @@ def test_icloud_web_client_lists_drive_files_and_respects_download_size_cap(
             "modified": "2026-05-11T00:00:00+00:00",
         },
     ]
+
+
+def test_icloud_web_client_skips_app_libraries_and_default_excluded_directories(
+    monkeypatch,
+):
+    root = FakeDriveNode(
+        name="root",
+        node_type="folder",
+        children=[
+            FakeDriveNode(
+                name="node_modules",
+                node_type="folder",
+                children=[
+                    FakeDriveNode(
+                        name="left-pad.js",
+                        node_type="file",
+                        payload=b"module.exports = 0",
+                        size=18,
+                    )
+                ],
+            ),
+            FakeDriveNode(
+                name="Clockology",
+                node_type="app_library",
+                children=[
+                    FakeDriveNode(
+                        name="ignored.txt",
+                        node_type="file",
+                        payload=b"ignore me",
+                        size=9,
+                    )
+                ],
+            ),
+            FakeDriveNode(
+                name="Documents",
+                node_type="folder",
+                children=[
+                    FakeDriveNode(
+                        name="Notes.txt",
+                        node_type="file",
+                        payload=b"hello",
+                        size=5,
+                        drivewsid="notes-node",
+                    )
+                ],
+            ),
+        ],
+    )
+    monkeypatch.setenv("ICLOUD_APPLE_ID", "user@example.com")
+    monkeypatch.setenv("ICLOUD_APPLE_PASSWORD", "secret")
+    monkeypatch.setattr(
+        client_module,
+        "PyiCloudService",
+        lambda *args, **kwargs: FakePyiCloudService(drive=root),
+    )
+
+    client = create_icloud_web_client()
+
+    items = client.list_drive_items()
+
+    assert items == [
+        {
+            "id": "notes-node",
+            "name": "Notes.txt",
+            "path": "/Documents/Notes.txt",
+            "extension": "txt",
+            "contentType": "text/plain",
+            "size": 5,
+            "content_bytes": b"hello",
+        }
+    ]

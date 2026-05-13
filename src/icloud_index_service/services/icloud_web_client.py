@@ -13,6 +13,17 @@ BROWSER_ASSISTED_AUTH_MODE = "browser-assisted-apple-web"
 HeartbeatCallback = Callable[[], None]
 DEFAULT_COOKIE_DIRECTORY = ".runtime/pyicloud"
 DEFAULT_MAX_DOWNLOAD_BYTES = 1_048_576
+DEFAULT_EXCLUDED_DIRECTORY_NAMES = frozenset(
+    {
+        ".git",
+        ".venv",
+        "__pycache__",
+        "build",
+        "dist",
+        "node_modules",
+        "venv",
+    }
+)
 
 
 class ICloudWebClientNotReadyError(RuntimeError):
@@ -48,6 +59,17 @@ def _read_float_env(name: str) -> float | None:
     return float(raw_value)
 
 
+def _read_csv_env(name: str) -> frozenset[str]:
+    raw_value = os.environ.get(name)
+    if raw_value is None or not raw_value.strip():
+        return frozenset()
+    return frozenset(
+        part.strip()
+        for part in raw_value.split(",")
+        if part.strip()
+    )
+
+
 def _ensure_cookie_directory() -> str:
     cookie_directory = _read_required_env("ICLOUD_COOKIE_DIRECTORY") or DEFAULT_COOKIE_DIRECTORY
     cookie_path = Path(cookie_directory)
@@ -74,10 +96,12 @@ class ICloudWebClient:
         service: Any | None = None,
         auth_mode: str = BROWSER_ASSISTED_AUTH_MODE,
         max_download_bytes: int = DEFAULT_MAX_DOWNLOAD_BYTES,
+        excluded_directory_names: frozenset[str] = DEFAULT_EXCLUDED_DIRECTORY_NAMES,
     ) -> None:
         self.auth_mode = auth_mode
         self._service = service
         self._max_download_bytes = max_download_bytes
+        self._excluded_directory_names = excluded_directory_names
 
     def list_drive_items(
         self,
@@ -107,8 +131,12 @@ class ICloudWebClient:
         if heartbeat is not None:
             heartbeat()
 
+        if node.type == "app_library":
+            return
         if node.type == "file":
             items.append(self._serialize_file_node(node, parent_path=parent_path))
+            return
+        if node.name in self._excluded_directory_names:
             return
 
         current_path = parent_path
@@ -198,5 +226,9 @@ def create_icloud_web_client() -> ICloudWebClient:
         max_download_bytes=_read_int_env(
             "ICLOUD_MAX_DOWNLOAD_BYTES",
             default=DEFAULT_MAX_DOWNLOAD_BYTES,
+        ),
+        excluded_directory_names=(
+            DEFAULT_EXCLUDED_DIRECTORY_NAMES
+            | _read_csv_env("ICLOUD_EXCLUDED_DIRECTORY_NAMES")
         ),
     )
