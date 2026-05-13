@@ -224,8 +224,12 @@ def _persist_refresh_results(
     *,
     raw_items: list[dict[str, object]],
     normalized_items: list[dict[str, object]],
+    is_complete_snapshot: bool,
 ) -> list[dict[str, str]]:
     extraction_failures: list[dict[str, str]] = []
+    seen_external_ids = {
+        str(normalized_item["external_id"]) for normalized_item in normalized_items
+    }
 
     for raw_item, normalized_item in zip(raw_items, normalized_items, strict=True):
         file_record = _upsert_file_record(session, normalized_item=normalized_item)
@@ -271,6 +275,18 @@ def _persist_refresh_results(
         else:
             extracted_content.content_text = extracted_text
             extracted_content.content_hash = content_hash
+        session.flush()
+
+    if is_complete_snapshot:
+        missing_files_statement = update(FileRecord).values(is_deleted=True)
+        if seen_external_ids:
+            missing_files_statement = missing_files_statement.where(
+                FileRecord.external_id.not_in(seen_external_ids)
+            )
+        missing_files_statement = missing_files_statement.where(
+            FileRecord.is_deleted.is_(False)
+        )
+        session.execute(missing_files_statement)
         session.flush()
 
     return extraction_failures
@@ -554,6 +570,7 @@ def run_next_job(
             session,
             raw_items=raw_items,
             normalized_items=items,
+            is_complete_snapshot=True,
         )
         payload = _deserialize_payload(lease_payload_json)
         payload.pop(CLAIMED_AT_FIELD, None)

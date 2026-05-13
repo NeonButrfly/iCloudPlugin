@@ -342,6 +342,94 @@ def test_run_next_job_persists_file_records_and_extracted_content_from_refresh_r
     assert stored_content.content_text == "Quarterly budget draft"
 
 
+def test_run_next_job_marks_missing_files_as_deleted_when_they_disappear_from_refresh(
+    tmp_path,
+):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    try:
+        stale_file = FileRecord(
+            external_id="missing-file",
+            name="Missing.txt",
+            path="/Finance/Missing.txt",
+            mime_type="text/plain",
+            size_bytes=10,
+        )
+        current_file = FileRecord(
+            external_id="current-file",
+            name="Current.txt",
+            path="/Finance/Current.txt",
+            mime_type="text/plain",
+            size_bytes=12,
+        )
+        session.add_all([stale_file, current_file])
+        session.commit()
+
+        enqueue_metadata_refresh(session)
+        completed_job = run_next_job(
+            session,
+            client=FakeICloudWebClient(
+                [
+                    {
+                        "id": "current-file",
+                        "name": "Current.txt",
+                        "path": "/Finance/Current.txt",
+                        "extension": "txt",
+                        "contentType": "text/plain",
+                        "content_bytes": b"current file",
+                        "size": 12,
+                    }
+                ]
+            ),
+        )
+        reloaded_stale_file = session.scalar(
+            select(FileRecord).where(FileRecord.external_id == "missing-file")
+        )
+        reloaded_current_file = session.scalar(
+            select(FileRecord).where(FileRecord.external_id == "current-file")
+        )
+    finally:
+        session.close()
+
+    assert completed_job is not None
+    assert completed_job.status == JOB_STATUS_COMPLETED
+    assert reloaded_stale_file is not None
+    assert reloaded_stale_file.is_deleted is True
+    assert reloaded_current_file is not None
+    assert reloaded_current_file.is_deleted is False
+
+
+def test_run_next_job_marks_all_files_deleted_when_a_complete_refresh_is_empty(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    try:
+        session.add(
+            FileRecord(
+                external_id="missing-file",
+                name="Missing.txt",
+                path="/Finance/Missing.txt",
+                mime_type="text/plain",
+                size_bytes=10,
+            )
+        )
+        session.commit()
+
+        enqueue_metadata_refresh(session)
+        completed_job = run_next_job(session, client=FakeICloudWebClient([]))
+        reloaded_file = session.scalar(
+            select(FileRecord).where(FileRecord.external_id == "missing-file")
+        )
+    finally:
+        session.close()
+
+    assert completed_job is not None
+    assert completed_job.status == JOB_STATUS_COMPLETED
+    assert reloaded_file is not None
+    assert reloaded_file.is_deleted is True
+
+
 @pytest.mark.parametrize(
     ("raw_item", "patched_extracted_text"),
     [

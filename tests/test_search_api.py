@@ -11,6 +11,7 @@ import icloud_index_service.main as main_module
 from icloud_index_service.db import get_session
 from icloud_index_service.models.extracted_content import ExtractedContent
 from icloud_index_service.models.file import FileRecord
+from icloud_index_service.services.search_service import MAX_FILE_CONTENT_CHARS
 
 
 def _build_session_factory(tmp_path: Path) -> sessionmaker[Session]:
@@ -122,7 +123,48 @@ def test_file_endpoint_returns_indexed_file_details(tmp_path, monkeypatch):
         "path": "/Finance/Budget.txt",
         "mime_type": "text/plain",
         "content_text": "Quarterly budget numbers and forecasts",
+        "content_length": 38,
+        "content_truncated": False,
         "excerpt": "Quarterly budget numbers and forecasts",
+    }
+
+
+def test_file_endpoint_caps_large_content_payloads(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path)
+    source_text = "A" * (MAX_FILE_CONTENT_CHARS + 25)
+    file_id = _seed_indexed_file(
+        session_factory,
+        content_text=source_text,
+    )
+
+    def override_get_session():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = override_get_session
+
+    try:
+        with TestClient(main_module.app) as client:
+            response = client.get(f"/files/{file_id}")
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "file_id": file_id,
+        "external_id": "file-1",
+        "name": "Budget.txt",
+        "path": "/Finance/Budget.txt",
+        "mime_type": "text/plain",
+        "content_text": "A" * MAX_FILE_CONTENT_CHARS,
+        "content_length": MAX_FILE_CONTENT_CHARS + 25,
+        "content_truncated": True,
+        "excerpt": "A" * 280,
     }
 
 
