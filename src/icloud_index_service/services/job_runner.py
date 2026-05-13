@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import inspect, select, update
+from sqlalchemy import inspect, select, text, update
 from sqlalchemy.orm import Session
 
 from icloud_index_service.models.job import Job
@@ -27,6 +27,7 @@ WORKER_ID_FIELD = "worker_id"
 ATTEMPT_COUNT_FIELD = "attempt_count"
 MAX_ATTEMPTS_FIELD = "max_attempts"
 DEFAULT_MAX_ATTEMPTS = 3
+REFRESH_ENQUEUE_LOCK_KEY = 61001
 
 
 class SchemaNotReadyError(RuntimeError):
@@ -108,6 +109,15 @@ def _parse_max_attempts(payload: dict[str, object]) -> int:
     if isinstance(raw_max_attempts, int) and raw_max_attempts > 0:
         return raw_max_attempts
     return DEFAULT_MAX_ATTEMPTS
+
+
+def _acquire_refresh_enqueue_lock(session: Session) -> None:
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    session.execute(
+        text("SELECT pg_advisory_xact_lock(:lock_key)"),
+        {"lock_key": REFRESH_ENQUEUE_LOCK_KEY},
+    )
 
 
 def renew_refresh_job_heartbeat(
@@ -315,6 +325,7 @@ def claim_next_metadata_refresh_job(
 
 def enqueue_metadata_refresh(session: Session) -> Job:
     ensure_refresh_job_schema_ready(session)
+    _acquire_refresh_enqueue_lock(session)
     existing_job = session.scalar(
         select(Job)
         .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)

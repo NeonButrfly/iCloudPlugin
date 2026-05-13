@@ -11,6 +11,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from icloud_index_service.api.refresh import request_refresh
+import icloud_index_service.services.job_runner as job_runner_module
 import icloud_index_service.worker as worker_module
 from icloud_index_service.models.base import Base
 from icloud_index_service.models.job import Job
@@ -690,6 +691,31 @@ def test_enqueue_metadata_refresh_coalesces_duplicate_queued_work(tmp_path):
     assert first_job.id == second_job.id
     assert len(stored_jobs) == 1
     assert stored_jobs[0].status == JOB_STATUS_QUEUED
+
+
+def test_enqueue_metadata_refresh_uses_postgres_advisory_lock_for_coalescing():
+    lock_calls: list[tuple[str, dict[str, object] | None]] = []
+
+    class FakePostgresSession:
+        def get_bind(self):
+            return type(
+                "FakeBind",
+                (),
+                {"dialect": type("FakeDialect", (), {"name": "postgresql"})()},
+            )()
+
+        def execute(self, statement, params=None):
+            lock_calls.append((str(statement), params))
+            return None
+
+    job_runner_module._acquire_refresh_enqueue_lock(FakePostgresSession())
+
+    assert lock_calls == [
+        (
+            "SELECT pg_advisory_xact_lock(:lock_key)",
+            {"lock_key": job_runner_module.REFRESH_ENQUEUE_LOCK_KEY},
+        )
+    ]
 
 
 def test_request_refresh_coalesces_duplicate_running_work(tmp_path):

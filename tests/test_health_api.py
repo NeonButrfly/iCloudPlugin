@@ -83,3 +83,25 @@ def test_compose_db_host_port_override_keeps_internal_postgres_port():
     assert postgres_port["target"] == 5432
     assert postgres_port["published"] == "6543"
     assert service_env["POSTGRES_PORT"] == "5432"
+
+
+def test_compose_runs_migrations_before_service_and_worker():
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    config = json.loads(result.stdout)
+    services = config["services"]
+    migrate_service = services["migrate"]
+    service_depends_on = services["service"]["depends_on"]
+    worker_depends_on = services["worker"]["depends_on"]
+
+    assert migrate_service["command"] == ["uv", "run", "alembic", "upgrade", "head"]
+    assert service_depends_on["migrate"]["condition"] == "service_completed_successfully"
+    assert worker_depends_on["migrate"]["condition"] == "service_completed_successfully"

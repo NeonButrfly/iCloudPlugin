@@ -18,6 +18,22 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+  migrate:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    working_dir: /app
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-icloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-icloud_index}
+    command: uv run alembic upgrade head
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   service:
     image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
     working_dir: /app
@@ -37,6 +53,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   worker:
     image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
@@ -53,6 +71,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   postgres-data:
