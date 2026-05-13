@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import weakref
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import inspect, select, text, update
+from sqlalchemy import inspect, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from icloud_index_service.models.extracted_content import ExtractedContent
 from icloud_index_service.models.file import FileRecord
 from icloud_index_service.models.job import Job
+from icloud_index_service.models.sync_run import SyncRun
 from icloud_index_service.services.crawler import normalize_remote_item
 from icloud_index_service.services.extractor import extract_text_content
 from icloud_index_service.services.icloud_web_client import (
@@ -35,7 +37,13 @@ ATTEMPT_COUNT_FIELD = "attempt_count"
 MAX_ATTEMPTS_FIELD = "max_attempts"
 DEFAULT_MAX_ATTEMPTS = 3
 REFRESH_ENQUEUE_LOCK_KEY = 61001
+DEFAULT_REFRESH_BATCH_FILE_LIMIT = 100
+DEFAULT_BACKGROUND_REFRESH_INTERVAL_SECONDS = 1800
 _SCHEMA_READY_CACHE: weakref.WeakKeyDictionary[object, bool] = weakref.WeakKeyDictionary()
+FRONTIER_FIELD = "frontier"
+ITEMS_SEEN_FIELD = "items_seen"
+BATCH_COUNT_FIELD = "batch_count"
+BACKGROUND_REFRESH_SOURCE = "background-scan"
 
 
 class SchemaNotReadyError(RuntimeError):
@@ -114,6 +122,14 @@ def _parse_iso_timestamp(raw_value: object) -> datetime | None:
     return parsed_value.astimezone(timezone.utc)
 
 
+def _coerce_utc_datetime(raw_value: datetime | None) -> datetime | None:
+    if raw_value is None:
+        return None
+    if raw_value.tzinfo is None:
+        return raw_value.replace(tzinfo=timezone.utc)
+    return raw_value.astimezone(timezone.utc)
+
+
 def _parse_claimed_at(payload: dict[str, object]) -> datetime | None:
     return _parse_iso_timestamp(payload.get(CLAIMED_AT_FIELD))
 
@@ -138,6 +154,28 @@ def _parse_max_attempts(payload: dict[str, object]) -> int:
     if isinstance(raw_max_attempts, int) and raw_max_attempts > 0:
         return raw_max_attempts
     return DEFAULT_MAX_ATTEMPTS
+
+
+def get_refresh_batch_file_limit() -> int:
+    raw_value = os.getenv("ICLOUD_REFRESH_BATCH_FILE_LIMIT")
+    if raw_value is None:
+        return DEFAULT_REFRESH_BATCH_FILE_LIMIT
+    try:
+        parsed_value = int(raw_value)
+    except ValueError:
+        return DEFAULT_REFRESH_BATCH_FILE_LIMIT
+    return max(parsed_value, 1)
+
+
+def get_background_refresh_interval_seconds() -> int:
+    raw_value = os.getenv("BACKGROUND_REFRESH_INTERVAL_SECONDS")
+    if raw_value is None:
+        return DEFAULT_BACKGROUND_REFRESH_INTERVAL_SECONDS
+    try:
+        parsed_value = int(raw_value)
+    except ValueError:
+        return DEFAULT_BACKGROUND_REFRESH_INTERVAL_SECONDS
+    return max(parsed_value, 0)
 
 
 def _acquire_refresh_enqueue_lock(session: Session) -> None:
@@ -168,6 +206,15 @@ def _find_existing_active_metadata_refresh_job(session: Session) -> Job | None:
     )
 
 
+def _find_latest_completed_sync_run(session: Session) -> SyncRun | None:
+    return session.scalar(
+        select(SyncRun)
+        .where(SyncRun.completed_at.is_not(None))
+        .order_by(SyncRun.completed_at.desc(), SyncRun.id.desc())
+        .limit(1)
+    )
+
+
 def _coerce_content_bytes(raw_item: dict[str, object]) -> bytes | None:
     raw_bytes = raw_item.get("content_bytes")
     if isinstance(raw_bytes, bytes):
@@ -185,6 +232,7 @@ def _upsert_file_record(
     session: Session,
     *,
     normalized_item: dict[str, object],
+    sync_run_id: int,
 ) -> FileRecord:
     external_id = str(normalized_item["external_id"])
     file_record = session.scalar(
@@ -201,6 +249,7 @@ def _upsert_file_record(
                 if normalized_item.get("size_bytes") is not None
                 else None
             ),
+            last_seen_sync_run_id=sync_run_id,
         )
         session.add(file_record)
         session.flush()
@@ -215,6 +264,7 @@ def _upsert_file_record(
         else None
     )
     file_record.is_deleted = False
+    file_record.last_seen_sync_run_id = sync_run_id
     session.flush()
     return file_record
 
@@ -224,15 +274,16 @@ def _persist_refresh_results(
     *,
     raw_items: list[dict[str, object]],
     normalized_items: list[dict[str, object]],
-    is_complete_snapshot: bool,
+    sync_run_id: int,
 ) -> list[dict[str, str]]:
     extraction_failures: list[dict[str, str]] = []
-    seen_external_ids = {
-        str(normalized_item["external_id"]) for normalized_item in normalized_items
-    }
 
     for raw_item, normalized_item in zip(raw_items, normalized_items, strict=True):
-        file_record = _upsert_file_record(session, normalized_item=normalized_item)
+        file_record = _upsert_file_record(
+            session,
+            normalized_item=normalized_item,
+            sync_run_id=sync_run_id,
+        )
         extracted_content = session.scalar(
             select(ExtractedContent).where(ExtractedContent.file_id == file_record.id)
         )
@@ -277,19 +328,41 @@ def _persist_refresh_results(
             extracted_content.content_hash = content_hash
         session.flush()
 
-    if is_complete_snapshot:
-        missing_files_statement = update(FileRecord).values(is_deleted=True)
-        if seen_external_ids:
-            missing_files_statement = missing_files_statement.where(
-                FileRecord.external_id.not_in(seen_external_ids)
-            )
-        missing_files_statement = missing_files_statement.where(
-            FileRecord.is_deleted.is_(False)
-        )
-        session.execute(missing_files_statement)
-        session.flush()
-
     return extraction_failures
+
+
+def _finalize_sync_run_snapshot(session: Session, *, sync_run_id: int) -> None:
+    session.execute(
+        update(FileRecord)
+        .where(FileRecord.is_deleted.is_(False))
+        .where(
+            or_(
+                FileRecord.last_seen_sync_run_id.is_(None),
+                FileRecord.last_seen_sync_run_id != sync_run_id,
+            )
+        )
+        .values(is_deleted=True)
+    )
+    session.flush()
+
+
+def _ensure_running_sync_run(session: Session, job: Job) -> SyncRun:
+    if job.sync_run_id is not None:
+        sync_run = session.get(SyncRun, job.sync_run_id)
+        if sync_run is not None:
+            if sync_run.status != JOB_STATUS_RUNNING:
+                sync_run.status = JOB_STATUS_RUNNING
+                sync_run.completed_at = None
+                sync_run.error_message = None
+                session.flush()
+            return sync_run
+
+    sync_run = SyncRun(status=JOB_STATUS_RUNNING)
+    session.add(sync_run)
+    session.flush()
+    job.sync_run_id = sync_run.id
+    session.flush()
+    return sync_run
 
 
 def renew_refresh_job_heartbeat(
@@ -496,6 +569,10 @@ def claim_next_metadata_refresh_job(
 
 
 def enqueue_metadata_refresh(session: Session) -> Job:
+    return enqueue_metadata_refresh_with_source(session, source="refresh-endpoint")
+
+
+def enqueue_metadata_refresh_with_source(session: Session, *, source: str) -> Job:
     ensure_refresh_job_schema_ready(session)
     _acquire_refresh_enqueue_lock(session)
     existing_job = _find_existing_active_metadata_refresh_job(session)
@@ -507,9 +584,11 @@ def enqueue_metadata_refresh(session: Session) -> Job:
         status=JOB_STATUS_QUEUED,
         payload_json=json.dumps(
             {
-                "source": "refresh-endpoint",
+                "source": source,
                 ATTEMPT_COUNT_FIELD: 0,
                 MAX_ATTEMPTS_FIELD: DEFAULT_MAX_ATTEMPTS,
+                ITEMS_SEEN_FIELD: 0,
+                BATCH_COUNT_FIELD: 0,
             }
         ),
     )
@@ -524,6 +603,65 @@ def enqueue_metadata_refresh(session: Session) -> Job:
         raise
     session.refresh(job)
     return job
+
+
+def maybe_enqueue_background_refresh(
+    session: Session,
+    *,
+    now: datetime | None = None,
+) -> Job | None:
+    ensure_refresh_job_schema_ready(session)
+    existing_job = _find_existing_active_metadata_refresh_job(session)
+    if existing_job is not None:
+        return existing_job
+
+    refresh_interval_seconds = get_background_refresh_interval_seconds()
+    if refresh_interval_seconds <= 0:
+        return None
+
+    latest_sync_run = _find_latest_completed_sync_run(session)
+    current_time = now or _utc_now()
+    latest_completed_at = (
+        _coerce_utc_datetime(latest_sync_run.completed_at)
+        if latest_sync_run is not None
+        else None
+    )
+    if latest_completed_at is not None:
+        elapsed_seconds = (current_time - latest_completed_at).total_seconds()
+        if elapsed_seconds < refresh_interval_seconds:
+            return None
+
+    return enqueue_metadata_refresh_with_source(
+        session,
+        source=BACKGROUND_REFRESH_SOURCE,
+    )
+
+
+def get_refresh_status_snapshot(session: Session) -> dict[str, object]:
+    ensure_refresh_job_schema_ready(session)
+    latest_job = session.scalar(
+        select(Job)
+        .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
+        .order_by(Job.id.desc())
+        .limit(1)
+    )
+    if latest_job is None:
+        return {"status": "idle"}
+
+    payload = _deserialize_payload(latest_job.payload_json)
+    snapshot: dict[str, object] = {
+        "status": latest_job.status,
+        "job_id": latest_job.id,
+        "job_type": latest_job.job_type,
+        "source": payload.get("source"),
+        "items_seen": payload.get(ITEMS_SEEN_FIELD, 0),
+        "batch_count": payload.get(BATCH_COUNT_FIELD, 0),
+        "sync_run_id": latest_job.sync_run_id,
+        "error_message": latest_job.error_message,
+    }
+    if FRONTIER_FIELD in payload and isinstance(payload[FRONTIER_FIELD], list):
+        snapshot["frontier_length"] = len(payload[FRONTIER_FIELD])
+    return snapshot
 
 
 def run_next_job(
@@ -564,34 +702,72 @@ def run_next_job(
 
     try:
         active_client = client or create_icloud_web_client()
-        raw_items = active_client.list_drive_items(heartbeat=heartbeat)
+        payload = _deserialize_payload(lease_payload_json)
+        can_resume_in_batches = (
+            getattr(active_client, "_service", None) is not None
+            or type(active_client).list_drive_items_batch is not ICloudWebClient.list_drive_items_batch
+        )
+        if can_resume_in_batches:
+            sync_run = _ensure_running_sync_run(session, job)
+            frontier = payload.get(FRONTIER_FIELD)
+            if not isinstance(frontier, list):
+                frontier = active_client.build_traversal_frontier()
+            raw_items, next_frontier, completed_snapshot = active_client.list_drive_items_batch(
+                frontier,
+                limit=get_refresh_batch_file_limit(),
+                heartbeat=heartbeat,
+            )
+        else:
+            raw_items = active_client.list_drive_items(heartbeat=heartbeat)
+            next_frontier = []
+            completed_snapshot = True
+            sync_run = _ensure_running_sync_run(session, job)
         items = [normalize_remote_item(item) for item in raw_items]
         extraction_failures = _persist_refresh_results(
             session,
             raw_items=raw_items,
             normalized_items=items,
-            is_complete_snapshot=True,
+            sync_run_id=sync_run.id,
         )
         payload = _deserialize_payload(lease_payload_json)
         payload.pop(CLAIMED_AT_FIELD, None)
         payload.pop(HEARTBEAT_AT_FIELD, None)
         payload.pop(WORKER_ID_FIELD, None)
-        payload.pop(ATTEMPT_COUNT_FIELD, None)
-        payload.pop(MAX_ATTEMPTS_FIELD, None)
-        payload["source"] = "refresh-endpoint"
-        payload["items_seen"] = len(items)
+        payload["source"] = str(payload.get("source") or "refresh-endpoint")
+        payload[ITEMS_SEEN_FIELD] = int(payload.get(ITEMS_SEEN_FIELD, 0)) + len(items)
+        payload[BATCH_COUNT_FIELD] = int(payload.get(BATCH_COUNT_FIELD, 0)) + 1
         payload["auth_mode"] = active_client.auth_mode
         if extraction_failures:
             payload["extraction_failures"] = extraction_failures
-        completed_job = apply_running_job_lease_update(
+        if completed_snapshot:
+            _finalize_sync_run_snapshot(session, sync_run_id=sync_run.id)
+            sync_run.status = JOB_STATUS_COMPLETED
+            sync_run.completed_at = _utc_now()
+            sync_run.error_message = None
+            payload.pop(FRONTIER_FIELD, None)
+            payload.pop(BATCH_COUNT_FIELD, None)
+            payload.pop(ATTEMPT_COUNT_FIELD, None)
+            payload.pop(MAX_ATTEMPTS_FIELD, None)
+            completed_job = apply_running_job_lease_update(
+                session,
+                job_id=job.id,
+                expected_payload_json=lease_payload_json,
+                next_status=JOB_STATUS_COMPLETED,
+                next_payload_json=_serialize_payload(payload),
+                error_message=None,
+            )
+            return completed_job
+
+        payload[FRONTIER_FIELD] = next_frontier
+        continued_job = apply_running_job_lease_update(
             session,
             job_id=job.id,
             expected_payload_json=lease_payload_json,
-            next_status=JOB_STATUS_COMPLETED,
+            next_status=JOB_STATUS_QUEUED,
             next_payload_json=_serialize_payload(payload),
             error_message=None,
         )
-        return completed_job
+        return continued_job
     except LostLeaseError:
         session.rollback()
         return None
@@ -623,6 +799,12 @@ def run_next_job(
                 f"Refresh job exhausted retry budget "
                 f"({attempt_count}/{max_attempts}): {type(exc).__name__}: {exc}"
             )
+        if next_status == JOB_STATUS_FAILED and job.sync_run_id is not None:
+            sync_run = session.get(SyncRun, job.sync_run_id)
+            if sync_run is not None:
+                sync_run.status = JOB_STATUS_FAILED
+                sync_run.completed_at = _utc_now()
+                sync_run.error_message = error_message
         return apply_running_job_lease_update(
             session,
             job_id=job.id,

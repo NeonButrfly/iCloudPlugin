@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import BigInteger, Boolean, String, Text, false
+from sqlalchemy import BigInteger, Boolean, ForeignKey, String, Text, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from icloud_index_service.models.base import Base
@@ -20,3 +20,7 @@ class FileRecord(Base):
         nullable=False,
     )
     size_bytes: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    last_seen_sync_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sync_runs.id"),
+        default=None,
+    )

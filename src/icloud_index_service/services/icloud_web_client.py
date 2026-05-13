@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from pyicloud import PyiCloudService
+from pyicloud.services.drive import DriveNode
 
 BROWSER_ASSISTED_AUTH_MODE = "browser-assisted-apple-web"
 HeartbeatCallback = Callable[[], None]
@@ -120,6 +121,52 @@ class ICloudWebClient:
         )
         return items
 
+    def build_traversal_frontier(self) -> list[dict[str, object]]:
+        if self._service is None:
+            raise ICloudWebClientNotReadyError("The iCloud web client has no active service.")
+        root_node = self._service.drive.root
+        return [self._serialize_frontier_entry(root_node, parent_path="")]
+
+    def list_drive_items_batch(
+        self,
+        frontier: list[dict[str, object]] | None,
+        *,
+        limit: int,
+        heartbeat: HeartbeatCallback | None = None,
+    ) -> tuple[list[dict[str, object]], list[dict[str, object]], bool]:
+        if self._service is None:
+            raise ICloudWebClientNotReadyError("The iCloud web client has no active service.")
+        active_frontier = list(frontier or self.build_traversal_frontier())
+        items: list[dict[str, object]] = []
+
+        while active_frontier and len(items) < limit:
+            if heartbeat is not None:
+                heartbeat()
+
+            entry = active_frontier.pop()
+            entry_type = str(entry["type"])
+            entry_name = str(entry["name"])
+            if entry_type == "app_library":
+                continue
+            if entry_type == "file":
+                items.append(self._serialize_file_entry(entry))
+                continue
+            if entry_name in self._excluded_directory_names:
+                continue
+
+            folder_node = self._resolve_frontier_folder_entry(entry)
+            child_parent_path = str(entry["path"])
+            children = folder_node.get_children()
+            for child in reversed(children):
+                active_frontier.append(
+                    self._serialize_frontier_entry(
+                        child,
+                        parent_path=child_parent_path,
+                    )
+                )
+
+        return items, active_frontier, not active_frontier
+
     def _walk_drive_node(
         self,
         node: Any,
@@ -151,6 +198,39 @@ class ICloudWebClient:
                 items=items,
             )
 
+    def _serialize_frontier_entry(
+        self,
+        node: Any,
+        *,
+        parent_path: str,
+    ) -> dict[str, object]:
+        node_path = parent_path
+        if node.name != "root":
+            node_path = f"{parent_path}/{node.name}" if parent_path else f"/{node.name}"
+        return {
+            "type": node.type,
+            "name": node.name,
+            "path": node_path,
+            "drivewsid": node.data.get("drivewsid"),
+            "docwsid": node.data.get("docwsid"),
+            "share_id": node.data.get("shareID"),
+            "zone": node.data.get("zone"),
+            "size": node.size,
+            "date_modified": getattr(node, "date_modified", None).isoformat()
+            if isinstance(getattr(node, "date_modified", None), datetime)
+            else None,
+        }
+
+    def _resolve_frontier_folder_entry(self, entry: dict[str, object]) -> DriveNode:
+        drive_service = self._service.drive
+        drivewsid = entry.get("drivewsid")
+        if not isinstance(drivewsid, str) or not drivewsid:
+            raise ICloudWebClientNotReadyError("Missing drivewsid for iCloud folder traversal.")
+        if str(entry["name"]) == "root":
+            return drive_service.root
+        node_data = drive_service.get_node_data(drivewsid, entry.get("share_id"))
+        return DriveNode(drive_service, node_data)
+
     def _serialize_file_node(
         self,
         node: Any,
@@ -179,12 +259,51 @@ class ICloudWebClient:
 
         return payload
 
+    def _serialize_file_entry(self, entry: dict[str, object]) -> dict[str, object]:
+        file_name = str(entry["name"])
+        file_path = str(entry["path"])
+        extension = _get_extension(file_name)
+        payload: dict[str, object] = {
+            "id": entry.get("drivewsid") or entry.get("docwsid") or file_path,
+            "name": file_name,
+            "path": file_path,
+            "extension": extension,
+            "contentType": _guess_content_type(file_name),
+            "size": entry.get("size"),
+        }
+        modified_at = entry.get("date_modified")
+        if isinstance(modified_at, str) and modified_at:
+            payload["modified"] = modified_at
+
+        size = entry.get("size")
+        if size is None or (isinstance(size, int) and size <= self._max_download_bytes):
+            content_bytes = self._download_file_entry_bytes(entry)
+            if content_bytes is not None:
+                payload["content_bytes"] = content_bytes
+
+        return payload
+
     def _download_file_bytes(self, node: Any) -> bytes | None:
         try:
             with node.open(stream=True) as response:
                 return response.raw.read(self._max_download_bytes + 1)[
                     : self._max_download_bytes
                 ]
+        except Exception:
+            return None
+
+    def _download_file_entry_bytes(self, entry: dict[str, object]) -> bytes | None:
+        if self._service is None:
+            return None
+        docwsid = entry.get("docwsid")
+        zone = entry.get("zone")
+        if not isinstance(docwsid, str) or not docwsid or not isinstance(zone, str) or not zone:
+            return None
+        try:
+            response = self._service.drive.get_file(docwsid, zone=zone, stream=True)
+            return response.raw.read(self._max_download_bytes + 1)[
+                : self._max_download_bytes
+            ]
         except Exception:
             return None
 

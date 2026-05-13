@@ -7,6 +7,7 @@ from icloud_index_service.db import get_session
 from icloud_index_service.services.job_runner import (
     SchemaNotReadyError,
     enqueue_metadata_refresh,
+    get_refresh_status_snapshot,
 )
 
 router = APIRouter(prefix="/refresh", tags=["refresh"])
@@ -23,3 +24,11 @@ def request_refresh(session: Session = Depends(get_session)) -> dict[str, object
         "job_id": job.id,
         "job_type": job.job_type,
     }
+
+
+@router.get("/status")
+def get_refresh_status(session: Session = Depends(get_session)) -> dict[str, object]:
+    try:
+        return get_refresh_status_snapshot(session)
+    except SchemaNotReadyError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

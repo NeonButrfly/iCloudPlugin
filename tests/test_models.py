@@ -51,6 +51,14 @@ def test_file_record_uses_bigint_for_multi_gb_sizes():
     assert size_column.server_default is None
 
 
+def test_file_record_tracks_last_seen_sync_run_for_resumable_snapshots():
+    last_seen_column = FileRecord.__table__.c.last_seen_sync_run_id
+
+    assert last_seen_column.nullable is True
+    assert len(last_seen_column.foreign_keys) == 1
+    assert next(iter(last_seen_column.foreign_keys)).target_fullname == "sync_runs.id"
+
+
 def test_file_record_exposes_matching_server_default_for_is_deleted():
     is_deleted_column = FileRecord.__table__.c.is_deleted
 
@@ -145,6 +153,8 @@ def test_initial_migration_captures_authoritative_schema_rules():
     assert "refreshed_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL" in result.stdout
     assert "CREATE UNIQUE INDEX uq_jobs_active_metadata_refresh" in result.stdout
     assert "Running upgrade 0001_initial_schema -> 0002_active_refresh_unique_index" in result.stdout
+    assert "Running upgrade 0002_active_refresh_unique_index -> 0003_file_sync_progress" in result.stdout
+    assert "last_seen_sync_run_id INTEGER" in result.stdout
     assert "ROW_NUMBER() OVER" in result.stdout
     assert "Marked failed during 0002_active_refresh_unique_index migration" in result.stdout
 

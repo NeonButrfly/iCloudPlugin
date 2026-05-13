@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -10,7 +11,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
-from icloud_index_service.api.refresh import request_refresh
+from icloud_index_service.api.refresh import get_refresh_status, request_refresh
 import icloud_index_service.services.job_runner as job_runner_module
 import icloud_index_service.worker as worker_module
 from icloud_index_service.models.base import Base
@@ -169,6 +170,33 @@ class SingleItemICloudWebClient(ICloudWebClient):
         return [dict(self._raw_item)]
 
 
+class BatchingICloudWebClient(ICloudWebClient):
+    def __init__(
+        self,
+        *,
+        initial_frontier: list[dict[str, object]],
+        batches: list[tuple[list[dict[str, object]], list[dict[str, object]], bool]],
+    ) -> None:
+        super().__init__(auth_mode="browser-assisted-apple-web")
+        self._initial_frontier = copy.deepcopy(initial_frontier)
+        self._batches = list(batches)
+        self.frontier_calls: list[list[dict[str, object]]] = []
+
+    def build_traversal_frontier(self) -> list[dict[str, object]]:
+        return copy.deepcopy(self._initial_frontier)
+
+    def list_drive_items_batch(self, frontier, *, limit, heartbeat=None):
+        if heartbeat is not None:
+            heartbeat()
+        self.frontier_calls.append(copy.deepcopy(frontier))
+        raw_items, next_frontier, completed_snapshot = self._batches.pop(0)
+        return (
+            copy.deepcopy(raw_items),
+            copy.deepcopy(next_frontier),
+            completed_snapshot,
+        )
+
+
 def test_normalize_remote_item_preserves_storage_shape_for_later_routing():
     raw = {
         "id": "abc",
@@ -221,6 +249,46 @@ def test_request_refresh_surfaces_missing_active_refresh_index_until_follow_up_m
     assert exc_info.value.status_code == 503
     assert "uq_jobs_active_metadata_refresh" in exc_info.value.detail
     assert "migration" in exc_info.value.detail.lower()
+
+
+def test_refresh_status_reports_latest_job_progress(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    try:
+        idle_payload = get_refresh_status(session)
+        session.add(
+            Job(
+                job_type=METADATA_REFRESH_JOB_TYPE,
+                status=JOB_STATUS_RUNNING,
+                payload_json=json.dumps(
+                    {
+                        "source": "background-scan",
+                        "items_seen": 25,
+                        "batch_count": 3,
+                        "frontier": [{"type": "folder", "name": "Documents"}],
+                    }
+                ),
+                sync_run_id=None,
+            )
+        )
+        session.commit()
+        active_payload = get_refresh_status(session)
+    finally:
+        session.close()
+
+    assert idle_payload == {"status": "idle"}
+    assert active_payload == {
+        "status": "running",
+        "job_id": 1,
+        "job_type": "metadata-refresh",
+        "source": "background-scan",
+        "items_seen": 25,
+        "batch_count": 3,
+        "sync_run_id": None,
+        "error_message": None,
+        "frontier_length": 1,
+    }
 
 
 def test_refresh_job_schema_readiness_caches_success_by_bind(tmp_path, monkeypatch):
@@ -286,6 +354,109 @@ def test_enqueue_and_run_metadata_refresh_updates_job_payload_with_crawl_results
     }
     assert stored_job is not None
     assert stored_job.status == JOB_STATUS_COMPLETED
+
+
+def test_run_next_job_requeues_partial_refresh_and_resumes_from_persisted_frontier(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+    client = BatchingICloudWebClient(
+        initial_frontier=[
+            {
+                "type": "folder",
+                "name": "root",
+                "path": "",
+                "drivewsid": "root",
+            }
+        ],
+        batches=[
+            (
+                [
+                    {
+                        "id": "file-1",
+                        "name": "File1.txt",
+                        "path": "/Docs/File1.txt",
+                        "extension": "txt",
+                        "contentType": "text/plain",
+                        "size": 10,
+                    }
+                ],
+                [
+                    {
+                        "type": "file",
+                        "name": "File2.txt",
+                        "path": "/Docs/File2.txt",
+                        "drivewsid": "file-2",
+                        "docwsid": "file-2",
+                        "zone": "com.apple.CloudDocs",
+                        "size": 12,
+                    }
+                ],
+                False,
+            ),
+            (
+                [
+                    {
+                        "id": "file-2",
+                        "name": "File2.txt",
+                        "path": "/Docs/File2.txt",
+                        "extension": "txt",
+                        "contentType": "text/plain",
+                        "size": 12,
+                    }
+                ],
+                [],
+                True,
+            ),
+        ],
+    )
+
+    try:
+        queued_job = enqueue_metadata_refresh(session)
+        first_result = run_next_job(session, client=client, worker_id="worker-a")
+        first_status = first_result.status
+        first_payload = json.loads(first_result.payload_json or "{}")
+        stored_job_after_first_batch = session.scalar(select(Job).where(Job.id == queued_job.id))
+        first_sync_run_id = stored_job_after_first_batch.sync_run_id
+        stored_file_after_first_batch = session.scalar(
+            select(FileRecord).where(FileRecord.external_id == "file-1")
+        )
+
+        second_result = run_next_job(session, client=client, worker_id="worker-a")
+        second_payload = json.loads(second_result.payload_json or "{}")
+        stored_job_after_second_batch = session.scalar(select(Job).where(Job.id == queued_job.id))
+        stored_files = session.scalars(select(FileRecord).order_by(FileRecord.external_id.asc())).all()
+        sync_run = session.scalar(select(SyncRun).where(SyncRun.id == first_sync_run_id))
+    finally:
+        session.close()
+
+    assert first_result is not None
+    assert first_status == JOB_STATUS_QUEUED
+    assert first_payload["items_seen"] == 1
+    assert first_payload["batch_count"] == 1
+    assert len(first_payload["frontier"]) == 1
+    assert stored_job_after_first_batch is not None
+    assert stored_job_after_first_batch.sync_run_id is not None
+    assert stored_file_after_first_batch is not None
+    assert stored_file_after_first_batch.last_seen_sync_run_id == stored_job_after_first_batch.sync_run_id
+
+    assert second_result is not None
+    assert second_result.status == JOB_STATUS_COMPLETED
+    assert second_payload["items_seen"] == 2
+    assert "frontier" not in second_payload
+    assert stored_job_after_second_batch is not None
+    assert stored_job_after_second_batch.sync_run_id == first_sync_run_id
+    assert [file.external_id for file in stored_files] == ["file-1", "file-2"]
+    assert sync_run is not None
+    assert sync_run.status == JOB_STATUS_COMPLETED
+    assert client.frontier_calls[0] == [
+        {
+            "type": "folder",
+            "name": "root",
+            "path": "",
+            "drivewsid": "root",
+        }
+    ]
+    assert client.frontier_calls[1] == first_payload["frontier"]
 
 
 def test_run_next_job_persists_file_records_and_extracted_content_from_refresh_results(
@@ -1226,6 +1397,8 @@ def test_request_refresh_coalesces_duplicate_running_work(tmp_path):
 def test_worker_loop_polls_and_processes_refresh_jobs_enqueued_after_startup(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     sleep_calls: list[float] = []
+    original_interval = job_runner_module.DEFAULT_BACKGROUND_REFRESH_INTERVAL_SECONDS
+    job_runner_module.DEFAULT_BACKGROUND_REFRESH_INTERVAL_SECONDS = 0
 
     def fake_sleep(interval_seconds: float) -> None:
         sleep_calls.append(interval_seconds)
@@ -1235,23 +1408,26 @@ def test_worker_loop_polls_and_processes_refresh_jobs_enqueued_after_startup(tmp
         finally:
             session.close()
 
-    processed_count = run_worker_loop(
-        session_factory=session_factory,
-        client=FakeICloudWebClient(
-            [
-                {
-                    "id": "queued-after-startup",
-                    "name": "Queued After Startup",
-                    "path": "/Work/QueuedAfterStartup.md",
-                    "extension": "md",
-                    "contentType": "text/markdown",
-                }
-            ]
-        ),
-        max_polls=2,
-        poll_interval_seconds=0.25,
-        sleep_fn=fake_sleep,
-    )
+    try:
+        processed_count = run_worker_loop(
+            session_factory=session_factory,
+            client=FakeICloudWebClient(
+                [
+                    {
+                        "id": "queued-after-startup",
+                        "name": "Queued After Startup",
+                        "path": "/Work/QueuedAfterStartup.md",
+                        "extension": "md",
+                        "contentType": "text/markdown",
+                    }
+                ]
+            ),
+            max_polls=2,
+            poll_interval_seconds=0.25,
+            sleep_fn=fake_sleep,
+        )
+    finally:
+        job_runner_module.DEFAULT_BACKGROUND_REFRESH_INTERVAL_SECONDS = original_interval
 
     verification_session = session_factory()
     try:
@@ -1263,6 +1439,38 @@ def test_worker_loop_polls_and_processes_refresh_jobs_enqueued_after_startup(tmp
     assert sleep_calls == [0.25]
     assert len(stored_jobs) == 1
     assert stored_jobs[0].status == JOB_STATUS_COMPLETED
+
+
+def test_run_worker_once_enqueues_background_refresh_when_due(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    monkeypatch.setenv("BACKGROUND_REFRESH_INTERVAL_SECONDS", "60")
+
+    processed_count = worker_module.run_worker_once(
+        session_factory=session_factory,
+        worker_id="worker-a",
+        client=FakeICloudWebClient(
+            [
+                {
+                    "id": "background-file",
+                    "name": "Background.txt",
+                    "path": "/Work/Background.txt",
+                    "extension": "txt",
+                    "contentType": "text/plain",
+                }
+            ]
+        ),
+    )
+
+    verification_session = session_factory()
+    try:
+        stored_jobs = verification_session.scalars(select(Job).order_by(Job.id.asc())).all()
+    finally:
+        verification_session.close()
+
+    assert processed_count == 1
+    assert len(stored_jobs) == 1
+    assert stored_jobs[0].status == JOB_STATUS_COMPLETED
+    assert json.loads(stored_jobs[0].payload_json or "{}")["source"] == "background-scan"
 
 
 def test_worker_loop_treats_schema_and_db_startup_errors_as_retryable_idle_polls(

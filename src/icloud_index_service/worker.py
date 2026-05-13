@@ -6,7 +6,11 @@ import time
 
 from icloud_index_service.db import get_session_factory
 from icloud_index_service.services.icloud_web_client import ICloudWebClient
-from icloud_index_service.services.job_runner import SchemaNotReadyError, run_next_job
+from icloud_index_service.services.job_runner import (
+    SchemaNotReadyError,
+    maybe_enqueue_background_refresh,
+    run_next_job,
+)
 from sqlalchemy.exc import OperationalError
 
 DEFAULT_WORKER_POLL_INTERVAL_SECONDS = 5.0
@@ -39,6 +43,7 @@ def run_worker_once(
     active_session_factory = session_factory or get_session_factory()
     session = active_session_factory()
     try:
+        maybe_enqueue_background_refresh(session)
         job = run_next_job(
             session,
             client=client,
