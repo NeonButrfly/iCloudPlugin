@@ -4,12 +4,20 @@ from icloud_index_service.services.icloud_web_client import ICloudWebClient
 
 
 def normalize_remote_item(raw: dict[str, object]) -> dict[str, object]:
+    mime_type = (
+        raw.get("mime_type")
+        or raw.get("content_type")
+        or raw.get("contentType")
+        or raw.get("mimeType")
+        or "application/octet-stream"
+    )
     return {
         "external_id": raw["id"],
         "name": raw["name"],
         "path": raw["path"],
         "extension": raw.get("extension"),
-        "size_bytes": raw.get("size", 0),
+        "mime_type": mime_type,
+        "size_bytes": raw.get("size"),
     }
 
 

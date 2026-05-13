@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
 from icloud_index_service.models.job import Job
@@ -17,9 +17,30 @@ JOB_STATUS_QUEUED = "queued"
 JOB_STATUS_RUNNING = "running"
 JOB_STATUS_COMPLETED = "completed"
 JOB_STATUS_FAILED = "failed"
+REQUIRED_REFRESH_JOB_TABLES = ("jobs", "sync_runs")
+
+
+class SchemaNotReadyError(RuntimeError):
+    pass
+
+
+def ensure_refresh_job_schema_ready(session: Session) -> None:
+    inspector = inspect(session.get_bind())
+    missing_tables = [
+        table_name
+        for table_name in REQUIRED_REFRESH_JOB_TABLES
+        if not inspector.has_table(table_name)
+    ]
+    if missing_tables:
+        missing_tables_csv = ", ".join(missing_tables)
+        raise SchemaNotReadyError(
+            "Refresh job schema is not ready; missing tables: "
+            f"{missing_tables_csv}. Run migrations before using /refresh or the worker."
+        )
 
 
 def enqueue_metadata_refresh(session: Session) -> Job:
+    ensure_refresh_job_schema_ready(session)
     job = Job(
         job_type=METADATA_REFRESH_JOB_TYPE,
         status=JOB_STATUS_QUEUED,
@@ -35,6 +56,7 @@ def run_next_job(
     session: Session,
     client: ICloudWebClient | None = None,
 ) -> Job | None:
+    ensure_refresh_job_schema_ready(session)
     job = session.scalar(
         select(Job)
         .where(Job.status == JOB_STATUS_QUEUED)
