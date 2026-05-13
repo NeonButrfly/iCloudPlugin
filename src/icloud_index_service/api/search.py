@@ -52,14 +52,23 @@ def _get_search_session(
 def search(
     query: str = Query(min_length=1),
     limit: int = Query(default=10, ge=1, le=50),
+    path_scope: str | None = Query(default=None),
     session: Session = Depends(_get_search_session),
 ) -> dict[str, object]:
     try:
-        return {
+        payload = {
             "query": query,
             "limit": limit,
-            "results": search_files(session, query=query, limit=limit),
+            "results": search_files(
+                session,
+                query=query,
+                limit=limit,
+                path_scope=path_scope,
+            ),
         }
+        if path_scope is not None:
+            payload["path_scope"] = path_scope
+        return payload
     except SQLAlchemyError as exc:
         raise HTTPException(
             status_code=503,

@@ -63,7 +63,23 @@ def _escape_like_fragment(value: str) -> str:
     )
 
 
-def search_files(session: Session, *, query: str, limit: int) -> list[dict[str, Any]]:
+def _normalize_path_scope(path_scope: str) -> str:
+    trimmed_path_scope = path_scope.strip()
+    if not trimmed_path_scope or trimmed_path_scope == "/":
+        return "/"
+    normalized_path_scope = trimmed_path_scope.rstrip("/")
+    if not normalized_path_scope.startswith("/"):
+        normalized_path_scope = f"/{normalized_path_scope}"
+    return f"{normalized_path_scope}/"
+
+
+def search_files(
+    session: Session,
+    *,
+    query: str,
+    limit: int,
+    path_scope: str | None = None,
+) -> list[dict[str, Any]]:
     normalized_query = query.strip()
     if not normalized_query:
         return []
@@ -83,6 +99,12 @@ def search_files(session: Session, *, query: str, limit: int) -> list[dict[str, 
         .order_by(FileRecord.id.asc())
         .limit(limit)
     )
+    if path_scope:
+        normalized_path_scope = _normalize_path_scope(path_scope)
+        path_pattern = f"{_escape_like_fragment(normalized_path_scope)}%"
+        statement = statement.where(
+            FileRecord.path.ilike(path_pattern, escape=LIKE_ESCAPE_CHAR)
+        )
 
     return [
         _serialize_file_match(file_record, extracted_content)

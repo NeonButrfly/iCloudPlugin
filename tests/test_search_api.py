@@ -94,6 +94,116 @@ def test_search_endpoint_returns_matching_file_excerpt(tmp_path, monkeypatch):
     }
 
 
+def test_search_endpoint_respects_path_scope(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path)
+    finance_file_id = _seed_indexed_file(
+        session_factory,
+        external_id="finance-file",
+        name="Budget.txt",
+        path="/Finance/Budget.txt",
+        content_text="Finance budget notes",
+    )
+    _seed_indexed_file(
+        session_factory,
+        external_id="personal-file",
+        name="Budget.txt",
+        path="/Personal/Budget.txt",
+        content_text="Personal budget notes",
+    )
+
+    def override_get_session():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = override_get_session
+
+    try:
+        with TestClient(main_module.app) as client:
+            response = client.get(
+                "/search",
+                params={"query": "budget", "limit": 5, "path_scope": "/Finance"},
+            )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "query": "budget",
+        "limit": 5,
+        "path_scope": "/Finance",
+        "results": [
+            {
+                "file_id": finance_file_id,
+                "external_id": "finance-file",
+                "name": "Budget.txt",
+                "path": "/Finance/Budget.txt",
+                "mime_type": "text/plain",
+                "excerpt": "Finance budget notes",
+            }
+        ],
+    }
+
+
+def test_search_endpoint_accepts_relative_path_scope(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path)
+    finance_file_id = _seed_indexed_file(
+        session_factory,
+        external_id="finance-file",
+        name="Budget.txt",
+        path="/Finance/Budget.txt",
+        content_text="Finance budget notes",
+    )
+    _seed_indexed_file(
+        session_factory,
+        external_id="personal-file",
+        name="Budget.txt",
+        path="/Personal/Budget.txt",
+        content_text="Personal budget notes",
+    )
+
+    def override_get_session():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = override_get_session
+
+    try:
+        with TestClient(main_module.app) as client:
+            response = client.get(
+                "/search",
+                params={"query": "budget", "limit": 5, "path_scope": "Finance"},
+            )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "query": "budget",
+        "limit": 5,
+        "path_scope": "Finance",
+        "results": [
+            {
+                "file_id": finance_file_id,
+                "external_id": "finance-file",
+                "name": "Budget.txt",
+                "path": "/Finance/Budget.txt",
+                "mime_type": "text/plain",
+                "excerpt": "Finance budget notes",
+            }
+        ],
+    }
+
+
 def test_file_endpoint_returns_indexed_file_details(tmp_path, monkeypatch):
     session_factory = _build_session_factory(tmp_path)
     file_id = _seed_indexed_file(session_factory)

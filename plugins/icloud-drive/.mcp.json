@@ -4,7 +4,7 @@
       "command": "python",
       "args": [
         "-c",
-        "import sys; print('Task 1 MCP stub'); raise SystemExit(0)"
+        "from pathlib import Path; import sys; \ntry:\n    from icloud_plugin_mcp.server import main\nexcept ModuleNotFoundError as exc:\n    if exc.name not in {'icloud_plugin_mcp', 'icloud_plugin_mcp.server'}:\n        raise\n    cwd = Path.cwd().resolve()\n    root = next((p for p in (cwd, *cwd.parents) if (p / 'src' / 'icloud_plugin_mcp' / 'server.py').exists()), None)\n    assert root is not None, 'Could not locate repo root for icloud_plugin_mcp'\n    sys.path.insert(0, str(root / 'src'))\n    from icloud_plugin_mcp.server import main\nmain()"
       ]
     }
   }

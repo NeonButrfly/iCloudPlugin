@@ -44,12 +44,14 @@ def test_app_startup_validates_database(monkeypatch):
     assert validation_calls == ["validated"]
 
 
-def test_plugin_mcp_wiring_uses_task1_owned_stub():
+def test_plugin_mcp_wiring_uses_real_plugin_server_module():
     repo_root = Path(__file__).resolve().parents[1]
     config = json.loads((repo_root / "plugins/icloud-drive/.mcp.json").read_text())
     server = config["mcpServers"]["icloud-drive"]
 
-    assert "icloud_plugin_mcp" not in " ".join(server["args"])
+    assert server["command"] == "python"
+    assert server["args"][0] == "-c"
+    assert "icloud_plugin_mcp.server" in server["args"][1]
 
     result = subprocess.run(
         [server["command"], *server["args"], "--help"],
@@ -60,7 +62,7 @@ def test_plugin_mcp_wiring_uses_task1_owned_stub():
     )
 
     assert result.returncode == 0
-    assert "task 1" in result.stdout.lower()
+    assert "icloud index service" in result.stdout.lower()
 
 
 def test_compose_db_host_port_override_keeps_internal_postgres_port():
