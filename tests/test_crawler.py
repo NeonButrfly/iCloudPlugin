@@ -21,6 +21,7 @@ from icloud_index_service.services.job_runner import (
     JOB_STATUS_QUEUED,
     JOB_STATUS_RUNNING,
     METADATA_REFRESH_JOB_TYPE,
+    apply_stale_recovery_update,
     claim_next_metadata_refresh_job,
     enqueue_metadata_refresh,
     recover_stale_running_jobs,
@@ -211,8 +212,70 @@ def test_recover_stale_running_jobs_requeues_expired_claims(tmp_path):
     assert recovered_count == 1
     assert reloaded_job is not None
     assert reloaded_job.status == JOB_STATUS_QUEUED
+    assert json.loads(reloaded_job.payload_json or "{}")["attempt_count"] == 1
     assert reloaded_job.error_message is not None
     assert "stale running job" in reloaded_job.error_message.lower()
+
+
+def test_apply_stale_recovery_update_skips_job_when_lease_changed_since_snapshot(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    snapshot_session = session_factory()
+    heartbeat_session = session_factory()
+
+    claimed_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    try:
+        running_job = Job(
+            job_type=METADATA_REFRESH_JOB_TYPE,
+            status=JOB_STATUS_RUNNING,
+            payload_json=json.dumps(
+                {
+                    "source": "refresh-endpoint",
+                    "attempt_count": 0,
+                    "max_attempts": 3,
+                    "claimed_at": claimed_at.isoformat(),
+                    "heartbeat_at": claimed_at.isoformat(),
+                }
+            ),
+        )
+        snapshot_session.add(running_job)
+        snapshot_session.commit()
+        snapshot_session.refresh(running_job)
+
+        snapshot_payload_json = running_job.payload_json
+
+        renew_refresh_job_heartbeat(
+            heartbeat_session,
+            running_job.id,
+            now=claimed_at + timedelta(minutes=5),
+        )
+
+        recovery_applied = apply_stale_recovery_update(
+            snapshot_session,
+            job_id=running_job.id,
+            expected_payload_json=snapshot_payload_json,
+            next_status=JOB_STATUS_QUEUED,
+            next_payload_json=json.dumps(
+                {
+                    "source": "refresh-endpoint",
+                    "attempt_count": 1,
+                    "max_attempts": 3,
+                }
+            ),
+            error_message="Recovered stale running job so it can be retried by the worker.",
+        )
+
+        reloaded_job = heartbeat_session.scalar(select(Job).where(Job.id == running_job.id))
+    finally:
+        snapshot_session.close()
+        heartbeat_session.close()
+
+    assert recovery_applied is False
+    assert reloaded_job is not None
+    assert reloaded_job.status == JOB_STATUS_RUNNING
+    assert json.loads(reloaded_job.payload_json or "{}")["heartbeat_at"] == (
+        claimed_at + timedelta(minutes=5)
+    ).isoformat()
 
 
 def test_renew_refresh_job_heartbeat_keeps_a_running_job_out_of_stale_recovery(tmp_path):
@@ -287,6 +350,45 @@ def test_recover_stale_running_jobs_fails_legacy_rows_without_valid_claimed_at(t
     assert [job.status for job in stored_jobs] == [JOB_STATUS_FAILED, JOB_STATUS_FAILED]
     assert all(job.error_message is not None for job in stored_jobs)
     assert all("claimed_at" in job.error_message for job in stored_jobs)
+
+
+def test_recover_stale_running_jobs_fails_when_recovery_exhausts_retry_budget(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    try:
+        stale_job = Job(
+            job_type=METADATA_REFRESH_JOB_TYPE,
+            status=JOB_STATUS_RUNNING,
+            payload_json=json.dumps(
+                {
+                    "source": "refresh-endpoint",
+                    "attempt_count": 2,
+                    "max_attempts": 3,
+                    "claimed_at": (
+                        datetime.now(timezone.utc) - timedelta(minutes=30)
+                    ).isoformat(),
+                }
+            ),
+        )
+        session.add(stale_job)
+        session.commit()
+        session.refresh(stale_job)
+
+        recovered_count = recover_stale_running_jobs(session, stale_after_seconds=60)
+        reloaded_job = session.scalar(select(Job).where(Job.id == stale_job.id))
+    finally:
+        session.close()
+
+    reloaded_payload = json.loads(reloaded_job.payload_json or "{}")
+
+    assert recovered_count == 1
+    assert reloaded_job is not None
+    assert reloaded_job.status == JOB_STATUS_FAILED
+    assert reloaded_payload["attempt_count"] == 3
+    assert reloaded_payload["max_attempts"] == 3
+    assert reloaded_job.error_message is not None
+    assert "retry budget" in reloaded_job.error_message.lower()
 
 
 def test_run_next_job_marks_placeholder_client_as_failed_not_completed(tmp_path):

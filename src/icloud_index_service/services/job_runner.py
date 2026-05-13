@@ -125,6 +125,37 @@ def renew_refresh_job_heartbeat(
     return job
 
 
+def apply_stale_recovery_update(
+    session: Session,
+    *,
+    job_id: int,
+    expected_payload_json: str | None,
+    next_status: str,
+    next_payload_json: str,
+    error_message: str,
+) -> bool:
+    ensure_refresh_job_schema_ready(session)
+    recovery_result = session.execute(
+        update(Job)
+        .where(Job.id == job_id)
+        .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
+        .where(Job.status == JOB_STATUS_RUNNING)
+        .where(Job.payload_json == expected_payload_json)
+        .values(
+            status=next_status,
+            payload_json=next_payload_json,
+            error_message=error_message,
+        )
+    )
+    if recovery_result.rowcount == 0:
+        session.rollback()
+        return False
+
+    session.commit()
+    session.expire_all()
+    return True
+
+
 def recover_stale_running_jobs(
     session: Session,
     *,
@@ -134,7 +165,7 @@ def recover_stale_running_jobs(
     ensure_refresh_job_schema_ready(session)
     current_time = now or _utc_now()
     stale_cutoff = current_time - timedelta(seconds=stale_after_seconds)
-    recovered_jobs: list[Job] = []
+    recovered_count = 0
 
     running_jobs = session.scalars(
         select(Job)
@@ -145,34 +176,59 @@ def recover_stale_running_jobs(
 
     for job in running_jobs:
         payload = _deserialize_payload(job.payload_json)
+        snapshot_payload_json = job.payload_json
         claimed_at = _parse_claimed_at(payload)
         if claimed_at is None:
-            job.status = JOB_STATUS_FAILED
-            job.error_message = (
-                "Failed running refresh job with missing or invalid claimed_at lease "
-                "metadata so it does not stay wedged or duplicate active work."
-            )
-            recovered_jobs.append(job)
+            if apply_stale_recovery_update(
+                session,
+                job_id=job.id,
+                expected_payload_json=snapshot_payload_json,
+                next_status=JOB_STATUS_FAILED,
+                next_payload_json=_serialize_payload(payload),
+                error_message=(
+                    "Failed running refresh job with missing or invalid claimed_at lease "
+                    "metadata so it does not stay wedged or duplicate active work."
+                ),
+            ):
+                recovered_count += 1
             continue
 
         heartbeat_at = _parse_heartbeat_at(payload) or claimed_at
         if heartbeat_at > stale_cutoff:
             continue
 
+        attempt_count = _parse_attempt_count(payload) + 1
+        max_attempts = _parse_max_attempts(payload)
         payload.pop(CLAIMED_AT_FIELD, None)
         payload.pop(HEARTBEAT_AT_FIELD, None)
         payload.pop(WORKER_ID_FIELD, None)
-        job.status = JOB_STATUS_QUEUED
-        job.payload_json = _serialize_payload(payload)
-        job.error_message = (
-            "Recovered stale running job so it can be retried by the worker."
-        )
-        recovered_jobs.append(job)
+        payload[ATTEMPT_COUNT_FIELD] = attempt_count
+        payload[MAX_ATTEMPTS_FIELD] = max_attempts
 
-    if recovered_jobs:
-        session.commit()
+        if attempt_count < max_attempts:
+            next_status = JOB_STATUS_QUEUED
+            error_message = (
+                "Recovered stale running job so it can be retried by the worker "
+                f"({attempt_count}/{max_attempts})."
+            )
+        else:
+            next_status = JOB_STATUS_FAILED
+            error_message = (
+                "Refresh job exhausted retry budget during stale-running recovery "
+                f"({attempt_count}/{max_attempts})."
+            )
 
-    return len(recovered_jobs)
+        if apply_stale_recovery_update(
+            session,
+            job_id=job.id,
+            expected_payload_json=snapshot_payload_json,
+            next_status=next_status,
+            next_payload_json=_serialize_payload(payload),
+            error_message=error_message,
+        ):
+            recovered_count += 1
+
+    return recovered_count
 
 
 def claim_next_metadata_refresh_job(
