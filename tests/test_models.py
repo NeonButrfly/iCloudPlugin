@@ -144,6 +144,7 @@ def test_initial_migration_captures_authoritative_schema_rules():
     assert "UNIQUE (dsid)" in result.stdout
     assert "refreshed_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL" in result.stdout
     assert "CREATE UNIQUE INDEX uq_jobs_active_metadata_refresh" in result.stdout
+    assert "Running upgrade 0001_initial_schema -> 0002_active_refresh_unique_index" in result.stdout
 
 
 def test_alembic_upgrade_sql_fails_fast_without_database_settings():

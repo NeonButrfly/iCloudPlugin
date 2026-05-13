@@ -45,6 +45,37 @@ def _build_session_factory(tmp_path: Path, *, create_schema: bool) -> sessionmak
     return sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
+def _build_session_factory_without_active_refresh_index(tmp_path: Path) -> sessionmaker[Session]:
+    database_path = tmp_path / "task5-no-index.sqlite3"
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE sync_runs (
+                id INTEGER PRIMARY KEY,
+                status VARCHAR(50) NOT NULL,
+                started_at DATETIME,
+                completed_at DATETIME,
+                error_message TEXT
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE jobs (
+                id INTEGER PRIMARY KEY,
+                job_type VARCHAR(100) NOT NULL,
+                status VARCHAR(50) NOT NULL,
+                payload_json TEXT,
+                error_message TEXT,
+                sync_run_id INTEGER,
+                FOREIGN KEY(sync_run_id) REFERENCES sync_runs(id)
+            )
+            """
+        )
+    return sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
+
 class FakeICloudWebClient(ICloudWebClient):
     def __init__(self, remote_items: list[dict[str, object]]) -> None:
         super().__init__(auth_mode="browser-assisted-apple-web")
@@ -140,6 +171,23 @@ def test_request_refresh_surfaces_missing_job_schema_before_queueing(tmp_path):
     assert "missing tables" in exc_info.value.detail
     assert "jobs" in exc_info.value.detail
     assert "sync_runs" in exc_info.value.detail
+
+
+def test_request_refresh_surfaces_missing_active_refresh_index_until_follow_up_migration_applies(
+    tmp_path,
+):
+    session_factory = _build_session_factory_without_active_refresh_index(tmp_path)
+    session = session_factory()
+
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            request_refresh(session)
+    finally:
+        session.close()
+
+    assert exc_info.value.status_code == 503
+    assert "uq_jobs_active_metadata_refresh" in exc_info.value.detail
+    assert "migration" in exc_info.value.detail.lower()
 
 
 def test_enqueue_and_run_metadata_refresh_updates_job_payload_with_crawl_results(tmp_path):

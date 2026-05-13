@@ -21,6 +21,7 @@ JOB_STATUS_RUNNING = "running"
 JOB_STATUS_COMPLETED = "completed"
 JOB_STATUS_FAILED = "failed"
 REQUIRED_REFRESH_JOB_TABLES = ("jobs", "sync_runs")
+REQUIRED_REFRESH_JOB_INDEXES = {"jobs": ("uq_jobs_active_metadata_refresh",)}
 DEFAULT_STALE_RUNNING_SECONDS = 300
 CLAIMED_AT_FIELD = "claimed_at"
 HEARTBEAT_AT_FIELD = "heartbeat_at"
@@ -51,6 +52,22 @@ def ensure_refresh_job_schema_ready(session: Session) -> None:
         raise SchemaNotReadyError(
             "Refresh job schema is not ready; missing tables: "
             f"{missing_tables_csv}. Run migrations before using /refresh or the worker."
+        )
+    missing_indexes = []
+    for table_name, required_index_names in REQUIRED_REFRESH_JOB_INDEXES.items():
+        existing_index_names = {
+            index_definition["name"]
+            for index_definition in inspector.get_indexes(table_name)
+        }
+        for required_index_name in required_index_names:
+            if required_index_name not in existing_index_names:
+                missing_indexes.append(f"{table_name}.{required_index_name}")
+    if missing_indexes:
+        missing_indexes_csv = ", ".join(missing_indexes)
+        raise SchemaNotReadyError(
+            "Refresh job schema is not ready; missing indexes: "
+            f"{missing_indexes_csv}. Apply the latest follow-up migration before using "
+            "/refresh or the worker."
         )
 
 

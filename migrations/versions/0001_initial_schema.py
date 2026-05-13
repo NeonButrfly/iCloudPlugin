@@ -69,22 +69,7 @@ def upgrade() -> None:
         sa.Column("sync_run_id", sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(["sync_run_id"], ["sync_runs.id"]),
     )
-    op.create_index(
-        "uq_jobs_active_metadata_refresh",
-        "jobs",
-        ["job_type"],
-        unique=True,
-        sqlite_where=sa.text(
-            "job_type = 'metadata-refresh' AND status IN ('queued', 'running')"
-        ),
-        postgresql_where=sa.text(
-            "job_type = 'metadata-refresh' AND status IN ('queued', 'running')"
-        ),
-    )
-
-
 def downgrade() -> None:
-    op.drop_index("uq_jobs_active_metadata_refresh", table_name="jobs")
     op.drop_table("jobs")
     op.drop_table("extracted_contents")
     op.drop_table("sync_runs")
