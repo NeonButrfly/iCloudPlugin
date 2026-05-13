@@ -33,6 +33,10 @@ class SchemaNotReadyError(RuntimeError):
     pass
 
 
+class LostLeaseError(RuntimeError):
+    pass
+
+
 def ensure_refresh_job_schema_ready(session: Session) -> None:
     inspector = inspect(session.get_bind())
     missing_tables = [
@@ -311,6 +315,24 @@ def claim_next_metadata_refresh_job(
 
 def enqueue_metadata_refresh(session: Session) -> Job:
     ensure_refresh_job_schema_ready(session)
+    existing_job = session.scalar(
+        select(Job)
+        .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
+        .where(Job.status == JOB_STATUS_RUNNING)
+        .order_by(Job.id.asc())
+        .limit(1)
+    )
+    if existing_job is None:
+        existing_job = session.scalar(
+            select(Job)
+            .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
+            .where(Job.status == JOB_STATUS_QUEUED)
+            .order_by(Job.id.asc())
+            .limit(1)
+        )
+    if existing_job is not None:
+        return existing_job
+
     job = Job(
         job_type=METADATA_REFRESH_JOB_TYPE,
         status=JOB_STATUS_QUEUED,
@@ -359,8 +381,11 @@ def run_next_job(
             job.id,
             expected_payload_json=lease_payload_json,
         )
-        if renewed_job is not None:
-            lease_payload_json = renewed_job.payload_json
+        if renewed_job is None:
+            raise LostLeaseError(
+                "Refresh job lease was lost during crawl heartbeat; aborting stale worker."
+            )
+        lease_payload_json = renewed_job.payload_json
 
     try:
         items = crawl_metadata(active_client, heartbeat=heartbeat)
@@ -382,6 +407,8 @@ def run_next_job(
             error_message=None,
         )
         return completed_job
+    except LostLeaseError:
+        return None
     except Exception as exc:
         payload = _deserialize_payload(lease_payload_json)
         attempt_count = _parse_attempt_count(payload) + 1

@@ -82,6 +82,28 @@ class ClaimStealingICloudWebClient(ICloudWebClient):
         ]
 
 
+class LeaseLosingICloudWebClient(ICloudWebClient):
+    def __init__(self, steal_claim) -> None:
+        super().__init__(auth_mode="browser-assisted-apple-web")
+        self._steal_claim = steal_claim
+        self.continued_after_heartbeat = False
+
+    def list_drive_items(self, *, heartbeat=None) -> list[dict[str, object]]:
+        self._steal_claim()
+        if heartbeat is not None:
+            heartbeat()
+        self.continued_after_heartbeat = True
+        return [
+            {
+                "id": "abc",
+                "name": "Notes",
+                "path": "/Work/Notes.md",
+                "extension": "md",
+                "contentType": "text/markdown",
+            }
+        ]
+
+
 def test_normalize_remote_item_preserves_storage_shape_for_later_routing():
     raw = {
         "id": "abc",
@@ -493,6 +515,58 @@ def test_run_next_job_marks_placeholder_client_as_failed_not_completed(tmp_path)
     assert stored_job.status == JOB_STATUS_FAILED
 
 
+def test_run_next_job_aborts_immediately_when_heartbeat_loses_lease(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    setup_session = session_factory()
+    claimed_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    try:
+        queued_job = enqueue_metadata_refresh(setup_session)
+    finally:
+        setup_session.close()
+
+    def steal_claim() -> None:
+        stealing_session = session_factory()
+        try:
+            stolen_job = stealing_session.scalar(select(Job).where(Job.id == queued_job.id))
+            assert stolen_job is not None
+            stolen_job.payload_json = json.dumps(
+                {
+                    "source": "refresh-endpoint",
+                    "attempt_count": 0,
+                    "max_attempts": 3,
+                    "worker_id": "worker-b",
+                    "claimed_at": (claimed_at + timedelta(minutes=5)).isoformat(),
+                    "heartbeat_at": (claimed_at + timedelta(minutes=5)).isoformat(),
+                }
+            )
+            stealing_session.commit()
+        finally:
+            stealing_session.close()
+
+    client = LeaseLosingICloudWebClient(steal_claim)
+    worker_session = session_factory()
+    verification_session = session_factory()
+
+    try:
+        result = run_next_job(
+            worker_session,
+            client=client,
+            worker_id="worker-a",
+            now=claimed_at,
+        )
+        stored_job = verification_session.scalar(select(Job).where(Job.id == queued_job.id))
+    finally:
+        worker_session.close()
+        verification_session.close()
+
+    assert result is None
+    assert client.continued_after_heartbeat is False
+    assert stored_job is not None
+    assert stored_job.status == JOB_STATUS_RUNNING
+    assert json.loads(stored_job.payload_json or "{}")["worker_id"] == "worker-b"
+
+
 def test_apply_running_job_lease_update_skips_stale_worker_completion_when_lease_changed(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     primary_session = session_factory()
@@ -602,6 +676,45 @@ def test_run_next_job_requeues_transient_failures_until_attempt_budget_is_exhaus
     assert final_stored_job.status == JOB_STATUS_FAILED
 
 
+def test_enqueue_metadata_refresh_coalesces_duplicate_queued_work(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    try:
+        first_job = enqueue_metadata_refresh(session)
+        second_job = enqueue_metadata_refresh(session)
+        stored_jobs = session.scalars(select(Job).order_by(Job.id.asc())).all()
+    finally:
+        session.close()
+
+    assert first_job.id == second_job.id
+    assert len(stored_jobs) == 1
+    assert stored_jobs[0].status == JOB_STATUS_QUEUED
+
+
+def test_request_refresh_coalesces_duplicate_running_work(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    try:
+        queued_job = enqueue_metadata_refresh(session)
+        claimed_job = claim_next_metadata_refresh_job(session, worker_id="worker-a")
+        response = request_refresh(session)
+        stored_jobs = session.scalars(select(Job).order_by(Job.id.asc())).all()
+    finally:
+        session.close()
+
+    assert claimed_job is not None
+    assert claimed_job.id == queued_job.id
+    assert response == {
+        "status": "running",
+        "job_id": queued_job.id,
+        "job_type": METADATA_REFRESH_JOB_TYPE,
+    }
+    assert len(stored_jobs) == 1
+    assert stored_jobs[0].status == JOB_STATUS_RUNNING
+
+
 def test_worker_loop_polls_and_processes_refresh_jobs_enqueued_after_startup(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     sleep_calls: list[float] = []
@@ -644,7 +757,10 @@ def test_worker_loop_polls_and_processes_refresh_jobs_enqueued_after_startup(tmp
     assert stored_jobs[0].status == JOB_STATUS_COMPLETED
 
 
-def test_worker_loop_treats_schema_and_db_startup_errors_as_retryable_idle_polls(monkeypatch):
+def test_worker_loop_treats_schema_and_db_startup_errors_as_retryable_idle_polls(
+    monkeypatch,
+    capsys,
+):
     sleep_calls: list[float] = []
     run_sequence = iter(
         [
@@ -667,6 +783,10 @@ def test_worker_loop_treats_schema_and_db_startup_errors_as_retryable_idle_polls
         poll_interval_seconds=0.5,
         sleep_fn=sleep_calls.append,
     )
+    captured = capsys.readouterr()
 
     assert processed_count == 1
     assert sleep_calls == [0.5, 0.5]
+    assert "SchemaNotReadyError" in captured.err
+    assert "jobs table missing" in captured.err
+    assert "OperationalError" in captured.err

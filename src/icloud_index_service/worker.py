@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import time
 
 from icloud_index_service.db import get_session_factory
@@ -73,7 +74,15 @@ def run_worker_loop(
                 worker_id=worker_id,
                 client=client,
             )
-        except (SchemaNotReadyError, OperationalError):
+        except (SchemaNotReadyError, OperationalError) as exc:
+            print(
+                (
+                    "[worker] Retrying after startup dependency error "
+                    f"on poll {poll_count}: {type(exc).__name__}: {exc}"
+                ),
+                file=sys.stderr,
+                flush=True,
+            )
             processed_this_poll = 0
         processed_count += processed_this_poll
         if processed_this_poll == 0 and (max_polls is None or poll_count < max_polls):

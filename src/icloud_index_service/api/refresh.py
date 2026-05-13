@@ -19,7 +19,7 @@ def request_refresh(session: Session = Depends(get_session)) -> dict[str, object
     except SchemaNotReadyError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {
-        "status": "queued",
+        "status": job.status,
         "job_id": job.id,
         "job_type": job.job_type,
     }
