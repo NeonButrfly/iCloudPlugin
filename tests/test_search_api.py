@@ -256,6 +256,15 @@ def test_search_and_file_endpoints_accept_plain_session_dependency_overrides(
     session_factory = _build_session_factory(tmp_path)
     file_id = _seed_indexed_file(session_factory)
     plain_session = session_factory()
+    close_calls = 0
+    real_close = plain_session.close
+
+    def counting_close() -> None:
+        nonlocal close_calls
+        close_calls += 1
+        real_close()
+
+    monkeypatch.setattr(plain_session, "close", counting_close)
 
     monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
     monkeypatch.setattr(main_module, "check_database_health", lambda: True)
@@ -267,7 +276,7 @@ def test_search_and_file_endpoints_accept_plain_session_dependency_overrides(
             file_response = client.get(f"/files/{file_id}")
     finally:
         main_module.app.dependency_overrides.clear()
-        plain_session.close()
+        real_close()
 
     assert search_response.status_code == 200
     assert search_response.json()["results"] == [
@@ -282,6 +291,7 @@ def test_search_and_file_endpoints_accept_plain_session_dependency_overrides(
     ]
     assert file_response.status_code == 200
     assert file_response.json()["file_id"] == file_id
+    assert close_calls == 2
 
 
 def test_search_and_file_endpoints_accept_request_aware_dependency_overrides(
@@ -291,12 +301,24 @@ def test_search_and_file_endpoints_accept_request_aware_dependency_overrides(
     session_factory = _build_session_factory(tmp_path)
     file_id = _seed_indexed_file(session_factory)
     opened_sessions: list[Session] = []
+    opened_real_closes: list[object] = []
     seen_paths: list[str] = []
+    close_calls = 0
 
     def override_get_session(request: Request) -> Session:
+        nonlocal close_calls
         seen_paths.append(request.url.path)
         session = session_factory()
+        real_close = session.close
+
+        def counting_close() -> None:
+            nonlocal close_calls
+            close_calls += 1
+            real_close()
+
+        monkeypatch.setattr(session, "close", counting_close)
         opened_sessions.append(session)
+        opened_real_closes.append(real_close)
         return session
 
     monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
@@ -309,9 +331,10 @@ def test_search_and_file_endpoints_accept_request_aware_dependency_overrides(
             file_response = client.get(f"/files/{file_id}")
     finally:
         main_module.app.dependency_overrides.clear()
-        for session in opened_sessions:
-            session.close()
+        for real_close in opened_real_closes:
+            real_close()
 
     assert search_response.status_code == 200
     assert file_response.status_code == 200
     assert seen_paths == ["/search", f"/files/{file_id}"]
+    assert close_calls == 2

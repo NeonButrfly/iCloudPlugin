@@ -513,7 +513,15 @@ def test_run_next_job_treats_extraction_failures_as_best_effort_and_keeps_refres
 
     assert completed_job is not None
     assert completed_job.status == JOB_STATUS_COMPLETED
-    assert broken_content is None
+    assert json.loads(completed_job.payload_json or "{}")["extraction_failures"] == [
+        {
+            "external_id": "broken-file",
+            "path": "/Finance/Broken.txt",
+            "error": "RuntimeError: parser exploded",
+        }
+    ]
+    assert broken_content is not None
+    assert broken_content.content_text == "stale extracted text"
     assert good_file is not None
     assert good_content is not None
     assert good_content.content_text == "Good extracted text"

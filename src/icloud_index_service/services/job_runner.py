@@ -224,7 +224,9 @@ def _persist_refresh_results(
     *,
     raw_items: list[dict[str, object]],
     normalized_items: list[dict[str, object]],
-) -> None:
+) -> list[dict[str, str]]:
+    extraction_failures: list[dict[str, str]] = []
+
     for raw_item, normalized_item in zip(raw_items, normalized_items, strict=True):
         file_record = _upsert_file_record(session, normalized_item=normalized_item)
         extracted_content = session.scalar(
@@ -243,10 +245,14 @@ def _persist_refresh_results(
                 mime_type=file_record.mime_type,
                 payload=payload,
             )
-        except Exception:
-            if extracted_content is not None:
-                session.delete(extracted_content)
-                session.flush()
+        except Exception as exc:
+            extraction_failures.append(
+                {
+                    "external_id": file_record.external_id,
+                    "path": file_record.path,
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
             continue
         if not extracted_text:
             if extracted_content is not None:
@@ -266,6 +272,8 @@ def _persist_refresh_results(
             extracted_content.content_text = extracted_text
             extracted_content.content_hash = content_hash
         session.flush()
+
+    return extraction_failures
 
 
 def renew_refresh_job_heartbeat(
@@ -542,7 +550,7 @@ def run_next_job(
     try:
         raw_items = active_client.list_drive_items(heartbeat=heartbeat)
         items = [normalize_remote_item(item) for item in raw_items]
-        _persist_refresh_results(
+        extraction_failures = _persist_refresh_results(
             session,
             raw_items=raw_items,
             normalized_items=items,
@@ -556,6 +564,8 @@ def run_next_job(
         payload["source"] = "refresh-endpoint"
         payload["items_seen"] = len(items)
         payload["auth_mode"] = active_client.auth_mode
+        if extraction_failures:
+            payload["extraction_failures"] = extraction_failures
         completed_job = apply_running_job_lease_update(
             session,
             job_id=job.id,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Generator
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -33,10 +35,23 @@ def _ensure_files_database_available(request: Request) -> None:
             startup_validation_error=startup_validation_error,
         ),
     )
+
+
+def _get_files_session(
+    session: Session = Depends(get_session),
+) -> Generator[Session, None, None]:
+    try:
+        yield session
+    finally:
+        close = getattr(session, "close", None)
+        if callable(close):
+            close()
+
+
 @router.get("/{file_id}", dependencies=[Depends(_ensure_files_database_available)])
 def get_file(
     file_id: int,
-    session: Session = Depends(get_session),
+    session: Session = Depends(_get_files_session),
 ) -> dict[str, object]:
     try:
         payload = get_file_details(session, file_id=file_id)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Generator
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -33,11 +35,24 @@ def _ensure_search_database_available(request: Request) -> None:
             startup_validation_error=startup_validation_error,
         ),
     )
+
+
+def _get_search_session(
+    session: Session = Depends(get_session),
+) -> Generator[Session, None, None]:
+    try:
+        yield session
+    finally:
+        close = getattr(session, "close", None)
+        if callable(close):
+            close()
+
+
 @router.get("", dependencies=[Depends(_ensure_search_database_available)])
 def search(
     query: str = Query(min_length=1),
     limit: int = Query(default=10, ge=1, le=50),
-    session: Session = Depends(get_session),
+    session: Session = Depends(_get_search_session),
 ) -> dict[str, object]:
     try:
         return {
