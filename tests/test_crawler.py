@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
@@ -16,9 +17,13 @@ from icloud_index_service.services.crawler import normalize_remote_item
 from icloud_index_service.services.icloud_web_client import ICloudWebClient
 from icloud_index_service.services.job_runner import (
     JOB_STATUS_COMPLETED,
+    JOB_STATUS_FAILED,
     JOB_STATUS_QUEUED,
+    JOB_STATUS_RUNNING,
     METADATA_REFRESH_JOB_TYPE,
+    claim_next_metadata_refresh_job,
     enqueue_metadata_refresh,
+    recover_stale_running_jobs,
     run_next_job,
 )
 from icloud_index_service.worker import run_worker_loop
@@ -118,6 +123,89 @@ def test_enqueue_and_run_metadata_refresh_updates_job_payload_with_crawl_results
     assert stored_job.status == JOB_STATUS_COMPLETED
 
 
+def test_claim_next_metadata_refresh_job_only_allows_one_worker_to_claim_same_job(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    setup_session = session_factory()
+    try:
+        queued_job = enqueue_metadata_refresh(setup_session)
+    finally:
+        setup_session.close()
+
+    first_session = session_factory()
+    second_session = session_factory()
+
+    try:
+        first_claim = claim_next_metadata_refresh_job(
+            first_session,
+            worker_id="worker-a",
+        )
+        second_claim = claim_next_metadata_refresh_job(
+            second_session,
+            worker_id="worker-b",
+        )
+    finally:
+        first_session.close()
+        second_session.close()
+
+    assert first_claim is not None
+    assert first_claim.id == queued_job.id
+    assert first_claim.status == JOB_STATUS_RUNNING
+    assert second_claim is None
+
+
+def test_recover_stale_running_jobs_requeues_expired_claims(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    try:
+        stale_job = Job(
+            job_type=METADATA_REFRESH_JOB_TYPE,
+            status=JOB_STATUS_RUNNING,
+            payload_json=json.dumps(
+                {
+                    "source": "refresh-endpoint",
+                    "worker_id": "worker-a",
+                    "claimed_at": (
+                        datetime.now(timezone.utc) - timedelta(minutes=30)
+                    ).isoformat(),
+                }
+            ),
+        )
+        session.add(stale_job)
+        session.commit()
+        session.refresh(stale_job)
+
+        recovered_count = recover_stale_running_jobs(session, stale_after_seconds=60)
+        reloaded_job = session.scalar(select(Job).where(Job.id == stale_job.id))
+    finally:
+        session.close()
+
+    assert recovered_count == 1
+    assert reloaded_job is not None
+    assert reloaded_job.status == JOB_STATUS_QUEUED
+    assert reloaded_job.error_message is not None
+    assert "stale running job" in reloaded_job.error_message.lower()
+
+
+def test_run_next_job_marks_placeholder_client_as_failed_not_completed(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    try:
+        queued_job = enqueue_metadata_refresh(session)
+        failed_job = run_next_job(session)
+        stored_job = session.scalar(select(Job).where(Job.id == queued_job.id))
+    finally:
+        session.close()
+
+    assert failed_job is not None
+    assert failed_job.status == JOB_STATUS_FAILED
+    assert failed_job.error_message is not None
+    assert "not ready" in failed_job.error_message.lower()
+    assert stored_job is not None
+    assert stored_job.status == JOB_STATUS_FAILED
+
+
 def test_worker_loop_polls_and_processes_refresh_jobs_enqueued_after_startup(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     sleep_calls: list[float] = []
@@ -132,6 +220,17 @@ def test_worker_loop_polls_and_processes_refresh_jobs_enqueued_after_startup(tmp
 
     processed_count = run_worker_loop(
         session_factory=session_factory,
+        client=FakeICloudWebClient(
+            [
+                {
+                    "id": "queued-after-startup",
+                    "name": "Queued After Startup",
+                    "path": "/Work/QueuedAfterStartup.md",
+                    "extension": "md",
+                    "contentType": "text/markdown",
+                }
+            ]
+        ),
         max_polls=2,
         poll_interval_seconds=0.25,
         sleep_fn=fake_sleep,
