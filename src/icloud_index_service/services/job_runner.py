@@ -110,32 +110,38 @@ def renew_refresh_job_heartbeat(
     session: Session,
     job_id: int,
     *,
+    expected_payload_json: str | None = None,
     now: datetime | None = None,
 ) -> Job | None:
     ensure_refresh_job_schema_ready(session)
     job = session.get(Job, job_id)
     if job is None or job.job_type != METADATA_REFRESH_JOB_TYPE or job.status != JOB_STATUS_RUNNING:
-        return job
+        return None
 
-    payload = _deserialize_payload(job.payload_json)
+    snapshot_payload_json = expected_payload_json or job.payload_json
+    payload = _deserialize_payload(snapshot_payload_json)
     payload[HEARTBEAT_AT_FIELD] = (now or _utc_now()).isoformat()
-    job.payload_json = _serialize_payload(payload)
-    session.commit()
-    session.refresh(job)
-    return job
+    return apply_running_job_lease_update(
+        session,
+        job_id=job_id,
+        expected_payload_json=snapshot_payload_json,
+        next_status=JOB_STATUS_RUNNING,
+        next_payload_json=_serialize_payload(payload),
+        error_message=job.error_message,
+    )
 
 
-def apply_stale_recovery_update(
+def apply_running_job_lease_update(
     session: Session,
     *,
     job_id: int,
     expected_payload_json: str | None,
     next_status: str,
     next_payload_json: str,
-    error_message: str,
-) -> bool:
+    error_message: str | None,
+) -> Job | None:
     ensure_refresh_job_schema_ready(session)
-    recovery_result = session.execute(
+    update_result = session.execute(
         update(Job)
         .where(Job.id == job_id)
         .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
@@ -147,13 +153,35 @@ def apply_stale_recovery_update(
             error_message=error_message,
         )
     )
-    if recovery_result.rowcount == 0:
+    if update_result.rowcount == 0:
         session.rollback()
-        return False
+        return None
 
     session.commit()
     session.expire_all()
-    return True
+    return session.get(Job, job_id)
+
+
+def apply_stale_recovery_update(
+    session: Session,
+    *,
+    job_id: int,
+    expected_payload_json: str | None,
+    next_status: str,
+    next_payload_json: str,
+    error_message: str,
+) -> bool:
+    return (
+        apply_running_job_lease_update(
+            session,
+            job_id=job_id,
+            expected_payload_json=expected_payload_json,
+            next_status=next_status,
+            next_payload_json=next_payload_json,
+            error_message=error_message,
+        )
+        is not None
+    )
 
 
 def recover_stale_running_jobs(
@@ -322,14 +350,21 @@ def run_next_job(
         return None
 
     active_client = client or create_icloud_web_client()
+    lease_payload_json = job.payload_json
 
     def heartbeat() -> None:
-        renew_refresh_job_heartbeat(session, job.id)
+        nonlocal lease_payload_json
+        renewed_job = renew_refresh_job_heartbeat(
+            session,
+            job.id,
+            expected_payload_json=lease_payload_json,
+        )
+        if renewed_job is not None:
+            lease_payload_json = renewed_job.payload_json
 
     try:
         items = crawl_metadata(active_client, heartbeat=heartbeat)
-        payload = _deserialize_payload(job.payload_json)
-        job.status = JOB_STATUS_COMPLETED
+        payload = _deserialize_payload(lease_payload_json)
         payload.pop(CLAIMED_AT_FIELD, None)
         payload.pop(HEARTBEAT_AT_FIELD, None)
         payload.pop(WORKER_ID_FIELD, None)
@@ -338,10 +373,17 @@ def run_next_job(
         payload["source"] = "refresh-endpoint"
         payload["items_seen"] = len(items)
         payload["auth_mode"] = active_client.auth_mode
-        job.payload_json = _serialize_payload(payload)
-        job.error_message = None
+        completed_job = apply_running_job_lease_update(
+            session,
+            job_id=job.id,
+            expected_payload_json=lease_payload_json,
+            next_status=JOB_STATUS_COMPLETED,
+            next_payload_json=_serialize_payload(payload),
+            error_message=None,
+        )
+        return completed_job
     except Exception as exc:
-        payload = _deserialize_payload(job.payload_json)
+        payload = _deserialize_payload(lease_payload_json)
         attempt_count = _parse_attempt_count(payload) + 1
         max_attempts = _parse_max_attempts(payload)
 
@@ -350,24 +392,28 @@ def run_next_job(
         payload.pop(WORKER_ID_FIELD, None)
         payload[ATTEMPT_COUNT_FIELD] = attempt_count
         payload[MAX_ATTEMPTS_FIELD] = max_attempts
-        job.payload_json = _serialize_payload(payload)
+        next_payload_json = _serialize_payload(payload)
 
         if isinstance(exc, ICloudWebClientNotReadyError):
-            job.status = JOB_STATUS_FAILED
-            job.error_message = f"{type(exc).__name__}: {exc}"
+            next_status = JOB_STATUS_FAILED
+            error_message = f"{type(exc).__name__}: {exc}"
         elif attempt_count < max_attempts:
-            job.status = JOB_STATUS_QUEUED
-            job.error_message = (
+            next_status = JOB_STATUS_QUEUED
+            error_message = (
                 f"Retrying refresh job after transient crawl failure "
                 f"({attempt_count}/{max_attempts}): {type(exc).__name__}: {exc}"
             )
         else:
-            job.status = JOB_STATUS_FAILED
-            job.error_message = (
+            next_status = JOB_STATUS_FAILED
+            error_message = (
                 f"Refresh job exhausted retry budget "
                 f"({attempt_count}/{max_attempts}): {type(exc).__name__}: {exc}"
             )
-
-    session.commit()
-    session.refresh(job)
-    return job
+        return apply_running_job_lease_update(
+            session,
+            job_id=job.id,
+            expected_payload_json=lease_payload_json,
+            next_status=next_status,
+            next_payload_json=next_payload_json,
+            error_message=error_message,
+        )

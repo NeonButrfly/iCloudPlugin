@@ -5,7 +5,8 @@ import time
 
 from icloud_index_service.db import get_session_factory
 from icloud_index_service.services.icloud_web_client import ICloudWebClient
-from icloud_index_service.services.job_runner import run_next_job
+from icloud_index_service.services.job_runner import SchemaNotReadyError, run_next_job
+from sqlalchemy.exc import OperationalError
 
 DEFAULT_WORKER_POLL_INTERVAL_SECONDS = 5.0
 
@@ -66,11 +67,14 @@ def run_worker_loop(
 
     while max_polls is None or poll_count < max_polls:
         poll_count += 1
-        processed_this_poll = run_worker_once(
-            session_factory=session_factory,
-            worker_id=worker_id,
-            client=client,
-        )
+        try:
+            processed_this_poll = run_worker_once(
+                session_factory=session_factory,
+                worker_id=worker_id,
+                client=client,
+            )
+        except (SchemaNotReadyError, OperationalError):
+            processed_this_poll = 0
         processed_count += processed_this_poll
         if processed_this_poll == 0 and (max_polls is None or poll_count < max_polls):
             sleep_fn(active_interval)

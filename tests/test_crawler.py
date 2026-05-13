@@ -7,9 +7,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import create_engine, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from icloud_index_service.api.refresh import request_refresh
+import icloud_index_service.worker as worker_module
 from icloud_index_service.models.base import Base
 from icloud_index_service.models.job import Job
 from icloud_index_service.models.sync_run import SyncRun
@@ -21,6 +23,8 @@ from icloud_index_service.services.job_runner import (
     JOB_STATUS_QUEUED,
     JOB_STATUS_RUNNING,
     METADATA_REFRESH_JOB_TYPE,
+    apply_running_job_lease_update,
+    SchemaNotReadyError,
     apply_stale_recovery_update,
     claim_next_metadata_refresh_job,
     enqueue_metadata_refresh,
@@ -56,6 +60,26 @@ class TransientFailureICloudWebClient(ICloudWebClient):
         if heartbeat is not None:
             heartbeat()
         raise RuntimeError("temporary upstream failure")
+
+
+class ClaimStealingICloudWebClient(ICloudWebClient):
+    def __init__(self, steal_claim) -> None:
+        super().__init__(auth_mode="browser-assisted-apple-web")
+        self._steal_claim = steal_claim
+
+    def list_drive_items(self, *, heartbeat=None) -> list[dict[str, object]]:
+        if heartbeat is not None:
+            heartbeat()
+        self._steal_claim()
+        return [
+            {
+                "id": "abc",
+                "name": "Notes",
+                "path": "/Work/Notes.md",
+                "extension": "md",
+                "contentType": "text/markdown",
+            }
+        ]
 
 
 def test_normalize_remote_item_preserves_storage_shape_for_later_routing():
@@ -278,6 +302,65 @@ def test_apply_stale_recovery_update_skips_job_when_lease_changed_since_snapshot
     ).isoformat()
 
 
+def test_renew_refresh_job_heartbeat_skips_stale_worker_when_lease_changed(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    first_session = session_factory()
+    second_session = session_factory()
+    claimed_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    try:
+        running_job = Job(
+            job_type=METADATA_REFRESH_JOB_TYPE,
+            status=JOB_STATUS_RUNNING,
+            payload_json=json.dumps(
+                {
+                    "source": "refresh-endpoint",
+                    "attempt_count": 0,
+                    "max_attempts": 3,
+                    "worker_id": "worker-a",
+                    "claimed_at": claimed_at.isoformat(),
+                    "heartbeat_at": claimed_at.isoformat(),
+                }
+            ),
+        )
+        first_session.add(running_job)
+        first_session.commit()
+        first_session.refresh(running_job)
+
+        stale_snapshot_payload_json = running_job.payload_json
+
+        running_job.payload_json = json.dumps(
+            {
+                "source": "refresh-endpoint",
+                "attempt_count": 0,
+                "max_attempts": 3,
+                "worker_id": "worker-b",
+                "claimed_at": (claimed_at + timedelta(minutes=5)).isoformat(),
+                "heartbeat_at": (claimed_at + timedelta(minutes=5)).isoformat(),
+            }
+        )
+        second_session.merge(running_job)
+        second_session.commit()
+
+        renewed_job = renew_refresh_job_heartbeat(
+            first_session,
+            running_job.id,
+            expected_payload_json=stale_snapshot_payload_json,
+            now=claimed_at + timedelta(minutes=10),
+        )
+        reloaded_job = second_session.scalar(select(Job).where(Job.id == running_job.id))
+    finally:
+        first_session.close()
+        second_session.close()
+
+    assert renewed_job is None
+    assert reloaded_job is not None
+    assert json.loads(reloaded_job.payload_json or "{}")["worker_id"] == "worker-b"
+    assert json.loads(reloaded_job.payload_json or "{}")["heartbeat_at"] == (
+        claimed_at + timedelta(minutes=5)
+    ).isoformat()
+
+
 def test_renew_refresh_job_heartbeat_keeps_a_running_job_out_of_stale_recovery(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     session = session_factory()
@@ -410,6 +493,73 @@ def test_run_next_job_marks_placeholder_client_as_failed_not_completed(tmp_path)
     assert stored_job.status == JOB_STATUS_FAILED
 
 
+def test_apply_running_job_lease_update_skips_stale_worker_completion_when_lease_changed(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    primary_session = session_factory()
+    stealing_session = session_factory()
+    verification_session = session_factory()
+    claimed_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    try:
+        running_job = Job(
+            job_type=METADATA_REFRESH_JOB_TYPE,
+            status=JOB_STATUS_RUNNING,
+            payload_json=json.dumps(
+                {
+                    "source": "refresh-endpoint",
+                    "attempt_count": 0,
+                    "max_attempts": 3,
+                    "worker_id": "worker-a",
+                    "claimed_at": claimed_at.isoformat(),
+                    "heartbeat_at": claimed_at.isoformat(),
+                }
+            ),
+        )
+        primary_session.add(running_job)
+        primary_session.commit()
+        primary_session.refresh(running_job)
+
+        stale_snapshot_payload_json = running_job.payload_json
+
+        stolen_job = stealing_session.scalar(select(Job).where(Job.id == running_job.id))
+        stolen_job.payload_json = json.dumps(
+            {
+                "source": "refresh-endpoint",
+                "attempt_count": 0,
+                "max_attempts": 3,
+                "worker_id": "worker-b",
+                "claimed_at": (claimed_at + timedelta(minutes=5)).isoformat(),
+                "heartbeat_at": (claimed_at + timedelta(minutes=5)).isoformat(),
+            }
+        )
+        stealing_session.commit()
+
+        completion_result = apply_running_job_lease_update(
+            primary_session,
+            job_id=running_job.id,
+            expected_payload_json=stale_snapshot_payload_json,
+            next_status=JOB_STATUS_COMPLETED,
+            next_payload_json=json.dumps(
+                {
+                    "source": "refresh-endpoint",
+                    "items_seen": 1,
+                    "auth_mode": "browser-assisted-apple-web",
+                }
+            ),
+            error_message=None,
+        )
+        final_job = verification_session.scalar(select(Job).where(Job.id == running_job.id))
+    finally:
+        primary_session.close()
+        stealing_session.close()
+        verification_session.close()
+
+    assert completion_result is None
+    assert final_job is not None
+    assert final_job.status == JOB_STATUS_RUNNING
+    assert json.loads(final_job.payload_json or "{}")["worker_id"] == "worker-b"
+
+
 def test_run_next_job_requeues_transient_failures_until_attempt_budget_is_exhausted(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     session = session_factory()
@@ -492,3 +642,31 @@ def test_worker_loop_polls_and_processes_refresh_jobs_enqueued_after_startup(tmp
     assert sleep_calls == [0.25]
     assert len(stored_jobs) == 1
     assert stored_jobs[0].status == JOB_STATUS_COMPLETED
+
+
+def test_worker_loop_treats_schema_and_db_startup_errors_as_retryable_idle_polls(monkeypatch):
+    sleep_calls: list[float] = []
+    run_sequence = iter(
+        [
+            SchemaNotReadyError("jobs table missing"),
+            OperationalError("SELECT 1", {}, RuntimeError("db starting")),
+            1,
+        ]
+    )
+
+    def fake_run_worker_once(**kwargs):
+        next_item = next(run_sequence)
+        if isinstance(next_item, Exception):
+            raise next_item
+        return next_item
+
+    monkeypatch.setattr(worker_module, "run_worker_once", fake_run_worker_once)
+
+    processed_count = run_worker_loop(
+        max_polls=3,
+        poll_interval_seconds=0.5,
+        sleep_fn=sleep_calls.append,
+    )
+
+    assert processed_count == 1
+    assert sleep_calls == [0.5, 0.5]
