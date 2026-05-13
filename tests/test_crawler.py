@@ -158,6 +158,17 @@ class ExtractingICloudWebClient(ICloudWebClient):
         ]
 
 
+class SingleItemICloudWebClient(ICloudWebClient):
+    def __init__(self, raw_item: dict[str, object]) -> None:
+        super().__init__(auth_mode="browser-assisted-apple-web")
+        self._raw_item = raw_item
+
+    def list_drive_items(self, *, heartbeat=None) -> list[dict[str, object]]:
+        if heartbeat is not None:
+            heartbeat()
+        return [dict(self._raw_item)]
+
+
 def test_normalize_remote_item_preserves_storage_shape_for_later_routing():
     raw = {
         "id": "abc",
@@ -329,6 +340,99 @@ def test_run_next_job_persists_file_records_and_extracted_content_from_refresh_r
     assert stored_file.size_bytes == 24
     assert stored_content is not None
     assert stored_content.content_text == "Quarterly budget draft"
+
+
+@pytest.mark.parametrize(
+    ("raw_item", "patched_extracted_text"),
+    [
+        (
+            {
+                "id": "budget-file",
+                "name": "Budget.txt",
+                "path": "/Finance/Budget.txt",
+                "extension": "txt",
+                "contentType": "text/plain",
+                "size": 24,
+            },
+            None,
+        ),
+        (
+            {
+                "id": "budget-file",
+                "name": "Budget.bin",
+                "path": "/Finance/Budget.bin",
+                "extension": "bin",
+                "contentType": "application/octet-stream",
+                "content_bytes": b"\x00\x01\x02",
+                "size": 3,
+            },
+            None,
+        ),
+        (
+            {
+                "id": "budget-file",
+                "name": "Budget.txt",
+                "path": "/Finance/Budget.txt",
+                "extension": "txt",
+                "contentType": "text/plain",
+                "content_bytes": b"",
+                "size": 0,
+            },
+            "",
+        ),
+    ],
+)
+def test_run_next_job_clears_stale_extracted_content_when_refresh_can_no_longer_extract_text(
+    tmp_path,
+    monkeypatch,
+    raw_item,
+    patched_extracted_text,
+):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+
+    if patched_extracted_text is not None:
+        monkeypatch.setattr(
+            job_runner_module,
+            "extract_text_content",
+            lambda **kwargs: patched_extracted_text,
+        )
+
+    try:
+        file_record = FileRecord(
+            external_id="budget-file",
+            name="Budget.txt",
+            path="/Finance/Budget.txt",
+            mime_type="text/plain",
+            size_bytes=24,
+        )
+        session.add(file_record)
+        session.commit()
+        session.refresh(file_record)
+        session.add(
+            ExtractedContent(
+                file_id=file_record.id,
+                content_text="stale extracted text",
+                content_hash="stale-hash",
+            )
+        )
+        session.commit()
+
+        enqueue_metadata_refresh(session)
+        completed_job = run_next_job(session, client=SingleItemICloudWebClient(raw_item))
+        stored_file = session.scalar(
+            select(FileRecord).where(FileRecord.external_id == "budget-file")
+        )
+        stored_content = session.scalar(
+            select(ExtractedContent).where(ExtractedContent.file_id == file_record.id)
+        )
+    finally:
+        session.close()
+
+    assert completed_job is not None
+    assert completed_job.status == JOB_STATUS_COMPLETED
+    assert stored_file is not None
+    assert stored_content is None
 
 
 def test_claim_next_metadata_refresh_job_only_allows_one_worker_to_claim_same_job(tmp_path):

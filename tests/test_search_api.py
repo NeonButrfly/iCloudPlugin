@@ -246,3 +246,38 @@ def test_file_endpoint_reports_controlled_degraded_response_when_database_is_una
             "startup_validation_error": "RuntimeError: database unavailable",
         }
     }
+
+
+def test_search_and_file_endpoints_accept_plain_session_dependency_overrides(
+    tmp_path,
+    monkeypatch,
+):
+    session_factory = _build_session_factory(tmp_path)
+    file_id = _seed_indexed_file(session_factory)
+    plain_session = session_factory()
+
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = lambda: plain_session
+
+    try:
+        with TestClient(main_module.app) as client:
+            search_response = client.get("/search", params={"query": "budget", "limit": 5})
+            file_response = client.get(f"/files/{file_id}")
+    finally:
+        main_module.app.dependency_overrides.clear()
+        plain_session.close()
+
+    assert search_response.status_code == 200
+    assert search_response.json()["results"] == [
+        {
+            "file_id": file_id,
+            "external_id": "file-1",
+            "name": "Budget.txt",
+            "path": "/Finance/Budget.txt",
+            "mime_type": "text/plain",
+            "excerpt": "Quarterly budget numbers and forecasts",
+        }
+    ]
+    assert file_response.status_code == 200
+    assert file_response.json()["file_id"] == file_id

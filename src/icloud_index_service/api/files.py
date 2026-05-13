@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+import inspect
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.exc import SQLAlchemyError
@@ -40,7 +41,23 @@ def _ensure_files_database_available(request: Request) -> None:
 def _get_files_session(request: Request) -> Generator[Session, None, None]:
     _ensure_files_database_available(request)
     session_provider = request.app.dependency_overrides.get(get_session, get_session)
-    yield from session_provider()
+    provided_session = session_provider()
+    if inspect.isgenerator(provided_session):
+        try:
+            yield next(provided_session)
+        finally:
+            try:
+                next(provided_session)
+            except StopIteration:
+                pass
+        return
+
+    try:
+        yield provided_session
+    finally:
+        close = getattr(provided_session, "close", None)
+        if callable(close):
+            close()
 
 
 @router.get("/{file_id}")

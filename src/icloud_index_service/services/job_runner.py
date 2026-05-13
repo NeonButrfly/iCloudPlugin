@@ -227,8 +227,14 @@ def _persist_refresh_results(
 ) -> None:
     for raw_item, normalized_item in zip(raw_items, normalized_items, strict=True):
         file_record = _upsert_file_record(session, normalized_item=normalized_item)
+        extracted_content = session.scalar(
+            select(ExtractedContent).where(ExtractedContent.file_id == file_record.id)
+        )
         payload = _coerce_content_bytes(raw_item)
         if payload is None:
+            if extracted_content is not None:
+                session.delete(extracted_content)
+                session.flush()
             continue
 
         extracted_text = extract_text_content(
@@ -237,11 +243,11 @@ def _persist_refresh_results(
             payload=payload,
         )
         if not extracted_text:
+            if extracted_content is not None:
+                session.delete(extracted_content)
+                session.flush()
             continue
 
-        extracted_content = session.scalar(
-            select(ExtractedContent).where(ExtractedContent.file_id == file_record.id)
-        )
         content_hash = hashlib.sha256(extracted_text.encode("utf-8")).hexdigest()
         if extracted_content is None:
             extracted_content = ExtractedContent(
