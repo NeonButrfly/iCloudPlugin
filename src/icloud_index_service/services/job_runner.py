@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import weakref
 from datetime import datetime, timedelta, timezone
@@ -8,8 +9,11 @@ from sqlalchemy import inspect, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from icloud_index_service.models.extracted_content import ExtractedContent
+from icloud_index_service.models.file import FileRecord
 from icloud_index_service.models.job import Job
-from icloud_index_service.services.crawler import crawl_metadata
+from icloud_index_service.services.crawler import normalize_remote_item
+from icloud_index_service.services.extractor import extract_text_content
 from icloud_index_service.services.icloud_web_client import (
     ICloudWebClient,
     ICloudWebClientNotReadyError,
@@ -162,6 +166,94 @@ def _find_existing_active_metadata_refresh_job(session: Session) -> Job | None:
         .order_by(Job.id.asc())
         .limit(1)
     )
+
+
+def _coerce_content_bytes(raw_item: dict[str, object]) -> bytes | None:
+    raw_bytes = raw_item.get("content_bytes")
+    if isinstance(raw_bytes, bytes):
+        return raw_bytes
+    if isinstance(raw_bytes, bytearray):
+        return bytes(raw_bytes)
+
+    raw_text = raw_item.get("content_text")
+    if isinstance(raw_text, str):
+        return raw_text.encode("utf-8")
+    return None
+
+
+def _upsert_file_record(
+    session: Session,
+    *,
+    normalized_item: dict[str, object],
+) -> FileRecord:
+    external_id = str(normalized_item["external_id"])
+    file_record = session.scalar(
+        select(FileRecord).where(FileRecord.external_id == external_id)
+    )
+    if file_record is None:
+        file_record = FileRecord(
+            external_id=external_id,
+            name=str(normalized_item["name"]),
+            path=str(normalized_item["path"]),
+            mime_type=str(normalized_item["mime_type"]),
+            size_bytes=(
+                int(normalized_item["size_bytes"])
+                if normalized_item.get("size_bytes") is not None
+                else None
+            ),
+        )
+        session.add(file_record)
+        session.flush()
+        return file_record
+
+    file_record.name = str(normalized_item["name"])
+    file_record.path = str(normalized_item["path"])
+    file_record.mime_type = str(normalized_item["mime_type"])
+    file_record.size_bytes = (
+        int(normalized_item["size_bytes"])
+        if normalized_item.get("size_bytes") is not None
+        else None
+    )
+    file_record.is_deleted = False
+    session.flush()
+    return file_record
+
+
+def _persist_refresh_results(
+    session: Session,
+    *,
+    raw_items: list[dict[str, object]],
+    normalized_items: list[dict[str, object]],
+) -> None:
+    for raw_item, normalized_item in zip(raw_items, normalized_items, strict=True):
+        file_record = _upsert_file_record(session, normalized_item=normalized_item)
+        payload = _coerce_content_bytes(raw_item)
+        if payload is None:
+            continue
+
+        extracted_text = extract_text_content(
+            path=file_record.path,
+            mime_type=file_record.mime_type,
+            payload=payload,
+        )
+        if not extracted_text:
+            continue
+
+        extracted_content = session.scalar(
+            select(ExtractedContent).where(ExtractedContent.file_id == file_record.id)
+        )
+        content_hash = hashlib.sha256(extracted_text.encode("utf-8")).hexdigest()
+        if extracted_content is None:
+            extracted_content = ExtractedContent(
+                file_id=file_record.id,
+                content_text=extracted_text,
+                content_hash=content_hash,
+            )
+            session.add(extracted_content)
+        else:
+            extracted_content.content_text = extracted_text
+            extracted_content.content_hash = content_hash
+        session.flush()
 
 
 def renew_refresh_job_heartbeat(
@@ -436,7 +528,13 @@ def run_next_job(
         lease_payload_json = renewed_job.payload_json
 
     try:
-        items = crawl_metadata(active_client, heartbeat=heartbeat)
+        raw_items = active_client.list_drive_items(heartbeat=heartbeat)
+        items = [normalize_remote_item(item) for item in raw_items]
+        _persist_refresh_results(
+            session,
+            raw_items=raw_items,
+            normalized_items=items,
+        )
         payload = _deserialize_payload(lease_payload_json)
         payload.pop(CLAIMED_AT_FIELD, None)
         payload.pop(HEARTBEAT_AT_FIELD, None)
@@ -456,8 +554,10 @@ def run_next_job(
         )
         return completed_job
     except LostLeaseError:
+        session.rollback()
         return None
     except Exception as exc:
+        session.rollback()
         payload = _deserialize_payload(lease_payload_json)
         attempt_count = _parse_attempt_count(payload) + 1
         max_attempts = _parse_max_attempts(payload)

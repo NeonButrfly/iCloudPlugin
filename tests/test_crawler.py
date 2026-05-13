@@ -14,6 +14,8 @@ from icloud_index_service.api.refresh import request_refresh
 import icloud_index_service.services.job_runner as job_runner_module
 import icloud_index_service.worker as worker_module
 from icloud_index_service.models.base import Base
+from icloud_index_service.models.extracted_content import ExtractedContent
+from icloud_index_service.models.file import FileRecord
 from icloud_index_service.models.job import Job
 from icloud_index_service.models.sync_run import SyncRun
 from icloud_index_service.services.crawler import normalize_remote_item
@@ -136,6 +138,26 @@ class LeaseLosingICloudWebClient(ICloudWebClient):
         ]
 
 
+class ExtractingICloudWebClient(ICloudWebClient):
+    def __init__(self) -> None:
+        super().__init__(auth_mode="browser-assisted-apple-web")
+
+    def list_drive_items(self, *, heartbeat=None) -> list[dict[str, object]]:
+        if heartbeat is not None:
+            heartbeat()
+        return [
+            {
+                "id": "budget-file",
+                "name": "Budget.txt",
+                "path": "/Finance/Budget.txt",
+                "extension": "txt",
+                "contentType": "text/plain",
+                "content_bytes": b"Quarterly budget draft",
+                "size": 24,
+            }
+        ]
+
+
 def test_normalize_remote_item_preserves_storage_shape_for_later_routing():
     raw = {
         "id": "abc",
@@ -253,6 +275,60 @@ def test_enqueue_and_run_metadata_refresh_updates_job_payload_with_crawl_results
     }
     assert stored_job is not None
     assert stored_job.status == JOB_STATUS_COMPLETED
+
+
+def test_run_next_job_persists_file_records_and_extracted_content_from_refresh_results(
+    tmp_path,
+    monkeypatch,
+):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+    extraction_calls: list[dict[str, object]] = []
+
+    def fake_extract_text_content(*, path: str, mime_type: str, payload: bytes) -> str:
+        extraction_calls.append(
+            {
+                "path": path,
+                "mime_type": mime_type,
+                "payload": payload,
+            }
+        )
+        return "Quarterly budget draft"
+
+    monkeypatch.setattr(job_runner_module, "extract_text_content", fake_extract_text_content)
+
+    try:
+        enqueue_metadata_refresh(session)
+        completed_job = run_next_job(session, client=ExtractingICloudWebClient())
+        stored_file = session.scalar(
+            select(FileRecord).where(FileRecord.external_id == "budget-file")
+        )
+        stored_content = session.scalar(
+            select(ExtractedContent).join(
+                FileRecord,
+                ExtractedContent.file_id == FileRecord.id,
+            )
+            .where(FileRecord.external_id == "budget-file")
+        )
+    finally:
+        session.close()
+
+    assert completed_job is not None
+    assert completed_job.status == JOB_STATUS_COMPLETED
+    assert extraction_calls == [
+        {
+            "path": "/Finance/Budget.txt",
+            "mime_type": "text/plain",
+            "payload": b"Quarterly budget draft",
+        }
+    ]
+    assert stored_file is not None
+    assert stored_file.name == "Budget.txt"
+    assert stored_file.path == "/Finance/Budget.txt"
+    assert stored_file.mime_type == "text/plain"
+    assert stored_file.size_bytes == 24
+    assert stored_content is not None
+    assert stored_content.content_text == "Quarterly budget draft"
 
 
 def test_claim_next_metadata_refresh_job_only_allows_one_worker_to_claim_same_job(tmp_path):

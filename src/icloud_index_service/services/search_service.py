@@ -9,6 +9,8 @@ from icloud_index_service.models.extracted_content import ExtractedContent
 from icloud_index_service.models.file import FileRecord
 from icloud_index_service.services.extractor import summarize_text
 
+LIKE_ESCAPE_CHAR = "\\"
+
 
 def _serialize_file_match(
     file_record: FileRecord,
@@ -25,21 +27,44 @@ def _serialize_file_match(
     }
 
 
+def build_database_unavailable_detail(
+    *,
+    operation: str,
+    startup_validation_error: str | None = None,
+) -> dict[str, str]:
+    payload = {
+        "status": "degraded",
+        "database": "unavailable",
+        "operation": operation,
+    }
+    if startup_validation_error is not None:
+        payload["startup_validation_error"] = startup_validation_error
+    return payload
+
+
+def _escape_like_fragment(value: str) -> str:
+    return (
+        value.replace(LIKE_ESCAPE_CHAR, LIKE_ESCAPE_CHAR * 2)
+        .replace("%", f"{LIKE_ESCAPE_CHAR}%")
+        .replace("_", f"{LIKE_ESCAPE_CHAR}_")
+    )
+
+
 def search_files(session: Session, *, query: str, limit: int) -> list[dict[str, Any]]:
     normalized_query = query.strip()
     if not normalized_query:
         return []
 
-    pattern = f"%{normalized_query}%"
+    pattern = f"%{_escape_like_fragment(normalized_query)}%"
     statement = (
         select(FileRecord, ExtractedContent)
         .outerjoin(ExtractedContent, ExtractedContent.file_id == FileRecord.id)
         .where(FileRecord.is_deleted.is_(False))
         .where(
             or_(
-                FileRecord.name.ilike(pattern),
-                FileRecord.path.ilike(pattern),
-                ExtractedContent.content_text.ilike(pattern),
+                FileRecord.name.ilike(pattern, escape=LIKE_ESCAPE_CHAR),
+                FileRecord.path.ilike(pattern, escape=LIKE_ESCAPE_CHAR),
+                ExtractedContent.content_text.ilike(pattern, escape=LIKE_ESCAPE_CHAR),
             )
         )
         .order_by(FileRecord.id.asc())
