@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import weakref
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import inspect, select, text, update
@@ -30,6 +31,7 @@ ATTEMPT_COUNT_FIELD = "attempt_count"
 MAX_ATTEMPTS_FIELD = "max_attempts"
 DEFAULT_MAX_ATTEMPTS = 3
 REFRESH_ENQUEUE_LOCK_KEY = 61001
+_SCHEMA_READY_CACHE: weakref.WeakKeyDictionary[object, bool] = weakref.WeakKeyDictionary()
 
 
 class SchemaNotReadyError(RuntimeError):
@@ -41,7 +43,11 @@ class LostLeaseError(RuntimeError):
 
 
 def ensure_refresh_job_schema_ready(session: Session) -> None:
-    inspector = inspect(session.get_bind())
+    bind = session.get_bind()
+    if _SCHEMA_READY_CACHE.get(bind):
+        return
+
+    inspector = inspect(bind)
     missing_tables = [
         table_name
         for table_name in REQUIRED_REFRESH_JOB_TABLES
@@ -69,6 +75,7 @@ def ensure_refresh_job_schema_ready(session: Session) -> None:
             f"{missing_indexes_csv}. Apply the latest follow-up migration before using "
             "/refresh or the worker."
         )
+    _SCHEMA_READY_CACHE[bind] = True
 
 
 def _utc_now() -> datetime:

@@ -190,6 +190,32 @@ def test_request_refresh_surfaces_missing_active_refresh_index_until_follow_up_m
     assert "migration" in exc_info.value.detail.lower()
 
 
+def test_refresh_job_schema_readiness_caches_success_by_bind(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    first_session = session_factory()
+    second_session = session_factory()
+    inspect_calls = 0
+    real_inspect = job_runner_module.inspect
+
+    def counting_inspect(bind):
+        nonlocal inspect_calls
+        inspect_calls += 1
+        return real_inspect(bind)
+
+    monkeypatch.setattr(job_runner_module, "_SCHEMA_READY_CACHE", {})
+    monkeypatch.setattr(job_runner_module, "inspect", counting_inspect)
+
+    try:
+        job_runner_module.ensure_refresh_job_schema_ready(first_session)
+        job_runner_module.ensure_refresh_job_schema_ready(first_session)
+        job_runner_module.ensure_refresh_job_schema_ready(second_session)
+    finally:
+        first_session.close()
+        second_session.close()
+
+    assert inspect_calls == 1
+
+
 def test_enqueue_and_run_metadata_refresh_updates_job_payload_with_crawl_results(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     session = session_factory()
