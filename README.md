@@ -60,7 +60,10 @@ under `/opt/iCloudPlugin`.
   `ICLOUD_REFRESH_BATCH_FILE_LIMIT`
 - each batch persists discovered files immediately and stores the remaining
   traversal frontier in the job payload
-- a restarted worker resumes from the saved frontier and continues the same scan
+- a restarted or recovered worker resumes from the saved frontier and continues
+  the same scan and sync run
+- restart recovery does not consume retry budget; retries remain reserved for
+  real crawl, auth, extraction, or unusable-state failures
 - deletions are applied only after the full sync run completes
 - `ICLOUD_EXCLUDED_DIRECTORY_NAMES` can skip large generated folders in addition
   to the built-in excludes for paths like `.git`, `node_modules`, `.venv`,

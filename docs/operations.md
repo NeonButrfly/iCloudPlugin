@@ -41,6 +41,10 @@ Current flow:
 - `ICLOUD_OCR_LANGS` controls the Tesseract language set used for still-image OCR
 - batch progress is stored in the `jobs` payload, so the worker can immediately
   resume where it left off after a restart
+- restart recovery keeps the same job frontier and sync run instead of opening
+  a fresh scan
+- restart recovery does not spend retry budget; retries are still reserved for
+  real crawl, auth, extraction, or unusable-state failures
 - file presence is tracked per sync run; deletions are applied only when the
   whole run finishes
 - extracted text is sanitized before persistence so embedded NUL bytes do not
