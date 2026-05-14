@@ -470,11 +470,11 @@ def recover_stale_running_jobs(
                 session,
                 job_id=job.id,
                 expected_payload_json=snapshot_payload_json,
-                next_status=JOB_STATUS_FAILED,
+                next_status=JOB_STATUS_QUEUED,
                 next_payload_json=_serialize_payload(payload),
                 error_message=(
-                    "Failed running refresh job with missing or invalid claimed_at lease "
-                    "metadata so it does not stay wedged or duplicate active work."
+                    "Recovered stale running job after restart or downtime and preserved "
+                    "saved progress without penalty despite missing or invalid lease metadata."
                 ),
             ):
                 recovered_count += 1
@@ -484,34 +484,20 @@ def recover_stale_running_jobs(
         if heartbeat_at > stale_cutoff:
             continue
 
-        attempt_count = _parse_attempt_count(payload) + 1
-        max_attempts = _parse_max_attempts(payload)
         payload.pop(CLAIMED_AT_FIELD, None)
         payload.pop(HEARTBEAT_AT_FIELD, None)
         payload.pop(WORKER_ID_FIELD, None)
-        payload[ATTEMPT_COUNT_FIELD] = attempt_count
-        payload[MAX_ATTEMPTS_FIELD] = max_attempts
-
-        if attempt_count < max_attempts:
-            next_status = JOB_STATUS_QUEUED
-            error_message = (
-                "Recovered stale running job so it can be retried by the worker "
-                f"({attempt_count}/{max_attempts})."
-            )
-        else:
-            next_status = JOB_STATUS_FAILED
-            error_message = (
-                "Refresh job exhausted retry budget during stale-running recovery "
-                f"({attempt_count}/{max_attempts})."
-            )
 
         if apply_stale_recovery_update(
             session,
             job_id=job.id,
             expected_payload_json=snapshot_payload_json,
-            next_status=next_status,
+            next_status=JOB_STATUS_QUEUED,
             next_payload_json=_serialize_payload(payload),
-            error_message=error_message,
+            error_message=(
+                "Recovered stale running job after restart or downtime and preserved "
+                "saved progress without penalty."
+            ),
         ):
             recovered_count += 1
 

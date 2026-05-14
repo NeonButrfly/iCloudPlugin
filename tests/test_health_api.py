@@ -139,6 +139,7 @@ def test_compose_passes_icloud_auth_environment_to_service_and_worker():
 
 def test_app_import_registers_sync_run_metadata_for_refresh_jobs():
     repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ | {"PYTHONPATH": str(repo_root / "src")}
     result = subprocess.run(
         [
             sys.executable,
@@ -150,6 +151,7 @@ def test_app_import_registers_sync_run_metadata_for_refresh_jobs():
             ),
         ],
         cwd=repo_root,
+        env=env,
         capture_output=True,
         text=True,
         check=False,

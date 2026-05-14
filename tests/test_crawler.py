@@ -864,9 +864,12 @@ def test_recover_stale_running_jobs_requeues_expired_claims(tmp_path):
     assert recovered_count == 1
     assert reloaded_job is not None
     assert reloaded_job.status == JOB_STATUS_QUEUED
-    assert json.loads(reloaded_job.payload_json or "{}")["attempt_count"] == 1
+    recovered_payload = json.loads(reloaded_job.payload_json or "{}")
+    assert "attempt_count" not in recovered_payload
+    assert "claimed_at" not in recovered_payload
+    assert "worker_id" not in recovered_payload
     assert reloaded_job.error_message is not None
-    assert "stale running job" in reloaded_job.error_message.lower()
+    assert "without penalty" in reloaded_job.error_message.lower()
 
 
 def test_apply_stale_recovery_update_skips_job_when_lease_changed_since_snapshot(tmp_path):
@@ -1029,7 +1032,7 @@ def test_renew_refresh_job_heartbeat_keeps_a_running_job_out_of_stale_recovery(t
     assert reloaded_job.status == JOB_STATUS_RUNNING
 
 
-def test_recover_stale_running_jobs_fails_legacy_rows_without_valid_claimed_at(tmp_path):
+def test_recover_stale_running_jobs_requeues_rows_without_valid_claimed_at(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     session = session_factory()
 
@@ -1039,6 +1042,15 @@ def test_recover_stale_running_jobs_fails_legacy_rows_without_valid_claimed_at(t
             status=JOB_STATUS_RUNNING,
             payload_json=json.dumps({"source": "refresh-endpoint"}),
         )
+        session.add(missing_claim_job)
+        session.commit()
+
+        first_recovered_count = recover_stale_running_jobs(session, stale_after_seconds=60)
+        first_stored_job = session.scalar(select(Job).where(Job.id == missing_claim_job.id))
+        first_stored_job.status = JOB_STATUS_COMPLETED
+        session.commit()
+        first_stored_job_status = first_stored_job.status
+
         malformed_claim_job = Job(
             job_type=METADATA_REFRESH_JOB_TYPE,
             status=JOB_STATUS_RUNNING,
@@ -1049,25 +1061,23 @@ def test_recover_stale_running_jobs_fails_legacy_rows_without_valid_claimed_at(t
                 }
             ),
         )
-        session.add(missing_claim_job)
-        session.commit()
-
-        first_recovered_count = recover_stale_running_jobs(session, stale_after_seconds=60)
         session.add(malformed_claim_job)
         session.commit()
         second_recovered_count = recover_stale_running_jobs(session, stale_after_seconds=60)
-        stored_jobs = session.scalars(select(Job).order_by(Job.id.asc())).all()
+        second_stored_job = session.scalar(select(Job).where(Job.id == malformed_claim_job.id))
     finally:
         session.close()
 
     assert first_recovered_count == 1
+    assert first_stored_job_status == JOB_STATUS_COMPLETED
     assert second_recovered_count == 1
-    assert [job.status for job in stored_jobs] == [JOB_STATUS_FAILED, JOB_STATUS_FAILED]
-    assert all(job.error_message is not None for job in stored_jobs)
-    assert all("claimed_at" in job.error_message for job in stored_jobs)
+    assert second_stored_job is not None
+    assert second_stored_job.status == JOB_STATUS_QUEUED
+    assert second_stored_job.error_message is not None
+    assert "without penalty" in second_stored_job.error_message.lower()
 
 
-def test_recover_stale_running_jobs_fails_when_recovery_exhausts_retry_budget(tmp_path):
+def test_recover_stale_running_jobs_does_not_consume_retry_budget(tmp_path):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     session = session_factory()
 
@@ -1099,11 +1109,112 @@ def test_recover_stale_running_jobs_fails_when_recovery_exhausts_retry_budget(tm
 
     assert recovered_count == 1
     assert reloaded_job is not None
-    assert reloaded_job.status == JOB_STATUS_FAILED
-    assert reloaded_payload["attempt_count"] == 3
+    assert reloaded_job.status == JOB_STATUS_QUEUED
+    assert reloaded_payload["attempt_count"] == 2
     assert reloaded_payload["max_attempts"] == 3
     assert reloaded_job.error_message is not None
-    assert "retry budget" in reloaded_job.error_message.lower()
+    assert "without penalty" in reloaded_job.error_message.lower()
+
+
+def test_run_next_job_resumes_recovered_stale_job_from_saved_frontier_and_sync_run(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    setup_session = session_factory()
+    stale_claimed_at = datetime.now(timezone.utc) - timedelta(minutes=30)
+    existing_sync_run = SyncRun(status=JOB_STATUS_RUNNING)
+    recovered_frontier = [
+        {
+            "type": "file",
+            "name": "Recovered.txt",
+            "path": "/Docs/Recovered.txt",
+            "drivewsid": "file-recovered",
+            "docwsid": "file-recovered",
+            "zone": "com.apple.CloudDocs",
+            "size": 12,
+        }
+    ]
+    client = BatchingICloudWebClient(
+        initial_frontier=[
+            {
+                "type": "folder",
+                "name": "root",
+                "path": "",
+                "drivewsid": "root",
+            }
+        ],
+        batches=[
+            (
+                [
+                    {
+                        "id": "file-recovered",
+                        "name": "Recovered.txt",
+                        "path": "/Docs/Recovered.txt",
+                        "extension": "txt",
+                        "contentType": "text/plain",
+                        "size": 12,
+                    }
+                ],
+                [],
+                True,
+            ),
+        ],
+    )
+
+    try:
+        setup_session.add(existing_sync_run)
+        setup_session.commit()
+        setup_session.refresh(existing_sync_run)
+
+        stale_job = Job(
+            job_type=METADATA_REFRESH_JOB_TYPE,
+            status=JOB_STATUS_RUNNING,
+            sync_run_id=existing_sync_run.id,
+            payload_json=json.dumps(
+                {
+                    "source": "background-scan",
+                    "attempt_count": 2,
+                    "max_attempts": 3,
+                    "worker_id": "worker-a",
+                    "claimed_at": stale_claimed_at.isoformat(),
+                    "heartbeat_at": stale_claimed_at.isoformat(),
+                    "frontier": recovered_frontier,
+                    "items_seen": 300,
+                    "batch_count": 3,
+                }
+            ),
+        )
+        setup_session.add(stale_job)
+        setup_session.commit()
+        setup_session.refresh(stale_job)
+        setup_session.close()
+
+        recovery_session = session_factory()
+        recovered_count = recover_stale_running_jobs(recovery_session, stale_after_seconds=60)
+        recovered_job = recovery_session.scalar(select(Job).where(Job.id == stale_job.id))
+        recovery_session.close()
+
+        run_session = session_factory()
+        completed_job = run_next_job(run_session, client=client, worker_id="worker-b")
+        stored_job = run_session.scalar(select(Job).where(Job.id == stale_job.id))
+        stored_sync_run = run_session.scalar(
+            select(SyncRun).where(SyncRun.id == existing_sync_run.id)
+        )
+    finally:
+        try:
+            run_session.close()
+        except Exception:
+            pass
+
+    assert recovered_count == 1
+    assert recovered_job is not None
+    assert recovered_job.status == JOB_STATUS_QUEUED
+    assert completed_job is not None
+    assert completed_job.id == stale_job.id
+    assert completed_job.status == JOB_STATUS_COMPLETED
+    assert stored_job is not None
+    assert stored_job.sync_run_id == existing_sync_run.id
+    assert stored_sync_run is not None
+    assert stored_sync_run.status == JOB_STATUS_COMPLETED
+    assert client.frontier_calls == [recovered_frontier]
 
 
 def test_run_next_job_marks_placeholder_client_as_failed_not_completed(tmp_path):
