@@ -19,7 +19,8 @@ services:
       - postgres-data:/var/lib/postgresql/data
 
   migrate:
-    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    build:
+      context: .
     working_dir: /app
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-icloud}
@@ -35,7 +36,8 @@ services:
         condition: service_healthy
 
   service:
-    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    build:
+      context: .
     working_dir: /app
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-icloud}
@@ -56,6 +58,7 @@ services:
       ICLOUD_ACCEPT_TERMS: ${ICLOUD_ACCEPT_TERMS:-false}
       ICLOUD_REFRESH_INTERVAL_SECONDS: ${ICLOUD_REFRESH_INTERVAL_SECONDS:-}
       ICLOUD_EXCLUDED_DIRECTORY_NAMES: ${ICLOUD_EXCLUDED_DIRECTORY_NAMES:-}
+      ICLOUD_OCR_LANGS: ${ICLOUD_OCR_LANGS:-eng}
     command: uv run uvicorn icloud_index_service.main:app --host 0.0.0.0 --port 8080
     volumes:
       - .:/app
@@ -68,7 +71,8 @@ services:
         condition: service_completed_successfully
 
   worker:
-    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    build:
+      context: .
     working_dir: /app
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-icloud}
@@ -87,6 +91,7 @@ services:
       ICLOUD_ACCEPT_TERMS: ${ICLOUD_ACCEPT_TERMS:-false}
       ICLOUD_REFRESH_INTERVAL_SECONDS: ${ICLOUD_REFRESH_INTERVAL_SECONDS:-}
       ICLOUD_EXCLUDED_DIRECTORY_NAMES: ${ICLOUD_EXCLUDED_DIRECTORY_NAMES:-}
+      ICLOUD_OCR_LANGS: ${ICLOUD_OCR_LANGS:-eng}
       ICLOUD_REFRESH_BATCH_FILE_LIMIT: ${ICLOUD_REFRESH_BATCH_FILE_LIMIT:-100}
       BACKGROUND_REFRESH_INTERVAL_SECONDS: ${BACKGROUND_REFRESH_INTERVAL_SECONDS:-1800}
       WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-5}

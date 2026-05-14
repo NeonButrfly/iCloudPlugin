@@ -38,10 +38,13 @@ Current flow:
   queue a new background scan when no newer completed scan exists
 - `ICLOUD_REFRESH_BATCH_FILE_LIMIT` controls how many file entries are processed
   per resumable batch
+- `ICLOUD_OCR_LANGS` controls the Tesseract language set used for still-image OCR
 - batch progress is stored in the `jobs` payload, so the worker can immediately
   resume where it left off after a restart
 - file presence is tracked per sync run; deletions are applied only when the
   whole run finishes
+- extracted text is sanitized before persistence so embedded NUL bytes do not
+  crash Postgres writes
 
 Useful endpoints:
 
@@ -88,10 +91,20 @@ For the Pi deployment, start with:
 
 ```dotenv
 ICLOUD_COOKIE_DIRECTORY=.runtime/pyicloud
+ICLOUD_OCR_LANGS=eng
 ICLOUD_REFRESH_BATCH_FILE_LIMIT=100
 BACKGROUND_REFRESH_INTERVAL_SECONDS=1800
 WORKER_POLL_INTERVAL_SECONDS=5
 ```
+
+## Current extraction coverage
+
+- text-like formats: `.txt`, `.md`, `.csv`, `.json`, `.log`, `.html`, `.css`,
+  `.yml`, `.yaml`, `.ics`, `.sql`, `.ts`, `.tsx`, `.tsbuildinfo`
+- documents: `.pdf`, `.docx`, `.xlsx`
+- OCR images: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.heic`
+- media such as `.mov`, `.mp4`, `.m4v`, `.m4a`, `.qt`, and `.avi` remain
+  metadata-only in this rollout
 
 ## Upgrade hooks
 

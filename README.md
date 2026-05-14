@@ -49,6 +49,10 @@ under `/opt/iCloudPlugin`.
   based on `BACKGROUND_REFRESH_INTERVAL_SECONDS`
 - `GET /refresh/status` returns the latest known indexing state, including job
   progress for resumable scans
+- extracted text is sanitized before persistence so embedded NUL bytes do not
+  crash Postgres writes
+- the container image now includes Tesseract so common still-image formats can
+  be OCRed during indexing
 
 ## Indexing behavior
 
@@ -61,6 +65,13 @@ under `/opt/iCloudPlugin`.
 - `ICLOUD_EXCLUDED_DIRECTORY_NAMES` can skip large generated folders in addition
   to the built-in excludes for paths like `.git`, `node_modules`, `.venv`,
   `__pycache__`, `build`, and `dist`
+- content extraction currently supports text-like files such as `.txt`, `.md`,
+  `.csv`, `.json`, `.log`, `.html`, `.css`, `.yml`, `.yaml`, `.ics`, `.sql`,
+  `.ts`, `.tsx`, and `.tsbuildinfo`
+- document extraction currently supports `.pdf`, `.docx`, and `.xlsx`
+- still-image OCR currently supports common formats such as `.jpg`, `.jpeg`,
+  `.png`, `.gif`, `.webp`, and `.heic`
+- video and audio formats remain metadata-only in this rollout
 
 ## Reindex reset
 
