@@ -39,6 +39,7 @@ under `/opt/iCloudPlugin`.
 - copy `.env.example` to `.env` only if you want to override the default ports or credentials
 - use `POSTGRES_PUBLISHED_PORT` to change the host-facing database port without changing the service's internal Postgres connection on `5432`
 - the service container validates DB connectivity with `SELECT 1` before serving HTTP
+- the long-running `postgres`, `service`, and `worker` containers now use `restart: unless-stopped` so the stack comes back after host or Docker daemon restarts without a manual `docker compose up -d` (#5)
 - the worker applies extraction when payloads are available and records best-effort extraction failures without failing the whole refresh
 - the plugin launcher in `plugins/icloud-drive/.mcp.json` starts the real MCP proxy, with a repo-local bootstrap fallback when the package import path is not already installed
 - the direct iCloud client reads `ICLOUD_APPLE_ID`, `ICLOUD_APPLE_PASSWORD`, optional `ICLOUD_COOKIE_DIRECTORY`, and `ICLOUD_MAX_DOWNLOAD_BYTES`

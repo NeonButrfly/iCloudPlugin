@@ -18,6 +18,10 @@ cd /opt/iCloudPlugin
 docker compose up --build
 ```
 
+After the first successful start, the long-running `postgres`, `service`, and
+`worker` containers are configured with `restart: unless-stopped`, so normal
+host or Docker daemon restarts should bring the API back automatically (#5).
+
 ## Bootstrap Apple session
 
 1. Open the auth bootstrap URL exposed by the service.
