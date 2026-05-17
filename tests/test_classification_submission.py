@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -17,6 +18,8 @@ from icloud_index_service.services.classification_submission import (
     CLASSIFICATION_STATUS_FAILED,
     CLASSIFICATION_STATUS_QUEUED,
     CLASSIFICATION_STATUS_RUNNING,
+    ClassifierApiClient,
+    ClassifierSubmissionNotReadyError,
     DEFAULT_CLASSIFICATION_MAX_ATTEMPTS,
     DEFAULT_CLASSIFICATION_SUBMISSION_CONCURRENCY,
     compute_source_fingerprint,
@@ -296,6 +299,37 @@ def test_run_next_classification_job_retries_then_fails_after_attempt_budget(
     assert stored_state is not None
     assert stored_state.submission_status == CLASSIFICATION_STATUS_FAILED
     assert "classifier unavailable" in (stored_state.last_error or "")
+
+
+def test_classifier_api_client_treats_real_folder_readiness_conflict_as_retryable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    local_file = tmp_path / "Pictures" / "Family.jpeg"
+    local_file.parent.mkdir(parents=True)
+    local_file.write_bytes(b"jpeg-bytes")
+
+    def _fake_post(*args, **kwargs):
+        return httpx.Response(
+            409,
+            json={
+                "detail": (
+                    "Real-folder ingestion is blocked until readiness thresholds pass "
+                    "and allow_real_ingestion is enabled: "
+                    "manual-real-ingestion-enable-still-required"
+                )
+            },
+            request=httpx.Request("POST", "http://classifier.local/classify/upload"),
+        )
+
+    monkeypatch.setattr(httpx, "post", _fake_post)
+    client = ClassifierApiClient(
+        base_url="http://classifier.local",
+        api_token="secret",
+    )
+
+    with pytest.raises(ClassifierSubmissionNotReadyError):
+        client.submit_file(file_path=local_file, file_name=local_file.name)
 
 
 def test_classification_worker_once_processes_up_to_configured_concurrency(

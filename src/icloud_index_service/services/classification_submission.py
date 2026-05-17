@@ -74,6 +74,15 @@ class PermanentClassifierSubmissionError(RuntimeError):
     pass
 
 
+def _is_retryable_classifier_rejection(*, status_code: int, response_text: str) -> bool:
+    normalized_text = response_text.lower()
+    return status_code == 409 and (
+        "real-folder ingestion is blocked" in normalized_text
+        or "readiness-report-missing-or-blocked" in normalized_text
+        or "manual-real-ingestion-enable-still-required" in normalized_text
+    )
+
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -478,6 +487,13 @@ class ClassifierApiClient:
                 f"Classifier API returned {response.status_code}: {response.text[:500]}"
             )
         if response.status_code >= 400:
+            if _is_retryable_classifier_rejection(
+                status_code=response.status_code,
+                response_text=response.text,
+            ):
+                raise ClassifierSubmissionNotReadyError(
+                    f"Classifier API not ready yet ({response.status_code}): {response.text[:500]}"
+                )
             raise PermanentClassifierSubmissionError(
                 f"Classifier API rejected submission with {response.status_code}: {response.text[:500]}"
             )
