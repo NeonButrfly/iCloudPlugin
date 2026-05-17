@@ -34,6 +34,24 @@ Current flow:
 - keep the cookie directory persisted so trusted Apple sessions survive restarts
 - if Apple requires 2FA/2SA, complete one interactive trusted `pyicloud` login before expecting unattended refresh jobs to work
 
+## Filesystem mirror mode
+
+If a maintained live mirror already exists, the service can index that tree
+directly instead of traversing Apple web APIs.
+
+For the `kayraspi2` deployment:
+
+- set `ICLOUD_SOURCE_MODE=filesystem-mirror`
+- set `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors/icloud`
+- leave Apple credentials unset unless you still want the optional direct mode
+
+In this mode:
+
+- `/auth/status` reports `configured` when the mirror root is configured
+- refresh jobs crawl the mirrored filesystem root and reuse the same resumable
+  batch/frontier behavior
+- content extraction still respects `ICLOUD_MAX_DOWNLOAD_BYTES`
+
 ## Background indexing
 
 - the worker keeps refresh work in the background and scans for new or changed
@@ -98,6 +116,8 @@ The reindex helpers:
 For the Pi deployment, start with:
 
 ```dotenv
+ICLOUD_SOURCE_MODE=filesystem-mirror
+ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors/icloud
 ICLOUD_COOKIE_DIRECTORY=.runtime/pyicloud
 ICLOUD_OCR_LANGS=eng
 ICLOUD_REFRESH_BATCH_FILE_LIMIT=100

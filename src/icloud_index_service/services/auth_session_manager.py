@@ -4,6 +4,7 @@ import os
 
 DEFAULT_AUTH_SESSION_STATE = "needs-bootstrap"
 FULLY_MASKED_SECRET_MAX_LENGTH = 8
+FILESYSTEM_MIRROR_SOURCE_MODE = "filesystem-mirror"
 
 
 def redact_cookie_value(raw: str) -> str:
@@ -13,6 +14,11 @@ def redact_cookie_value(raw: str) -> str:
 
 
 def detect_auth_session_state() -> str:
+    source_mode = os.environ.get("ICLOUD_SOURCE_MODE", "").strip().lower()
+    mirror_root = os.environ.get("ICLOUD_MIRROR_ROOT", "").strip()
+    if source_mode == FILESYSTEM_MIRROR_SOURCE_MODE and mirror_root:
+        return "configured"
+
     apple_id = os.environ.get("ICLOUD_APPLE_ID", "").strip()
     password = os.environ.get("ICLOUD_APPLE_PASSWORD", "").strip()
     if apple_id and password:

@@ -42,6 +42,17 @@ def test_detect_auth_session_state_reports_configured_when_credentials_exist(mon
     assert detect_auth_session_state() == "configured"
 
 
+def test_detect_auth_session_state_reports_configured_for_filesystem_mirror_mode(
+    monkeypatch,
+):
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", "/srv/cloud-vault/mirrors/icloud")
+    monkeypatch.delenv("ICLOUD_APPLE_ID", raising=False)
+    monkeypatch.delenv("ICLOUD_APPLE_PASSWORD", raising=False)
+
+    assert detect_auth_session_state() == "configured"
+
+
 def test_auth_status_endpoint_reports_needs_bootstrap_when_startup_validation_succeeds(monkeypatch):
     validation_calls: list[str] = []
 

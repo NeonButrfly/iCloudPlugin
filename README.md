@@ -16,13 +16,17 @@ The current implementation is read-only and iCloud-only.
 
 ## Readiness note
 
-The live refresh path now uses a real `pyicloud`-backed iCloud Drive client in
-`src/icloud_index_service/services/icloud_web_client.py`, but it still depends on
-valid Apple credentials plus a trusted Apple session:
+The live refresh path now supports two source modes in
+`src/icloud_index_service/services/icloud_web_client.py`:
 
-- indexed search, file-detail retrieval, MCP wiring, upgrade hooks, and direct Drive traversal are implemented
-- refresh jobs require `ICLOUD_APPLE_ID` and `ICLOUD_APPLE_PASSWORD`
-- accounts protected by 2FA/2SA still need one trusted interactive `pyicloud` bootstrap so the persisted cookie directory can be reused by the service
+- `apple-web`
+  - indexed search, file-detail retrieval, MCP wiring, upgrade hooks, and direct Drive traversal are implemented
+  - refresh jobs require `ICLOUD_APPLE_ID` and `ICLOUD_APPLE_PASSWORD`
+  - accounts protected by 2FA/2SA still need one trusted interactive `pyicloud` bootstrap so the persisted cookie directory can be reused by the service
+- `filesystem-mirror`
+  - refresh jobs crawl a live mirrored filesystem root instead of talking to Apple directly
+  - configure `ICLOUD_SOURCE_MODE=filesystem-mirror`
+  - configure `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors/icloud` on `kayraspi2`
 
 ## Recommended deployment root
 
@@ -42,7 +46,7 @@ under `/opt/iCloudPlugin`.
 - the long-running `postgres`, `service`, and `worker` containers now use `restart: unless-stopped` so the stack comes back after host or Docker daemon restarts without a manual `docker compose up -d` (#5)
 - the worker applies extraction when payloads are available and records best-effort extraction failures without failing the whole refresh
 - the plugin launcher in `plugins/icloud-drive/.mcp.json` starts the real MCP proxy, with a repo-local bootstrap fallback when the package import path is not already installed
-- the direct iCloud client reads `ICLOUD_APPLE_ID`, `ICLOUD_APPLE_PASSWORD`, optional `ICLOUD_COOKIE_DIRECTORY`, and `ICLOUD_MAX_DOWNLOAD_BYTES`
+- the source client reads `ICLOUD_SOURCE_MODE`, optional `ICLOUD_MIRROR_ROOT`, `ICLOUD_APPLE_ID`, `ICLOUD_APPLE_PASSWORD`, optional `ICLOUD_COOKIE_DIRECTORY`, and `ICLOUD_MAX_DOWNLOAD_BYTES`
 - refresh runs are tracked in the database and resumed in the background from the
   last persisted traversal frontier instead of restarting from the top on every
   worker loop

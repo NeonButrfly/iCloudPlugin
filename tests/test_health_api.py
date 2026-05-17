@@ -137,6 +137,31 @@ def test_compose_passes_icloud_auth_environment_to_service_and_worker():
         assert container_env["ICLOUD_MAX_DOWNLOAD_BYTES"] == "1048576"
 
 
+def test_compose_passes_filesystem_mirror_environment_to_service_and_worker():
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ | {
+        "ICLOUD_SOURCE_MODE": "filesystem-mirror",
+        "ICLOUD_MIRROR_ROOT": "/srv/cloud-vault/mirrors/icloud",
+    }
+    result = subprocess.run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=repo_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    config = json.loads(result.stdout)
+    service_env = config["services"]["service"]["environment"]
+    worker_env = config["services"]["worker"]["environment"]
+
+    for container_env in (service_env, worker_env):
+        assert container_env["ICLOUD_SOURCE_MODE"] == "filesystem-mirror"
+        assert container_env["ICLOUD_MIRROR_ROOT"] == "/srv/cloud-vault/mirrors/icloud"
+
+
 def test_app_import_registers_sync_run_metadata_for_refresh_jobs():
     repo_root = Path(__file__).resolve().parents[1]
     env = os.environ | {"PYTHONPATH": str(repo_root / "src")}

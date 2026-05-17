@@ -3,7 +3,7 @@ from __future__ import annotations
 import mimetypes
 import os
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +11,9 @@ from pyicloud import PyiCloudService
 from pyicloud.services.drive import DriveNode
 
 BROWSER_ASSISTED_AUTH_MODE = "browser-assisted-apple-web"
+FILESYSTEM_MIRROR_AUTH_MODE = "filesystem-mirror"
+DEFAULT_SOURCE_MODE = "apple-web"
+FILESYSTEM_MIRROR_SOURCE_MODE = "filesystem-mirror"
 HeartbeatCallback = Callable[[], None]
 DEFAULT_COOKIE_DIRECTORY = ".runtime/pyicloud"
 DEFAULT_MAX_DOWNLOAD_BYTES = 1_048_576
@@ -76,6 +79,13 @@ def _ensure_cookie_directory() -> str:
     cookie_path = Path(cookie_directory)
     cookie_path.mkdir(parents=True, exist_ok=True)
     return str(cookie_path)
+
+
+def _read_source_mode() -> str:
+    raw_value = os.environ.get("ICLOUD_SOURCE_MODE")
+    if raw_value is None or not raw_value.strip():
+        return DEFAULT_SOURCE_MODE
+    return raw_value.strip().lower()
 
 
 def _guess_content_type(file_name: str) -> str:
@@ -308,7 +318,140 @@ class ICloudWebClient:
             return None
 
 
+class FilesystemMirrorICloudWebClient(ICloudWebClient):
+    def __init__(
+        self,
+        *,
+        mirror_root: Path,
+        max_download_bytes: int = DEFAULT_MAX_DOWNLOAD_BYTES,
+        excluded_directory_names: frozenset[str] = DEFAULT_EXCLUDED_DIRECTORY_NAMES,
+    ) -> None:
+        super().__init__(
+            service=None,
+            auth_mode=FILESYSTEM_MIRROR_AUTH_MODE,
+            max_download_bytes=max_download_bytes,
+            excluded_directory_names=excluded_directory_names,
+        )
+        self._mirror_root = mirror_root.resolve()
+
+    def list_drive_items(
+        self,
+        *,
+        heartbeat: HeartbeatCallback | None = None,
+    ) -> list[dict[str, object]]:
+        frontier = self.build_traversal_frontier()
+        items: list[dict[str, object]] = []
+        while frontier:
+            batch_items, frontier, _ = self.list_drive_items_batch(
+                frontier,
+                limit=max(len(frontier), 1_000),
+                heartbeat=heartbeat,
+            )
+            items.extend(batch_items)
+        return items
+
+    def build_traversal_frontier(self) -> list[dict[str, object]]:
+        return [
+            {
+                "type": "folder",
+                "name": "root",
+                "path": "",
+                "local_path": str(self._mirror_root),
+            }
+        ]
+
+    def list_drive_items_batch(
+        self,
+        frontier: list[dict[str, object]] | None,
+        *,
+        limit: int,
+        heartbeat: HeartbeatCallback | None = None,
+    ) -> tuple[list[dict[str, object]], list[dict[str, object]], bool]:
+        active_frontier = list(frontier or self.build_traversal_frontier())
+        items: list[dict[str, object]] = []
+
+        while active_frontier and len(items) < limit:
+            if heartbeat is not None:
+                heartbeat()
+
+            entry = active_frontier.pop()
+            entry_type = str(entry["type"])
+            entry_name = str(entry["name"])
+            local_path = Path(str(entry["local_path"]))
+
+            if entry_type == "folder":
+                if entry_name != "root" and entry_name in self._excluded_directory_names:
+                    continue
+                if not local_path.exists() or not local_path.is_dir():
+                    continue
+                child_entries = self._list_child_entries(local_path, parent_path=str(entry["path"]))
+                for child_entry in child_entries:
+                    active_frontier.append(child_entry)
+                continue
+
+            if entry_type == "file":
+                if local_path.exists() and local_path.is_file():
+                    items.append(self._serialize_local_file_entry(local_path, logical_path=str(entry["path"])))
+
+        return items, active_frontier, not active_frontier
+
+    def _list_child_entries(self, directory: Path, *, parent_path: str) -> list[dict[str, object]]:
+        child_entries: list[dict[str, object]] = []
+        for child_path in sorted(directory.iterdir(), key=lambda child: (not child.is_dir(), child.name.lower())):
+            child_logical_path = f"{parent_path}/{child_path.name}" if parent_path else f"/{child_path.name}"
+            child_entries.append(
+                {
+                    "type": "folder" if child_path.is_dir() else "file",
+                    "name": child_path.name,
+                    "path": child_logical_path,
+                    "local_path": str(child_path),
+                }
+            )
+        return child_entries
+
+    def _serialize_local_file_entry(self, file_path: Path, *, logical_path: str) -> dict[str, object]:
+        stat_result = file_path.stat()
+        payload: dict[str, object] = {
+            "id": f"filesystem::{logical_path}",
+            "name": file_path.name,
+            "path": logical_path,
+            "extension": file_path.suffix.lstrip("."),
+            "contentType": _guess_content_type(file_path.name),
+            "size": stat_result.st_size,
+            "modified": datetime.fromtimestamp(stat_result.st_mtime, tz=timezone.utc).isoformat(),
+        }
+        if stat_result.st_size <= self._max_download_bytes:
+            payload["content_bytes"] = file_path.read_bytes()
+        return payload
+
+
 def create_icloud_web_client() -> ICloudWebClient:
+    source_mode = _read_source_mode()
+    max_download_bytes = _read_int_env(
+        "ICLOUD_MAX_DOWNLOAD_BYTES",
+        default=DEFAULT_MAX_DOWNLOAD_BYTES,
+    )
+    excluded_directory_names = (
+        DEFAULT_EXCLUDED_DIRECTORY_NAMES
+        | _read_csv_env("ICLOUD_EXCLUDED_DIRECTORY_NAMES")
+    )
+    if source_mode == FILESYSTEM_MIRROR_SOURCE_MODE:
+        mirror_root = _read_required_env("ICLOUD_MIRROR_ROOT")
+        if mirror_root is None:
+            raise ICloudWebClientNotReadyError(
+                "Filesystem mirror access is not ready: ICLOUD_MIRROR_ROOT must be configured."
+            )
+        mirror_root_path = Path(mirror_root)
+        if not mirror_root_path.exists() or not mirror_root_path.is_dir():
+            raise ICloudWebClientNotReadyError(
+                "Filesystem mirror access is not ready: ICLOUD_MIRROR_ROOT does not exist or is not a directory."
+            )
+        return FilesystemMirrorICloudWebClient(
+            mirror_root=mirror_root_path,
+            max_download_bytes=max_download_bytes,
+            excluded_directory_names=excluded_directory_names,
+        )
+
     apple_id = _read_required_env("ICLOUD_APPLE_ID")
     password = _read_required_env("ICLOUD_APPLE_PASSWORD")
     if apple_id is None or password is None:
@@ -342,12 +485,6 @@ def create_icloud_web_client() -> ICloudWebClient:
 
     return ICloudWebClient(
         service=service,
-        max_download_bytes=_read_int_env(
-            "ICLOUD_MAX_DOWNLOAD_BYTES",
-            default=DEFAULT_MAX_DOWNLOAD_BYTES,
-        ),
-        excluded_directory_names=(
-            DEFAULT_EXCLUDED_DIRECTORY_NAMES
-            | _read_csv_env("ICLOUD_EXCLUDED_DIRECTORY_NAMES")
-        ),
+        max_download_bytes=max_download_bytes,
+        excluded_directory_names=excluded_directory_names,
     )

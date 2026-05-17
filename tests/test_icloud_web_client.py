@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from io import BytesIO
+from unittest.mock import ANY
 
 import pytest
 
@@ -81,6 +82,33 @@ def test_create_icloud_web_client_requires_apple_credentials(monkeypatch):
 
     assert "ICLOUD_APPLE_ID" in str(exc_info.value)
     assert "ICLOUD_APPLE_PASSWORD" in str(exc_info.value)
+
+
+def test_create_icloud_web_client_uses_filesystem_mirror_mode(monkeypatch, tmp_path):
+    mirror_root = tmp_path / "icloud"
+    (mirror_root / "Documents").mkdir(parents=True)
+    (mirror_root / "Documents" / "todo.txt").write_text("mirror mode", encoding="utf-8")
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.delenv("ICLOUD_APPLE_ID", raising=False)
+    monkeypatch.delenv("ICLOUD_APPLE_PASSWORD", raising=False)
+
+    client = create_icloud_web_client()
+
+    assert client.auth_mode == "filesystem-mirror"
+    assert client.list_drive_items() == [
+        {
+            "id": "filesystem::/Documents/todo.txt",
+            "name": "todo.txt",
+            "path": "/Documents/todo.txt",
+            "extension": "txt",
+            "contentType": "text/plain",
+            "size": len("mirror mode".encode("utf-8")),
+            "modified": ANY,
+            "content_bytes": b"mirror mode",
+        }
+    ]
 
 
 def test_create_icloud_web_client_surfaces_two_factor_bootstrap_requirement(
@@ -243,3 +271,58 @@ def test_icloud_web_client_skips_app_libraries_and_default_excluded_directories(
             "content_bytes": b"hello",
         }
     ]
+
+
+def test_filesystem_mirror_client_lists_batches_and_respects_excludes_and_size_cap(
+    monkeypatch,
+    tmp_path,
+):
+    mirror_root = tmp_path / "icloud"
+    (mirror_root / "Documents").mkdir(parents=True)
+    (mirror_root / "node_modules").mkdir(parents=True)
+    (mirror_root / "Documents" / "tiny.txt").write_text("ok", encoding="utf-8")
+    (mirror_root / "Documents" / "large.pdf").write_bytes(b"x" * 2048)
+    (mirror_root / "node_modules" / "ignored.txt").write_text("ignore", encoding="utf-8")
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("ICLOUD_MAX_DOWNLOAD_BYTES", "1024")
+
+    client = create_icloud_web_client()
+
+    frontier = client.build_traversal_frontier()
+    first_batch, next_frontier, completed_snapshot = client.list_drive_items_batch(
+        frontier,
+        limit=1,
+    )
+    second_batch, final_frontier, finished = client.list_drive_items_batch(
+        next_frontier,
+        limit=10,
+    )
+
+    assert completed_snapshot is False
+    assert first_batch == [
+        {
+            "id": "filesystem::/Documents/tiny.txt",
+            "name": "tiny.txt",
+            "path": "/Documents/tiny.txt",
+            "extension": "txt",
+            "contentType": "text/plain",
+            "size": 2,
+            "modified": ANY,
+            "content_bytes": b"ok",
+        }
+    ]
+    assert second_batch == [
+        {
+            "id": "filesystem::/Documents/large.pdf",
+            "name": "large.pdf",
+            "path": "/Documents/large.pdf",
+            "extension": "pdf",
+            "contentType": "application/pdf",
+            "size": 2048,
+            "modified": ANY,
+        }
+    ]
+    assert final_frontier == []
+    assert finished is True
