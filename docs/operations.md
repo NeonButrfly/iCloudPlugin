@@ -18,9 +18,10 @@ cd /opt/iCloudPlugin
 docker compose up --build
 ```
 
-After the first successful start, the long-running `postgres`, `service`, and
-`worker` containers are configured with `restart: unless-stopped`, so normal
-host or Docker daemon restarts should bring the API back automatically (#5).
+After the first successful start, the long-running `postgres`, `service`,
+`worker`, and `classification-worker` containers are configured with
+`restart: unless-stopped`, so normal host or Docker daemon restarts should
+bring the API back automatically (#5).
 
 ## Bootstrap Apple session
 
@@ -73,6 +74,29 @@ In this mode:
 - extracted text is sanitized before persistence so embedded NUL bytes do not
   crash Postgres writes
 
+## Background classification
+
+- `classification-worker` runs in parallel with the refresh worker
+- it backfills the already indexed mirrored corpus and keeps up with new or
+  changed files while indexing continues
+- it submits full files to `CLASSIFIER_API_URL` using `CLASSIFIER_API_TOKEN`
+- it persists per-file classification state so unchanged files are not
+  resubmitted
+- it reads files from the mirrored filesystem source instead of re-downloading
+  them from Apple during submission
+- default throughput is intentionally conservative:
+  `CLASSIFICATION_SUBMISSION_CONCURRENCY=2`
+- `CLASSIFICATION_MAX_ATTEMPTS` controls retry budget
+- `CLASSIFICATION_RETRY_BACKOFF_SECONDS` controls when retriable failures can
+  be claimed again; the current default is `0`
+
+Current classifier submission coverage follows the classifier API's accepted
+extensions:
+
+- documents: `.pdf`, `.docx`, `.doc`, `.xlsx`, `.xls`, `.pptx`, `.ppt`,
+  `.txt`, `.md`, `.markdown`, `.csv`, `.html`, `.htm`
+- images: `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`
+
 Useful endpoints:
 
 - `POST /refresh` queues a manual refresh
@@ -107,7 +131,7 @@ Set-Location /opt/iCloudPlugin
 
 The reindex helpers:
 
-- bring up `postgres`, `service`, and `worker` if needed
+- bring up `postgres`, `service`, `worker`, and `classification-worker` if needed
 - truncate `extracted_contents`, `files`, `jobs`, and `sync_runs`
 - queue a fresh refresh run
 - print the current `/refresh/status` payload
@@ -117,6 +141,13 @@ The reindex helpers:
 For the Pi deployment, start with:
 
 ```dotenv
+CLASSIFICATION_SUBMISSION_ENABLED=true
+CLASSIFIER_API_URL=http://192.168.50.196:4319
+CLASSIFIER_API_TOKEN=
+CLASSIFICATION_SUBMISSION_CONCURRENCY=2
+CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS=5
+CLASSIFICATION_MAX_ATTEMPTS=3
+CLASSIFICATION_RETRY_BACKOFF_SECONDS=0
 ICLOUD_SOURCE_MODE=filesystem-mirror
 ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors/icloud
 ICLOUD_MIRROR_MOUNT_SOURCE=/srv/cloud-vault
@@ -138,5 +169,8 @@ WORKER_POLL_INTERVAL_SECONDS=5
 
 ## Upgrade hooks
 
-- AI categorization stays suggestion-only in this rollout: prompts should yield category, confidence, and reasoning, not move files.
-- Markdown collections should aggregate summaries with clear provenance back to indexed source files.
+- ChatGPT note-first retrieval can now build on persisted classifier note
+  paths, summaries, labels, and response payloads stored in the index
+  database.
+- Markdown collections should aggregate summaries with clear provenance back to
+  indexed source files and classifier-generated notes.

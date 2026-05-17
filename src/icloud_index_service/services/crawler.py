@@ -21,6 +21,7 @@ def normalize_remote_item(raw: dict[str, object]) -> dict[str, object]:
         "extension": raw.get("extension"),
         "mime_type": mime_type,
         "size_bytes": raw.get("size"),
+        "modified_at": raw.get("modified"),
     }
 
 

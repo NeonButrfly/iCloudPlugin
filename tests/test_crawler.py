@@ -215,6 +215,7 @@ def test_normalize_remote_item_preserves_storage_shape_for_later_routing():
         "extension": "md",
         "mime_type": "text/markdown",
         "size_bytes": None,
+        "modified_at": None,
     }
 
 

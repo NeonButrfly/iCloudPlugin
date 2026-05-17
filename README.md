@@ -7,10 +7,10 @@ This repository contains a private iCloud Drive indexing stack and its companion
 The repository now includes:
 
 - a FastAPI service with `/health`, `/auth/status`, `/refresh`, `/search`, and `/files/{file_id}`
-- Docker Compose wiring for `postgres`, `migrate`, `service`, and `worker`
+- Docker Compose wiring for `postgres`, `migrate`, `service`, `worker`, and `classification-worker`
 - metadata refresh jobs, stale-job recovery, extraction, and indexed file search
 - a thin local MCP plugin that proxies search, file details, excerpts, and refresh calls to the service
-- planning hooks for future AI categorization and markdown collection generation
+- a parallel classifier submission lane that backfills indexed files and pushes mirrored source files to `local-doc-classifier`
 
 The current implementation is read-only and iCloud-only.
 
@@ -45,6 +45,7 @@ under `/opt/iCloudPlugin`.
 - use `POSTGRES_PUBLISHED_PORT` to change the host-facing database port without changing the service's internal Postgres connection on `5432`
 - the service container validates DB connectivity with `SELECT 1` before serving HTTP
 - the long-running `postgres`, `service`, and `worker` containers now use `restart: unless-stopped` so the stack comes back after host or Docker daemon restarts without a manual `docker compose up -d` (#5)
+- the dedicated `classification-worker` container runs beside the refresh worker so classifier submission does not block indexing
 - the worker applies extraction when payloads are available and records best-effort extraction failures without failing the whole refresh
 - the plugin launcher in `plugins/icloud-drive/.mcp.json` starts the real MCP proxy, with a repo-local bootstrap fallback when the package import path is not already installed
 - the source client reads `ICLOUD_SOURCE_MODE`, optional `ICLOUD_MIRROR_ROOT`, `ICLOUD_APPLE_ID`, `ICLOUD_APPLE_PASSWORD`, optional `ICLOUD_COOKIE_DIRECTORY`, and `ICLOUD_MAX_DOWNLOAD_BYTES`
@@ -59,6 +60,9 @@ under `/opt/iCloudPlugin`.
   crash Postgres writes
 - the container image now includes Tesseract so common still-image formats can
   be OCRed during indexing
+- classifier submission reads mirrored files directly from the mounted
+  filesystem tree and records durable per-file classification state so
+  unchanged files are not re-submitted
 
 ## Indexing behavior
 
@@ -81,6 +85,26 @@ under `/opt/iCloudPlugin`.
 - still-image OCR currently supports common formats such as `.jpg`, `.jpeg`,
   `.png`, `.gif`, `.webp`, and `.heic`
 - video and audio formats remain metadata-only in this rollout
+
+## Classification behavior
+
+- the `classification-worker` backfills the already indexed corpus and keeps up
+  with new or changed files while refresh jobs continue
+- full-file uploads are sent to `CLASSIFIER_API_URL` using
+  `POST /classify/upload`
+- the default submission lane is low-concurrency by design:
+  `CLASSIFICATION_SUBMISSION_CONCURRENCY=2`
+- high-value file types are prioritized first:
+  documents before images
+- successful classifier responses are persisted into durable
+  `classification_states` records, including note path, summary, and label
+- files are submitted from the mirrored filesystem source, not re-downloaded
+  from Apple during classification
+- current classifier submission coverage follows the classifier API’s supported
+  file types:
+  `.pdf`, `.docx`, `.doc`, `.xlsx`, `.xls`, `.pptx`, `.ppt`, `.txt`, `.md`,
+  `.markdown`, `.csv`, `.html`, `.htm`, `.png`, `.jpg`, `.jpeg`, `.tif`,
+  `.tiff`, `.bmp`, and `.webp`
 
 ## Reindex reset
 

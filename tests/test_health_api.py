@@ -193,6 +193,42 @@ def test_compose_mounts_cloud_vault_into_service_and_worker_for_mirror_mode():
         )
 
 
+def test_compose_includes_classification_worker_with_classifier_environment():
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ | {
+        "CLASSIFIER_API_URL": "http://192.168.50.196:4319",
+        "CLASSIFIER_API_TOKEN": "top-secret",
+        "CLASSIFICATION_SUBMISSION_ENABLED": "true",
+        "CLASSIFICATION_SUBMISSION_CONCURRENCY": "2",
+    }
+    result = subprocess.run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=repo_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    config = json.loads(result.stdout)
+    services = config["services"]
+    classification_worker = services["classification-worker"]
+    worker_env = classification_worker["environment"]
+
+    assert classification_worker["command"] == [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "icloud_index_service.classification_worker",
+    ]
+    assert worker_env["CLASSIFIER_API_URL"] == "http://192.168.50.196:4319"
+    assert worker_env["CLASSIFIER_API_TOKEN"] == "top-secret"
+    assert worker_env["CLASSIFICATION_SUBMISSION_ENABLED"] == "true"
+    assert worker_env["CLASSIFICATION_SUBMISSION_CONCURRENCY"] == "2"
+
+
 def test_app_import_registers_sync_run_metadata_for_refresh_jobs():
     repo_root = Path(__file__).resolve().parents[1]
     env = os.environ | {"PYTHONPATH": str(repo_root / "src")}

@@ -228,6 +228,14 @@ def _coerce_content_bytes(raw_item: dict[str, object]) -> bytes | None:
     return None
 
 
+def _normalize_extension(*, extension: object, file_name: str) -> str | None:
+    if isinstance(extension, str) and extension.strip():
+        return extension.strip().lower().lstrip(".")
+    if "." in file_name:
+        return file_name.rsplit(".", 1)[1].lower()
+    return None
+
+
 def _upsert_file_record(
     session: Session,
     *,
@@ -244,11 +252,16 @@ def _upsert_file_record(
             name=str(normalized_item["name"]),
             path=str(normalized_item["path"]),
             mime_type=str(normalized_item["mime_type"]),
+            extension=_normalize_extension(
+                extension=normalized_item.get("extension"),
+                file_name=str(normalized_item["name"]),
+            ),
             size_bytes=(
                 int(normalized_item["size_bytes"])
                 if normalized_item.get("size_bytes") is not None
                 else None
             ),
+            modified_at=_parse_iso_timestamp(normalized_item.get("modified_at")),
             last_seen_sync_run_id=sync_run_id,
         )
         session.add(file_record)
@@ -258,11 +271,16 @@ def _upsert_file_record(
     file_record.name = str(normalized_item["name"])
     file_record.path = str(normalized_item["path"])
     file_record.mime_type = str(normalized_item["mime_type"])
+    file_record.extension = _normalize_extension(
+        extension=normalized_item.get("extension"),
+        file_name=str(normalized_item["name"]),
+    )
     file_record.size_bytes = (
         int(normalized_item["size_bytes"])
         if normalized_item.get("size_bytes") is not None
         else None
     )
+    file_record.modified_at = _parse_iso_timestamp(normalized_item.get("modified_at"))
     file_record.is_deleted = False
     file_record.last_seen_sync_run_id = sync_run_id
     session.flush()

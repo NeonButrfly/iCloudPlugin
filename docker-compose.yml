@@ -113,5 +113,35 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  classification-worker:
+    build:
+      context: .
+    working_dir: /app
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-icloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-icloud_index}
+      ICLOUD_SOURCE_MODE: ${ICLOUD_SOURCE_MODE:-apple-web}
+      ICLOUD_MIRROR_ROOT: ${ICLOUD_MIRROR_ROOT:-}
+      CLASSIFIER_API_URL: ${CLASSIFIER_API_URL:-http://192.168.50.196:4319}
+      CLASSIFIER_API_TOKEN: ${CLASSIFIER_API_TOKEN:-}
+      CLASSIFICATION_SUBMISSION_ENABLED: ${CLASSIFICATION_SUBMISSION_ENABLED:-true}
+      CLASSIFICATION_SUBMISSION_CONCURRENCY: ${CLASSIFICATION_SUBMISSION_CONCURRENCY:-2}
+      CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS: ${CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS:-5}
+      CLASSIFICATION_MAX_ATTEMPTS: ${CLASSIFICATION_MAX_ATTEMPTS:-3}
+      CLASSIFICATION_RETRY_BACKOFF_SECONDS: ${CLASSIFICATION_RETRY_BACKOFF_SECONDS:-0}
+    command: uv run python -m icloud_index_service.classification_worker
+    volumes:
+      - .:/app
+      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}:/srv/cloud-vault:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   postgres-data:
