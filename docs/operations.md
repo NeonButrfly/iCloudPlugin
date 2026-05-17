@@ -43,6 +43,7 @@ For the `kayraspi2` deployment:
 
 - set `ICLOUD_SOURCE_MODE=filesystem-mirror`
 - set `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors/icloud`
+- make sure the host mirror mount is also visible inside the containers; by default compose binds `${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}` to `/srv/cloud-vault`
 - leave Apple credentials unset unless you still want the optional direct mode
 
 In this mode:
@@ -118,6 +119,7 @@ For the Pi deployment, start with:
 ```dotenv
 ICLOUD_SOURCE_MODE=filesystem-mirror
 ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors/icloud
+ICLOUD_MIRROR_MOUNT_SOURCE=/srv/cloud-vault
 ICLOUD_COOKIE_DIRECTORY=.runtime/pyicloud
 ICLOUD_OCR_LANGS=eng
 ICLOUD_REFRESH_BATCH_FILE_LIMIT=100

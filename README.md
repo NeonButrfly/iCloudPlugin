@@ -27,6 +27,7 @@ The live refresh path now supports two source modes in
   - refresh jobs crawl a live mirrored filesystem root instead of talking to Apple directly
   - configure `ICLOUD_SOURCE_MODE=filesystem-mirror`
   - configure `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors/icloud` on `kayraspi2`
+  - make `/srv/cloud-vault` available inside the service and worker containers, or override `ICLOUD_MIRROR_MOUNT_SOURCE` if the host mount lives elsewhere
 
 ## Recommended deployment root
 

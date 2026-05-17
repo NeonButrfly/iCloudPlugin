@@ -162,6 +162,37 @@ def test_compose_passes_filesystem_mirror_environment_to_service_and_worker():
         assert container_env["ICLOUD_MIRROR_ROOT"] == "/srv/cloud-vault/mirrors/icloud"
 
 
+def test_compose_mounts_cloud_vault_into_service_and_worker_for_mirror_mode():
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    config = json.loads(result.stdout)
+    service_volumes = config["services"]["service"]["volumes"]
+    worker_volumes = config["services"]["worker"]["volumes"]
+
+    expected_mount = {
+        "type": "bind",
+        "source": "/srv/cloud-vault",
+        "target": "/srv/cloud-vault",
+    }
+
+    for volume_list in (service_volumes, worker_volumes):
+        assert any(
+            volume["type"] == expected_mount["type"]
+            and volume["source"] == expected_mount["source"]
+            and volume["target"] == expected_mount["target"]
+            and volume.get("read_only") is True
+            for volume in volume_list
+        )
+
+
 def test_app_import_registers_sync_run_metadata_for_refresh_jobs():
     repo_root = Path(__file__).resolve().parents[1]
     env = os.environ | {"PYTHONPATH": str(repo_root / "src")}
