@@ -1,6 +1,6 @@
 """add classification jobs, states, and file metadata
 
-Revision ID: 0004_classification_jobs_and_file_metadata
+Revision ID: 0004_classification_jobs
 Revises: 0003_file_sync_progress
 Create Date: 2026-05-16 00:00:00
 """
@@ -11,7 +11,7 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = "0004_classification_jobs_and_file_metadata"
+revision = "0004_classification_jobs"
 down_revision = "0003_file_sync_progress"
 branch_labels = None
 depends_on = None

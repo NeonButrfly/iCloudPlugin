@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+import importlib.util
 
 import pytest
 from sqlalchemy import BigInteger
@@ -154,9 +155,27 @@ def test_initial_migration_captures_authoritative_schema_rules():
     assert "CREATE UNIQUE INDEX uq_jobs_active_metadata_refresh" in result.stdout
     assert "Running upgrade 0001_initial_schema -> 0002_active_refresh_unique_index" in result.stdout
     assert "Running upgrade 0002_active_refresh_unique_index -> 0003_file_sync_progress" in result.stdout
+    assert "Running upgrade 0003_file_sync_progress -> 0004_classification_jobs" in result.stdout
     assert "last_seen_sync_run_id INTEGER" in result.stdout
+    assert "CREATE TABLE classification_jobs" in result.stdout
+    assert "CREATE TABLE classification_states" in result.stdout
     assert "ROW_NUMBER() OVER" in result.stdout
     assert "Marked failed during 0002_active_refresh_unique_index migration" in result.stdout
+
+
+def test_newest_migration_revision_fits_alembic_version_column_limit():
+    repo_root = Path(__file__).resolve().parents[1]
+    migration_path = (
+        repo_root / "migrations" / "versions" / "0004_classification_jobs_and_file_metadata.py"
+    )
+    spec = importlib.util.spec_from_file_location("migration_0004", migration_path)
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    assert len(module.revision) <= 32
+    assert module.revision == "0004_classification_jobs"
 
 
 def test_alembic_upgrade_sql_fails_fast_without_database_settings():
