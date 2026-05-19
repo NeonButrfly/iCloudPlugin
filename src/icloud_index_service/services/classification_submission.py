@@ -226,7 +226,12 @@ def _determine_priority_bucket(
     return PRIORITY_BUCKET_OTHER, PRIORITY_RANKS[PRIORITY_BUCKET_OTHER]
 
 
-def _build_candidate_statement(*, bucket: str, limit: int) -> Select[tuple[FileRecord, ExtractedContent | None, ClassificationState | None]]:
+def _build_candidate_statement(
+    *,
+    bucket: str,
+    limit: int,
+    offset: int = 0,
+) -> Select[tuple[FileRecord, ExtractedContent | None, ClassificationState | None]]:
     active_job_exists = exists(
         select(ClassificationJob.id).where(
             ClassificationJob.file_id == FileRecord.id,
@@ -244,6 +249,7 @@ def _build_candidate_statement(*, bucket: str, limit: int) -> Select[tuple[FileR
         .where(_classifiable_extension_predicate())
         .where(~active_job_exists)
         .order_by(FileRecord.id.asc())
+        .offset(offset)
         .limit(limit)
     )
 
@@ -299,52 +305,63 @@ def enqueue_classification_backfill(
         return []
 
     created_jobs: list[ClassificationJob] = []
+    candidate_chunk_size = max(limit * 5, 25)
 
     for bucket in PRIORITY_BUCKETS:
         if len(created_jobs) >= limit:
             break
 
-        remaining = limit - len(created_jobs)
-        statement = _build_candidate_statement(bucket=bucket, limit=max(remaining * 5, remaining))
-        candidates = session.execute(statement).all()
-
-        for file_record, extracted_content, state in candidates:
-            source_fingerprint = compute_source_fingerprint(
-                file_record=file_record,
-                extracted_content=extracted_content,
+        offset = 0
+        while len(created_jobs) < limit:
+            remaining = limit - len(created_jobs)
+            statement = _build_candidate_statement(
+                bucket=bucket,
+                limit=max(candidate_chunk_size, remaining),
+                offset=offset,
             )
-            if (
-                state is not None
-                and state.submission_status == CLASSIFICATION_STATUS_COMPLETED
-                and state.source_fingerprint == source_fingerprint
-            ):
-                continue
-
-            priority_bucket, priority_rank = _determine_priority_bucket(
-                file_record=file_record,
-                extracted_content=extracted_content,
-            )
-            if priority_bucket != bucket:
-                continue
-
-            job = ClassificationJob(
-                file_id=file_record.id,
-                status=CLASSIFICATION_STATUS_QUEUED,
-                priority_bucket=priority_bucket,
-                priority_rank=priority_rank,
-                source_fingerprint=source_fingerprint,
-                max_attempts=get_classification_max_attempts(),
-            )
-            session.add(job)
-            _upsert_classification_state(
-                session,
-                file_record=file_record,
-                source_fingerprint=source_fingerprint,
-                submission_status=CLASSIFICATION_STATUS_QUEUED,
-            )
-            created_jobs.append(job)
-            if len(created_jobs) >= limit:
+            candidates = session.execute(statement).all()
+            if not candidates:
                 break
+
+            offset += len(candidates)
+
+            for file_record, extracted_content, state in candidates:
+                source_fingerprint = compute_source_fingerprint(
+                    file_record=file_record,
+                    extracted_content=extracted_content,
+                )
+                if (
+                    state is not None
+                    and state.submission_status == CLASSIFICATION_STATUS_COMPLETED
+                    and state.source_fingerprint == source_fingerprint
+                ):
+                    continue
+
+                priority_bucket, priority_rank = _determine_priority_bucket(
+                    file_record=file_record,
+                    extracted_content=extracted_content,
+                )
+                if priority_bucket != bucket:
+                    continue
+
+                job = ClassificationJob(
+                    file_id=file_record.id,
+                    status=CLASSIFICATION_STATUS_QUEUED,
+                    priority_bucket=priority_bucket,
+                    priority_rank=priority_rank,
+                    source_fingerprint=source_fingerprint,
+                    max_attempts=get_classification_max_attempts(),
+                )
+                session.add(job)
+                _upsert_classification_state(
+                    session,
+                    file_record=file_record,
+                    source_fingerprint=source_fingerprint,
+                    submission_status=CLASSIFICATION_STATUS_QUEUED,
+                )
+                created_jobs.append(job)
+                if len(created_jobs) >= limit:
+                    break
 
     session.commit()
     return created_jobs

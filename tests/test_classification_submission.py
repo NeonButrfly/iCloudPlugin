@@ -188,6 +188,54 @@ def test_enqueue_classification_backfill_skips_matching_completed_state_and_acti
     assert stored_jobs[0].file_id == active_job_file.id
 
 
+def test_enqueue_classification_backfill_scans_past_completed_prefix_to_find_new_candidates(
+    tmp_path: Path,
+):
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+
+    try:
+        for index in range(1, 8):
+            file_record = _add_file(
+                session,
+                external_id=f"done-{index}",
+                name=f"Done-{index}.pdf",
+                path=f"/Archive/Done-{index}.pdf",
+                mime_type="application/pdf",
+                extension="pdf",
+                size_bytes=10 + index,
+            )
+            session.add(
+                ClassificationState(
+                    file_id=file_record.id,
+                    source_fingerprint=compute_source_fingerprint(
+                        file_record=file_record,
+                        extracted_content=None,
+                    ),
+                    source_size_bytes=file_record.size_bytes,
+                    submission_status=CLASSIFICATION_STATUS_COMPLETED,
+                )
+            )
+
+        pending_file = _add_file(
+            session,
+            external_id="pending-1",
+            name="Pending.pdf",
+            path="/Inbox/Pending.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=42,
+        )
+        session.commit()
+
+        created_jobs = enqueue_classification_backfill(session, limit=1)
+    finally:
+        session.close()
+
+    assert len(created_jobs) == 1
+    assert created_jobs[0].file_id == pending_file.id
+
+
 def test_run_next_classification_job_submits_file_and_persists_completed_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
