@@ -1,6 +1,8 @@
 # iCloud Index Plugin
 
-This repository contains a private iCloud Drive indexing stack and its companion local MCP plugin.
+This repository contains a private cloud-vault platform for mirrored-drive
+sync, indexing, classifier note generation, and its companion local MCP
+plugin.
 
 ## Current state
 
@@ -11,6 +13,7 @@ The repository now includes:
 - metadata refresh jobs, stale-job recovery, extraction, and indexed file search
 - a thin local MCP plugin that proxies search, file details, excerpts, and refresh calls to the service
 - a parallel classifier submission lane that backfills indexed files and pushes mirrored source files to `local-doc-classifier`
+- a role-based monorepo skeleton under `apps/`, `packages/`, and `deploy/roles`
 
 The current implementation is read-only and iCloud-only.
 
@@ -69,6 +72,8 @@ under `/opt/iCloudPlugin`.
 - the classification worker can run a bounded vault reconciliation pass against
   `CLASSIFIER_VAULT_ROOT` to repair stale note metadata after mirrored rename or
   move events
+- the default classifier-facing vault root now points at
+  `/srv/cloud-vault/document-vault`
 
 ## Indexing behavior
 
@@ -108,6 +113,9 @@ under `/opt/iCloudPlugin`.
   from Apple during classification
 - note reconciliation remains a safe first pass over the current one-way mirror;
   it does not make the iCloud sync bidirectional
+- the new classifier role code lives in `apps/classifier`
+- new note filenames should be human-readable by default, with hashes retained
+  in metadata instead of dominating the visible file name
 - current classifier submission coverage follows the classifier API’s supported
   file types:
   `.pdf`, `.docx`, `.doc`, `.xlsx`, `.xls`, `.pptx`, `.ppt`, `.txt`, `.md`,
@@ -138,6 +146,15 @@ Both scripts:
 ## Local plugin
 
 - plugin path: `plugins/icloud-drive`
+
+## Role layout
+
+- `apps/cloudsync`: sync and background crawl entrypoints
+- `apps/classifier`: classifier API, note writer, and taxonomy helpers
+- `apps/api`: operator API entrypoints
+- `apps/mcp`: MCP bridge entrypoints
+- `packages/*`: shared contracts, vault helpers, storage helpers, and runtime
+  building blocks
 - MCP tool surface:
   - `search_icloud_files`
   - `get_icloud_file`

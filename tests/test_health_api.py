@@ -66,6 +66,19 @@ def test_plugin_mcp_wiring_uses_real_plugin_server_module():
     assert "icloud index service" in result.stdout.lower()
 
 
+def test_role_based_monorepo_entrypoints_exist():
+    repo_root = Path(__file__).resolve().parents[1]
+    expected_paths = [
+        repo_root / "apps" / "cloudsync" / "worker.py",
+        repo_root / "apps" / "classifier" / "api_server.py",
+        repo_root / "apps" / "api" / "main.py",
+        repo_root / "apps" / "mcp" / "server.py",
+        repo_root / "packages" / "vault" / "__init__.py",
+    ]
+
+    assert all(path.exists() for path in expected_paths)
+
+
 def test_compose_db_host_port_override_keeps_internal_postgres_port():
     repo_root = Path(__file__).resolve().parents[1]
     env = os.environ | {"POSTGRES_PUBLISHED_PORT": "6543"}
@@ -200,7 +213,7 @@ def test_compose_includes_classification_worker_with_classifier_environment():
         "CLASSIFIER_API_TOKEN": "top-secret",
         "CLASSIFICATION_SUBMISSION_ENABLED": "true",
         "CLASSIFICATION_SUBMISSION_CONCURRENCY": "2",
-        "CLASSIFIER_VAULT_ROOT": "/srv/cloud-vault/local-doc-classifier-vault",
+        "CLASSIFIER_VAULT_ROOT": "/srv/cloud-vault/document-vault",
     }
     result = subprocess.run(
         ["docker", "compose", "config", "--format", "json"],
@@ -228,7 +241,24 @@ def test_compose_includes_classification_worker_with_classifier_environment():
     assert worker_env["CLASSIFIER_API_TOKEN"] == "top-secret"
     assert worker_env["CLASSIFICATION_SUBMISSION_ENABLED"] == "true"
     assert worker_env["CLASSIFICATION_SUBMISSION_CONCURRENCY"] == "2"
-    assert worker_env["CLASSIFIER_VAULT_ROOT"] == "/srv/cloud-vault/local-doc-classifier-vault"
+    assert worker_env["CLASSIFIER_VAULT_ROOT"] == "/srv/cloud-vault/document-vault"
+
+
+def test_compose_defaults_classifier_vault_root_to_document_vault():
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    config = json.loads(result.stdout)
+    worker_env = config["services"]["classification-worker"]["environment"]
+
+    assert worker_env["CLASSIFIER_VAULT_ROOT"] == "/srv/cloud-vault/document-vault"
 
 
 def test_compose_mounts_cloud_vault_writable_into_classification_worker():
