@@ -200,6 +200,7 @@ def test_compose_includes_classification_worker_with_classifier_environment():
         "CLASSIFIER_API_TOKEN": "top-secret",
         "CLASSIFICATION_SUBMISSION_ENABLED": "true",
         "CLASSIFICATION_SUBMISSION_CONCURRENCY": "2",
+        "CLASSIFIER_VAULT_ROOT": "/srv/cloud-vault/local-doc-classifier-vault",
     }
     result = subprocess.run(
         ["docker", "compose", "config", "--format", "json"],
@@ -227,6 +228,30 @@ def test_compose_includes_classification_worker_with_classifier_environment():
     assert worker_env["CLASSIFIER_API_TOKEN"] == "top-secret"
     assert worker_env["CLASSIFICATION_SUBMISSION_ENABLED"] == "true"
     assert worker_env["CLASSIFICATION_SUBMISSION_CONCURRENCY"] == "2"
+    assert worker_env["CLASSIFIER_VAULT_ROOT"] == "/srv/cloud-vault/local-doc-classifier-vault"
+
+
+def test_compose_mounts_cloud_vault_writable_into_classification_worker():
+    repo_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    config = json.loads(result.stdout)
+    classification_worker_volumes = config["services"]["classification-worker"]["volumes"]
+
+    assert any(
+        volume["type"] == "bind"
+        and volume["source"] == "/srv/cloud-vault"
+        and volume["target"] == "/srv/cloud-vault"
+        and volume.get("read_only") is not True
+        for volume in classification_worker_volumes
+    )
 
 
 def test_app_import_registers_sync_run_metadata_for_refresh_jobs():

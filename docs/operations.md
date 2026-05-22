@@ -84,6 +84,12 @@ In this mode:
   resubmitted
 - it reads files from the mirrored filesystem source instead of re-downloading
   them from Apple during submission
+- it passes canonical live-file path and hash metadata through to the
+  classifier so notes can refer back to the mirrored drive instead of temporary
+  upload staging paths
+- it can run a bounded vault reconciliation pass against `CLASSIFIER_VAULT_ROOT`
+  after submission polls; this first pass repairs note metadata only and does
+  not change mirror sync direction
 - default throughput is intentionally conservative:
   `CLASSIFICATION_SUBMISSION_CONCURRENCY=2`
 - `CLASSIFICATION_MAX_ATTEMPTS` controls retry budget
@@ -144,6 +150,9 @@ For the Pi deployment, start with:
 CLASSIFICATION_SUBMISSION_ENABLED=true
 CLASSIFIER_API_URL=http://192.168.50.196:4319
 CLASSIFIER_API_TOKEN=
+CLASSIFIER_VAULT_ROOT=/srv/cloud-vault/local-doc-classifier-vault
+CLASSIFIER_VAULT_RECONCILIATION_ENABLED=true
+CLASSIFIER_VAULT_RECONCILIATION_LIMIT=10
 CLASSIFICATION_SUBMISSION_CONCURRENCY=2
 CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS=5
 CLASSIFICATION_MAX_ATTEMPTS=3

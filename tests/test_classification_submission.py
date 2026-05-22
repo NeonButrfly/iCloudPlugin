@@ -57,8 +57,19 @@ class FakeClassifierClient:
         *,
         file_path: Path,
         file_name: str,
+        canonical_source_path: str | None = None,
+        canonical_source_hash: str | None = None,
+        last_seen_filename: str | None = None,
     ) -> dict[str, object]:
-        self.calls.append({"file_path": file_path, "file_name": file_name})
+        self.calls.append(
+            {
+                "file_path": file_path,
+                "file_name": file_name,
+                "canonical_source_path": canonical_source_path,
+                "canonical_source_hash": canonical_source_hash,
+                "last_seen_filename": last_seen_filename,
+            }
+        )
         if self._error is not None:
             raise self._error
         return self._response
@@ -277,7 +288,15 @@ def test_run_next_classification_job_submits_file_and_persists_completed_state(
 
     assert completed_job is not None
     assert completed_job.status == CLASSIFICATION_STATUS_COMPLETED
-    assert client.calls == [{"file_path": local_file, "file_name": "Budget.pdf"}]
+    assert client.calls == [
+        {
+            "file_path": local_file,
+            "file_name": "Budget.pdf",
+            "canonical_source_path": str(local_file),
+            "canonical_source_hash": "29d1283686193dc1461a7deac4f53d9bc5402a28b95d854f69e94986756fd0a9",
+            "last_seen_filename": "Budget.pdf",
+        }
+    ]
     assert state is not None
     assert state.submission_status == CLASSIFICATION_STATUS_COMPLETED
     assert state.primary_label == "Finance"
@@ -444,3 +463,42 @@ def test_classification_worker_once_processes_up_to_configured_concurrency(
     assert len(completed_jobs) == 2
     assert len(queued_jobs) == 1
     assert len(client.calls) == 2
+
+
+def test_classification_worker_once_runs_vault_reconciliation_pass(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session_factory = _build_session_factory(tmp_path)
+    reconciliation_calls: list[int] = []
+
+    monkeypatch.setenv("CLASSIFICATION_SUBMISSION_ENABLED", "true")
+    monkeypatch.setenv("CLASSIFICATION_SUBMISSION_CONCURRENCY", "1")
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.enqueue_classification_backfill",
+        lambda session, limit: [],
+    )
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.run_next_classification_job",
+        lambda session, client, worker_id: None,
+    )
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.run_vault_reconciliation_once",
+        lambda session, limit=None: reconciliation_calls.append(limit) or {
+            "scanned": 0,
+            "repaired": 0,
+            "ambiguous": 0,
+            "unverified": 0,
+            "skipped": 0,
+        },
+        raising=False,
+    )
+
+    processed_count = run_classification_worker_once(
+        session_factory=session_factory,
+        worker_id="classifier-a",
+        client=FakeClassifierClient(),
+    )
+
+    assert processed_count == 0
+    assert reconciliation_calls == [None]

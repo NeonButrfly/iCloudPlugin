@@ -159,6 +159,14 @@ def _normalize_extension(extension: str | None, *, file_name: str | None = None)
     return ""
 
 
+def compute_file_content_hash(file_path: Path) -> str:
+    digest = sha256()
+    with file_path.open("rb") as payload_stream:
+        for chunk in iter(lambda: payload_stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _classifiable_extension_predicate() -> object:
     return FileRecord.extension.in_(sorted(SUPPORTED_EXTENSIONS))
 
@@ -482,17 +490,27 @@ class ClassifierApiClient:
         *,
         file_path: Path,
         file_name: str,
+        canonical_source_path: str | None = None,
+        canonical_source_hash: str | None = None,
+        last_seen_filename: str | None = None,
     ) -> dict[str, object]:
         headers = {}
         if self.api_token:
             headers["X-API-Key"] = self.api_token
+        form_data = {"ingestion_mode": self.ingestion_mode}
+        if canonical_source_path:
+            form_data["canonical_source_path"] = canonical_source_path
+        if canonical_source_hash:
+            form_data["canonical_source_hash"] = canonical_source_hash
+        if last_seen_filename:
+            form_data["last_seen_filename"] = last_seen_filename
 
         try:
             with file_path.open("rb") as payload_stream:
                 response = httpx.post(
                     f"{self.base_url.rstrip('/')}{CLASSIFIER_UPLOAD_ENDPOINT}",
                     headers=headers,
-                    data={"ingestion_mode": self.ingestion_mode},
+                    data=form_data,
                     files={"file": (file_name, payload_stream)},
                     timeout=self.timeout_seconds,
                 )
@@ -672,9 +690,13 @@ def run_next_classification_job(
             raise RuntimeError(
                 f"Mirrored file is missing for submission: {file_path}"
             )
+        canonical_source_hash = compute_file_content_hash(file_path)
         response_payload = active_client.submit_file(
             file_path=file_path,
             file_name=file_record.name,
+            canonical_source_path=str(file_path),
+            canonical_source_hash=canonical_source_hash,
+            last_seen_filename=file_record.name,
         )
         return _persist_completed_classification(
             session,

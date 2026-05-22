@@ -15,6 +15,9 @@ from icloud_index_service.services.classification_submission import (
     get_classification_submission_poll_interval_seconds,
     run_next_classification_job,
 )
+from icloud_index_service.services.vault_reconciliation import (
+    run_vault_reconciliation_once,
+)
 
 
 def get_classification_worker_identity() -> str:
@@ -54,6 +57,12 @@ def run_classification_worker_once(
         if job is None:
             break
         processed_count += 1
+
+    reconciliation_session = active_session_factory()
+    try:
+        run_vault_reconciliation_once(reconciliation_session)
+    finally:
+        reconciliation_session.close()
 
     return processed_count
 

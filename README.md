@@ -63,6 +63,12 @@ under `/opt/iCloudPlugin`.
 - classifier submission reads mirrored files directly from the mounted
   filesystem tree and records durable per-file classification state so
   unchanged files are not re-submitted
+- classifier submissions now pass canonical live-file path and hash metadata to
+  the classifier so generated notes do not fall back to temporary upload
+  staging paths
+- the classification worker can run a bounded vault reconciliation pass against
+  `CLASSIFIER_VAULT_ROOT` to repair stale note metadata after mirrored rename or
+  move events
 
 ## Indexing behavior
 
@@ -100,6 +106,8 @@ under `/opt/iCloudPlugin`.
   `classification_states` records, including note path, summary, and label
 - files are submitted from the mirrored filesystem source, not re-downloaded
   from Apple during classification
+- note reconciliation remains a safe first pass over the current one-way mirror;
+  it does not make the iCloud sync bidirectional
 - current classifier submission coverage follows the classifier API’s supported
   file types:
   `.pdf`, `.docx`, `.doc`, `.xlsx`, `.xls`, `.pptx`, `.ppt`, `.txt`, `.md`,

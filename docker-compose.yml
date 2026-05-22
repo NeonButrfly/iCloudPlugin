@@ -133,10 +133,13 @@ services:
       CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS: ${CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS:-5}
       CLASSIFICATION_MAX_ATTEMPTS: ${CLASSIFICATION_MAX_ATTEMPTS:-3}
       CLASSIFICATION_RETRY_BACKOFF_SECONDS: ${CLASSIFICATION_RETRY_BACKOFF_SECONDS:-0}
+      CLASSIFIER_VAULT_ROOT: ${CLASSIFIER_VAULT_ROOT:-/srv/cloud-vault/local-doc-classifier-vault}
+      CLASSIFIER_VAULT_RECONCILIATION_ENABLED: ${CLASSIFIER_VAULT_RECONCILIATION_ENABLED:-true}
+      CLASSIFIER_VAULT_RECONCILIATION_LIMIT: ${CLASSIFIER_VAULT_RECONCILIATION_LIMIT:-10}
     command: uv run python -m icloud_index_service.classification_worker
     volumes:
       - .:/app
-      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}:/srv/cloud-vault:ro
+      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}:/srv/cloud-vault
     depends_on:
       postgres:
         condition: service_healthy
