@@ -16,21 +16,24 @@ from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
+from packages.runtime import load_classifier_runtime_settings
+
 from .category_manager import load_categories, load_groups
 from .hybrid_runtime import READINESS_REPORT_PATH, load_json
 
 APP = FastAPI(title="Local Document Classifier API", version="1.0.0")
 
-API_TOKEN = os.environ.get("CLASSIFIER_API_TOKEN", "")
-OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://ollama:11434")
-INPUT_ROOT = Path("/input/api").resolve()
-OUTPUT_ROOT = Path("/output").resolve()
-VAULT_ROOT = Path("/vault").resolve()
+SETTINGS = load_classifier_runtime_settings()
+API_TOKEN = SETTINGS.api_token
+OLLAMA_URL = SETTINGS.ollama_url
+INPUT_ROOT = SETTINGS.input_root
+OUTPUT_ROOT = SETTINGS.output_root
+VAULT_ROOT = SETTINGS.vault_root
 MANIFEST_PATH = OUTPUT_ROOT / "manifest.jsonl"
 INDEX_PATH = VAULT_ROOT / "Classification Index.md"
 CLASSIFIER_SCRIPT = Path(__file__).resolve().with_name("classify-to-obsidian.py")
-SHADOW_WORKER_ENABLED = os.environ.get("ENABLE_SHADOW_WORKER", "1") != "0"
-SHADOW_WORKER_INTERVAL_SECONDS = int(os.environ.get("SHADOW_WORKER_INTERVAL_SECONDS", "15"))
+SHADOW_WORKER_ENABLED = SETTINGS.shadow_worker_enabled
+SHADOW_WORKER_INTERVAL_SECONDS = SETTINGS.shadow_worker_interval_seconds
 
 REQUEST_LOCK = threading.Lock()
 SHADOW_WORKER_STARTED = False

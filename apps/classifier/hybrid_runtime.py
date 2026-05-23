@@ -9,21 +9,23 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import LabelEncoder
 
+from packages.runtime import load_classifier_runtime_settings
 
-CONFIG_DIR = Path("/config")
-OUTPUT_ROOT = Path("/output")
+SETTINGS = load_classifier_runtime_settings()
+CONFIG_DIR = SETTINGS.config_root
+OUTPUT_ROOT = SETTINGS.output_root
 
-HYBRID_GATING_PATH = CONFIG_DIR / "hybrid-gating.json"
-HEURISTIC_RULES_PATH = CONFIG_DIR / "heuristic-rules.json"
-LIGHTGBM_MODEL_PATH = CONFIG_DIR / "lightgbm-classifier.joblib"
-LIGHTGBM_REPORT_PATH = CONFIG_DIR / "lightgbm-training-report.json"
-SHADOW_QUEUE_DIR = OUTPUT_ROOT / "shadow-queue"
-SHADOW_COMPARISONS_PATH = OUTPUT_ROOT / "shadow-comparisons.jsonl"
-READINESS_REPORT_PATH = OUTPUT_ROOT / "readiness-report.json"
-RETRAIN_DIR = OUTPUT_ROOT / "retrain"
-MANIFEST_PATH = OUTPUT_ROOT / "manifest.jsonl"
-CORRECTIONS_PATH = CONFIG_DIR / "corrections.jsonl"
-EXAMPLES_PATH = CONFIG_DIR / "examples.jsonl"
+HYBRID_GATING_PATH = SETTINGS.hybrid_gating_path
+HEURISTIC_RULES_PATH = SETTINGS.heuristic_rules_path
+LIGHTGBM_MODEL_PATH = SETTINGS.lightgbm_model_path
+LIGHTGBM_REPORT_PATH = SETTINGS.lightgbm_report_path
+SHADOW_QUEUE_DIR = SETTINGS.shadow_queue_dir
+SHADOW_COMPARISONS_PATH = SETTINGS.shadow_comparisons_path
+READINESS_REPORT_PATH = SETTINGS.readiness_report_path
+RETRAIN_DIR = SETTINGS.retrain_dir
+MANIFEST_PATH = SETTINGS.manifest_path
+CORRECTIONS_PATH = SETTINGS.corrections_path
+EXAMPLES_PATH = SETTINGS.examples_path
 
 DEFAULT_HYBRID_GATING = {
     "mode": "hybrid",

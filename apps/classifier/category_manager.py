@@ -4,7 +4,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List
 
-CONFIG_DIR = Path("/config")
+from packages.runtime import load_classifier_runtime_settings
+
+SETTINGS = load_classifier_runtime_settings()
+CONFIG_DIR = SETTINGS.config_root
 CATEGORIES_FILE = CONFIG_DIR / "categories.txt"
 LOCAL_CATEGORIES_FILE = CONFIG_DIR / "categories.local.txt"
 GROUPS_FILE = CONFIG_DIR / "category-groups.json"
@@ -156,7 +159,7 @@ def format_examples_for_prompt(examples: List[Dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 def predict_router_categories(text: str, top: int = 40) -> List[str]:
-    model_path = CONFIG_DIR / "taxonomy-router.joblib"
+    model_path = SETTINGS.taxonomy_router_model_path
     if not model_path.exists():
         return []
     try:

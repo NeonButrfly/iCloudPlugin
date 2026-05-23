@@ -1,0 +1,35 @@
+from importlib import import_module
+from pathlib import Path
+
+
+def test_classifier_runtime_paths_default_to_existing_locations(monkeypatch):
+    monkeypatch.delenv("CLASSIFIER_CONFIG_ROOT", raising=False)
+    monkeypatch.delenv("CLASSIFIER_OUTPUT_ROOT", raising=False)
+    monkeypatch.delenv("CLASSIFIER_INPUT_ROOT", raising=False)
+    monkeypatch.delenv("CLASSIFIER_VAULT_ROOT", raising=False)
+
+    module = import_module("packages.runtime.classifier_settings")
+    settings = module.load_classifier_runtime_settings()
+
+    assert settings.config_root == Path("/config")
+    assert settings.output_root == Path("/output")
+    assert settings.input_root == Path("/input/api")
+    assert settings.vault_root == Path("/vault")
+    assert settings.manifest_path == Path("/output/manifest.jsonl")
+    assert settings.readiness_report_path == Path("/output/readiness-report.json")
+
+
+def test_classifier_runtime_paths_allow_role_specific_overrides(monkeypatch):
+    monkeypatch.setenv("CLASSIFIER_CONFIG_ROOT", "/srv/config")
+    monkeypatch.setenv("CLASSIFIER_OUTPUT_ROOT", "/srv/output")
+    monkeypatch.setenv("CLASSIFIER_INPUT_ROOT", "/srv/input")
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", "/srv/vault")
+
+    module = import_module("packages.runtime.classifier_settings")
+    settings = module.load_classifier_runtime_settings()
+
+    assert settings.config_root == Path("/srv/config")
+    assert settings.output_root == Path("/srv/output")
+    assert settings.input_root == Path("/srv/input")
+    assert settings.vault_root == Path("/srv/vault")
+    assert settings.shadow_queue_dir == Path("/srv/output/shadow-queue")
