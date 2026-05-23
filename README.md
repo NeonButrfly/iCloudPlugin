@@ -155,6 +155,17 @@ Both scripts:
 - `apps/mcp`: MCP bridge entrypoints
 - `packages/*`: shared contracts, vault helpers, storage helpers, and runtime
   building blocks
+
+## Role deployment files
+
+The monorepo now ships separate deployable role stacks under `deploy/roles`:
+
+- `deploy/roles/cloudsync/docker-compose.yml`
+  - sync/indexing/API side for the storage host
+- `deploy/roles/classifier/docker-compose.yml`
+  - classifier/Ollama side for the classifier host
+- `deploy/roles/combined/docker-compose.yml`
+  - single-host combined deployment when needed
 - MCP tool surface:
   - `search_icloud_files`
   - `get_icloud_file`

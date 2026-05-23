@@ -15,4 +15,13 @@ Primary runtime pieces:
 
 - `apps/cloudsync`
 - `apps/api`
+- `classification-worker`
 - Postgres
+
+Primary services in `docker-compose.yml`:
+
+- `postgres`
+- `migrate`
+- `service`
+- `worker`
+- `classification-worker`

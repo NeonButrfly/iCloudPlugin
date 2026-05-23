@@ -15,3 +15,9 @@ Primary runtime pieces:
 
 - `apps/classifier`
 - Ollama
+
+Primary services in `docker-compose.yml`:
+
+- `ollama`
+- `model-init`
+- `classifier-api`

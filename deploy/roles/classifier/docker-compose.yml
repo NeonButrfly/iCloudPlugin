@@ -1,0 +1,73 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cloud-vault-classifier-ollama
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ${OLLAMA_DATA_DIR:-./ollama}:/root/.ollama
+    environment:
+      - TZ=${TZ:-America/Anchorage}
+
+  model-init:
+    image: ollama/ollama:latest
+    container_name: cloud-vault-classifier-model-init
+    depends_on:
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - CLASSIFY_MODEL=${CLASSIFY_MODEL:-qwen2.5:3b}
+      - VISION_MODEL=${VISION_MODEL:-qwen2.5vl:3b}
+      - PULL_VISION_MODEL=${PULL_VISION_MODEL:-1}
+      - TZ=${TZ:-America/Anchorage}
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      '
+      echo "[INFO] Waiting for Ollama...";
+      until ollama list >/dev/null 2>&1; do sleep 2; done;
+      echo "[INFO] Pulling classification model: $CLASSIFY_MODEL";
+      ollama pull "$CLASSIFY_MODEL";
+      if [ "$PULL_VISION_MODEL" = "1" ]; then
+        echo "[INFO] Pulling vision model: $VISION_MODEL";
+        ollama pull "$VISION_MODEL" || echo "[WARN] Vision model pull failed; text classification still works.";
+      fi;
+      echo "[DONE] Model initialization complete.";
+      '
+    profiles:
+      - init
+
+  classifier-api:
+    build:
+      context: ../../..
+      dockerfile: apps/classifier/Dockerfile
+    container_name: cloud-vault-classifier-api
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    ports:
+      - "${CLASSIFIER_API_BIND:-0.0.0.0}:${CLASSIFIER_API_PORT:-4319}:8080"
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - CLASSIFY_MODEL=${CLASSIFY_MODEL:-qwen2.5:3b}
+      - VISION_MODEL=${VISION_MODEL:-qwen2.5vl:3b}
+      - CLASSIFIER_API_TOKEN=${CLASSIFIER_API_TOKEN:-}
+      - TZ=${TZ:-America/Anchorage}
+      - PYTHONPATH=/app
+    volumes:
+      - ../../../config:/config:ro
+      - ${CLASSIFIER_INPUT_DIR:-./input}:/input
+      - ${CLASSIFIER_OUTPUT_DIR:-./output}:/output
+      - ${CLASSIFIER_VAULT_DIR:-/srv/cloud-vault/document-vault}:/vault
+      - ${CLASSIFIER_CACHE_DIR:-./cache}:/root/.cache
+      - ${CLASSIFIER_LOG_DIR:-./logs}:/logs
+      - ${CLASSIFIER_TMP_DIR:-./tmp}:/tmp/work
+    command:
+      - python
+      - -m
+      - uvicorn
+      - apps.classifier.api_server:APP
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"

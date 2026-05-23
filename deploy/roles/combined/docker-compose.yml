@@ -1,0 +1,196 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-icloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-icloud_index}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-icloud} -d ${POSTGRES_DB:-icloud_index}
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    ports:
+      - "${POSTGRES_PUBLISHED_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  migrate:
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    working_dir: /app
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-icloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-icloud_index}
+    command: uv run alembic upgrade head
+    volumes:
+      - ../../..:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  service:
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    working_dir: /app
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-icloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-icloud_index}
+      PLUGIN_SERVICE_URL: ${PLUGIN_SERVICE_URL:-http://127.0.0.1:8080}
+      PLUGIN_API_TOKEN: ${PLUGIN_API_TOKEN:-change-me}
+      ICLOUD_SOURCE_MODE: ${ICLOUD_SOURCE_MODE:-filesystem-mirror}
+      ICLOUD_MIRROR_ROOT: ${ICLOUD_MIRROR_ROOT:-/srv/cloud-vault/mirrors/icloud}
+      ICLOUD_COOKIE_DIRECTORY: ${ICLOUD_COOKIE_DIRECTORY:-.runtime/pyicloud}
+      ICLOUD_MAX_DOWNLOAD_BYTES: ${ICLOUD_MAX_DOWNLOAD_BYTES:-1048576}
+      ICLOUD_VERIFY_TLS: ${ICLOUD_VERIFY_TLS:-true}
+      ICLOUD_CLIENT_ID: ${ICLOUD_CLIENT_ID:-}
+      ICLOUD_WITH_FAMILY: ${ICLOUD_WITH_FAMILY:-true}
+      ICLOUD_CHINA_MAINLAND: ${ICLOUD_CHINA_MAINLAND:-false}
+      ICLOUD_ACCEPT_TERMS: ${ICLOUD_ACCEPT_TERMS:-false}
+      ICLOUD_REFRESH_INTERVAL_SECONDS: ${ICLOUD_REFRESH_INTERVAL_SECONDS:-}
+      ICLOUD_EXCLUDED_DIRECTORY_NAMES: ${ICLOUD_EXCLUDED_DIRECTORY_NAMES:-}
+      ICLOUD_OCR_LANGS: ${ICLOUD_OCR_LANGS:-eng}
+    command: uv run uvicorn icloud_index_service.main:app --host 0.0.0.0 --port 8080
+    volumes:
+      - ../../..:/app
+      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}:/srv/cloud-vault:ro
+    ports:
+      - "${SERVICE_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    working_dir: /app
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-icloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-icloud_index}
+      ICLOUD_SOURCE_MODE: ${ICLOUD_SOURCE_MODE:-filesystem-mirror}
+      ICLOUD_MIRROR_ROOT: ${ICLOUD_MIRROR_ROOT:-/srv/cloud-vault/mirrors/icloud}
+      ICLOUD_COOKIE_DIRECTORY: ${ICLOUD_COOKIE_DIRECTORY:-.runtime/pyicloud}
+      ICLOUD_MAX_DOWNLOAD_BYTES: ${ICLOUD_MAX_DOWNLOAD_BYTES:-1048576}
+      ICLOUD_VERIFY_TLS: ${ICLOUD_VERIFY_TLS:-true}
+      ICLOUD_CLIENT_ID: ${ICLOUD_CLIENT_ID:-}
+      ICLOUD_WITH_FAMILY: ${ICLOUD_WITH_FAMILY:-true}
+      ICLOUD_CHINA_MAINLAND: ${ICLOUD_CHINA_MAINLAND:-false}
+      ICLOUD_ACCEPT_TERMS: ${ICLOUD_ACCEPT_TERMS:-false}
+      ICLOUD_REFRESH_INTERVAL_SECONDS: ${ICLOUD_REFRESH_INTERVAL_SECONDS:-}
+      ICLOUD_EXCLUDED_DIRECTORY_NAMES: ${ICLOUD_EXCLUDED_DIRECTORY_NAMES:-}
+      ICLOUD_OCR_LANGS: ${ICLOUD_OCR_LANGS:-eng}
+      ICLOUD_REFRESH_BATCH_FILE_LIMIT: ${ICLOUD_REFRESH_BATCH_FILE_LIMIT:-100}
+      BACKGROUND_REFRESH_INTERVAL_SECONDS: ${BACKGROUND_REFRESH_INTERVAL_SECONDS:-1800}
+      WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-5}
+    command: uv run python -m icloud_index_service.worker
+    volumes:
+      - ../../..:/app
+      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}:/srv/cloud-vault:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ${OLLAMA_DATA_DIR:-./ollama}:/root/.ollama
+    environment:
+      - TZ=${TZ:-America/Anchorage}
+
+  classifier-api:
+    build:
+      context: ../../..
+      dockerfile: apps/classifier/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    ports:
+      - "${CLASSIFIER_API_BIND:-0.0.0.0}:${CLASSIFIER_API_PORT:-4319}:8080"
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - CLASSIFY_MODEL=${CLASSIFY_MODEL:-qwen2.5:3b}
+      - VISION_MODEL=${VISION_MODEL:-qwen2.5vl:3b}
+      - CLASSIFIER_API_TOKEN=${CLASSIFIER_API_TOKEN:-}
+      - TZ=${TZ:-America/Anchorage}
+      - PYTHONPATH=/app
+    volumes:
+      - ../../../config:/config:ro
+      - ${CLASSIFIER_INPUT_DIR:-./input}:/input
+      - ${CLASSIFIER_OUTPUT_DIR:-./output}:/output
+      - ${CLASSIFIER_VAULT_DIR:-/srv/cloud-vault/document-vault}:/vault
+      - ${CLASSIFIER_CACHE_DIR:-./cache}:/root/.cache
+      - ${CLASSIFIER_LOG_DIR:-./logs}:/logs
+      - ${CLASSIFIER_TMP_DIR:-./tmp}:/tmp/work
+    command:
+      - python
+      - -m
+      - uvicorn
+      - apps.classifier.api_server:APP
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+
+  classification-worker:
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    working_dir: /app
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-icloud}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-icloud_index}
+      ICLOUD_SOURCE_MODE: ${ICLOUD_SOURCE_MODE:-filesystem-mirror}
+      ICLOUD_MIRROR_ROOT: ${ICLOUD_MIRROR_ROOT:-/srv/cloud-vault/mirrors/icloud}
+      CLASSIFIER_API_URL: ${CLASSIFIER_API_URL:-http://classifier-api:8080}
+      CLASSIFIER_API_TOKEN: ${CLASSIFIER_API_TOKEN:-}
+      CLASSIFIER_VAULT_ROOT: ${CLASSIFIER_VAULT_ROOT:-/srv/cloud-vault/document-vault}
+      CLASSIFIER_VAULT_RECONCILIATION_ENABLED: ${CLASSIFIER_VAULT_RECONCILIATION_ENABLED:-true}
+      CLASSIFIER_VAULT_RECONCILIATION_LIMIT: ${CLASSIFIER_VAULT_RECONCILIATION_LIMIT:-10}
+      CLASSIFICATION_SUBMISSION_ENABLED: ${CLASSIFICATION_SUBMISSION_ENABLED:-true}
+      CLASSIFICATION_SUBMISSION_CONCURRENCY: ${CLASSIFICATION_SUBMISSION_CONCURRENCY:-2}
+      CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS: ${CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS:-5}
+      CLASSIFICATION_MAX_ATTEMPTS: ${CLASSIFICATION_MAX_ATTEMPTS:-3}
+      CLASSIFICATION_RETRY_BACKOFF_SECONDS: ${CLASSIFICATION_RETRY_BACKOFF_SECONDS:-0}
+    command: uv run python -m icloud_index_service.classification_worker
+    volumes:
+      - ../../..:/app
+      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}:/srv/cloud-vault
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      classifier-api:
+        condition: service_started
+
+volumes:
+  postgres-data:

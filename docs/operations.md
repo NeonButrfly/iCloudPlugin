@@ -23,6 +23,18 @@ After the first successful start, the long-running `postgres`, `service`,
 `restart: unless-stopped`, so normal host or Docker daemon restarts should
 bring the API back automatically (#5).
 
+## Role-based deployment files
+
+Use the role-specific Compose files when sync and classifier stay on different
+hosts:
+
+- `deploy/roles/cloudsync/docker-compose.yml`
+  - use on the sync/index/API host such as `kayraspi2`
+- `deploy/roles/classifier/docker-compose.yml`
+  - use on the classifier/Ollama host such as `tichuml1`
+- `deploy/roles/combined/docker-compose.yml`
+  - use only when one host should run both sides together
+
 ## Bootstrap Apple session
 
 1. Open the auth bootstrap URL exposed by the service.

@@ -7,3 +7,13 @@ Use this only when one machine should own:
 - mirrored-drive crawl
 - operator/API surface
 - classifier note generation
+
+Primary services in `docker-compose.yml`:
+
+- `postgres`
+- `migrate`
+- `service`
+- `worker`
+- `classification-worker`
+- `ollama`
+- `classifier-api`
