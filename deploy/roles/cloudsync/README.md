@@ -5,7 +5,8 @@ Runs mirrored-drive crawl, refresh scheduling, extraction, and reconciliation
 
 Typical host:
 
-- `kayraspi2`
+- current live app host: `kayraspi`
+- current live storage/share host: `kayraspi2`
 
 Expected shared mount:
 

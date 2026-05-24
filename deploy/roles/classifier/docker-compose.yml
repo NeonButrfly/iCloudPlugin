@@ -55,7 +55,7 @@ services:
       - TZ=${TZ:-America/Anchorage}
       - PYTHONPATH=/app
     volumes:
-      - ../../../config:/config:ro
+      - ${CLASSIFIER_CONFIG_DIR:-../../../config}:/config:ro
       - ${CLASSIFIER_INPUT_DIR:-./input}:/input
       - ${CLASSIFIER_OUTPUT_DIR:-./output}:/output
       - ${CLASSIFIER_VAULT_DIR:-/srv/cloud-vault/document-vault}:/vault

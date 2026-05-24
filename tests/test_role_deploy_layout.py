@@ -73,6 +73,14 @@ def test_classifier_role_compose_targets_classifier_side_services_only():
     assert "model-init" in init_services
 
 
+def test_classifier_role_compose_allows_config_dir_override_for_live_migration():
+    repo_root = Path(__file__).resolve().parents[1]
+    role_compose = repo_root / "deploy" / "roles" / "classifier" / "docker-compose.yml"
+    compose_text = role_compose.read_text(encoding="utf-8")
+
+    assert "${CLASSIFIER_CONFIG_DIR:-../../../config}:/config:ro" in compose_text
+
+
 def test_combined_role_compose_includes_sync_and_classifier_services():
     repo_root = Path(__file__).resolve().parents[1]
     role_compose = repo_root / "deploy" / "roles" / "combined" / "docker-compose.yml"

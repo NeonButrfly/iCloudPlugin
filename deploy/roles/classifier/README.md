@@ -9,7 +9,13 @@ Typical host:
 
 Expected shared mount:
 
-- `/srv/cloud-vault/document-vault`
+- current live path on `tichuml1`: `/mnt/cloud-vault/local-doc-classifier-vault`
+- target future path after vault rename: `/srv/cloud-vault/document-vault`
+
+Live migration note:
+
+- use `CLASSIFIER_CONFIG_DIR` to preserve host-local classifier config, models,
+  and corrections during cutover from the standalone repo
 
 Primary runtime pieces:
 
