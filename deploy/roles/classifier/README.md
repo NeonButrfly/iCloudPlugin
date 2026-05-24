@@ -27,3 +27,9 @@ Primary services in `docker-compose.yml`:
 - `ollama`
 - `model-init`
 - `classifier-api`
+
+Operational defaults:
+
+- `ENABLE_SHADOW_WORKER=0` to keep the API role focused on request handling
+- `CLASSIFIER_API_WORKERS=2` so health and metadata endpoints can still respond
+  while a long classification request is running

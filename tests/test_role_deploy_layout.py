@@ -81,6 +81,15 @@ def test_classifier_role_compose_allows_config_dir_override_for_live_migration()
     assert "${CLASSIFIER_CONFIG_DIR:-../../../config}:/config:ro" in compose_text
 
 
+def test_classifier_role_compose_disables_shadow_worker_and_supports_multiple_api_workers():
+    repo_root = Path(__file__).resolve().parents[1]
+    role_compose = repo_root / "deploy" / "roles" / "classifier" / "docker-compose.yml"
+    compose_text = role_compose.read_text(encoding="utf-8")
+
+    assert "- ENABLE_SHADOW_WORKER=${ENABLE_SHADOW_WORKER:-0}" in compose_text
+    assert '- "${CLASSIFIER_API_WORKERS:-2}"' in compose_text
+
+
 def test_combined_role_compose_includes_sync_and_classifier_services():
     repo_root = Path(__file__).resolve().parents[1]
     role_compose = repo_root / "deploy" / "roles" / "combined" / "docker-compose.yml"
