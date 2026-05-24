@@ -14,6 +14,17 @@ def test_role_docs_exist_for_cloudsync_classifier_and_combined():
     assert all(path.exists() for path in expected)
 
 
+def test_cloudsync_role_sync_assets_exist():
+    repo_root = Path(__file__).resolve().parents[1]
+    expected = [
+        repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh",
+        repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.service",
+        repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.timer",
+    ]
+
+    assert all(path.exists() for path in expected)
+
+
 def test_role_compose_files_exist_for_cloudsync_classifier_and_combined():
     repo_root = Path(__file__).resolve().parents[1]
     expected = [

@@ -66,6 +66,43 @@ In this mode:
   batch/frontier behavior
 - content extraction still respects `ICLOUD_MAX_DOWNLOAD_BYTES`
 
+## Cloud-vault mirror sync
+
+The live storage host uses a host-level `rclone` timer to keep the mirror tree
+current. The role now expects bidirectional sync rather than one-way pull-only
+copies.
+
+Canonical host-side mappings:
+
+- `icloud:` <-> `/srv/cloud-vault/mirrors/icloud`
+- `gdrive1:` <-> `/srv/cloud-vault/mirrors/google1`
+- `gdrive2:` <-> `/srv/cloud-vault/mirrors/google2`
+
+Recommended live assets:
+
+- `deploy/roles/cloudsync/cloud-vault-sync.sh`
+- `deploy/roles/cloudsync/cloud-vault-sync.service`
+- `deploy/roles/cloudsync/cloud-vault-sync.timer`
+
+Behavior:
+
+- `rclone bisync` is used for each configured remote
+- the first run seeds bisync state from the local mirror so an existing mirror
+  is not discarded
+- remotes that are missing or unauthenticated are logged and skipped instead of
+  failing the entire timer run
+- `RCLONE_TEST` is maintained as the access-health probe file for bisync
+
+Current Google Drive expectation:
+
+- `gdrive1` should map to `kaymayers9@gmail.com`
+- `gdrive2` should map to `keifmayers@gmail.com`
+
+If a Google Drive remote exists without a valid OAuth token, `rclone` will not
+be able to access it. Complete the one-time `rclone config reconnect` or
+`rclone config create` flow for that remote before expecting the timer to sync
+it successfully.
+
 ## Background indexing
 
 - the worker keeps refresh work in the background and scans for new or changed
@@ -101,7 +138,7 @@ In this mode:
   upload staging paths
 - it can run a bounded vault reconciliation pass against `CLASSIFIER_VAULT_ROOT`
   after submission polls; this first pass repairs note metadata only and does
-  not change mirror sync direction
+  not replace the underlying host-level cloud sync direction
 - the default vault root for that role is now `/srv/cloud-vault/document-vault`
 - default throughput is intentionally conservative:
   `CLASSIFICATION_SUBMISSION_CONCURRENCY=2`

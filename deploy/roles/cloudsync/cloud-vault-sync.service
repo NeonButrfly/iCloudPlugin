@@ -1,0 +1,11 @@
+[Unit]
+Description=Cloud Vault bidirectional sync
+RequiresMountsFor=/srv/cloud-vault
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=kay
+Group=kay
+ExecStart=/usr/local/bin/cloud-vault-sync.sh

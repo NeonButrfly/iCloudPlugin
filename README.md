@@ -15,7 +15,9 @@ The repository now includes:
 - a parallel classifier submission lane that backfills indexed files and pushes mirrored source files to `local-doc-classifier`
 - a role-based monorepo skeleton under `apps/`, `packages/`, and `deploy/roles`
 
-The current implementation is read-only and iCloud-only.
+The current implementation is read-heavy for indexing/search, with host-level
+mirror sync now expected to support bidirectional `rclone bisync` on the
+storage host.
 
 ## Readiness note
 
@@ -111,8 +113,8 @@ under `/opt/iCloudPlugin`.
   `classification_states` records, including note path, summary, and label
 - files are submitted from the mirrored filesystem source, not re-downloaded
   from Apple during classification
-- note reconciliation remains a safe first pass over the current one-way mirror;
-  it does not make the iCloud sync bidirectional
+- note reconciliation repairs note metadata only; it does not replace the
+  separate host-level cloud sync job
 - the new classifier role code lives in `apps/classifier`
 - new note filenames should be human-readable by default, with hashes retained
   in metadata instead of dominating the visible file name
