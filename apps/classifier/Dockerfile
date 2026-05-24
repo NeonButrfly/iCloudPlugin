@@ -31,6 +31,7 @@ RUN python -m pip install --upgrade pip setuptools wheel && \
     python -m pip install --no-cache-dir -r /app/apps/classifier/requirements.txt
 
 COPY apps /app/apps
+COPY packages /app/packages
 COPY config /app/config
 
-ENTRYPOINT ["python", "/app/apps/classifier/classify-to-obsidian.py"]
+CMD ["python", "/app/apps/classifier/classify-to-obsidian.py"]
