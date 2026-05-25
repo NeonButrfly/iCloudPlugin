@@ -118,7 +118,7 @@ def test_classifier_role_compose_disables_shadow_worker_and_supports_multiple_ap
     compose_text = role_compose.read_text(encoding="utf-8")
 
     assert "- ENABLE_SHADOW_WORKER=${ENABLE_SHADOW_WORKER:-0}" in compose_text
-    assert '- "${CLASSIFIER_API_WORKERS:-2}"' in compose_text
+    assert '- "${CLASSIFIER_API_WORKERS:-4}"' in compose_text
 
 
 def test_combined_role_compose_includes_sync_and_classifier_services():

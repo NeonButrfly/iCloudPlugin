@@ -43,8 +43,10 @@ This repo is the canonical workspace for the cloud-vault platform work.
   - no longer a working project root
   - previous discovery artifacts were moved into this repo
 
-## Current Naming Gap
+## Canonical Obsidian Vault
 
-- live vault path is still `/srv/cloud-vault/local-doc-classifier-vault`
-- target future name is `/srv/cloud-vault/document-vault`
-- do not assume the rename is complete until the live vault migration is done
+- canonical live vault path is `/srv/cloud-vault/document-vault`
+- `tichuml1` mounts it at `/mnt/cloud-vault/document-vault`
+- `/srv/cloud-vault/local-doc-classifier-vault` is a compatibility symlink to
+  `document-vault` during the soak period
+- use `document-vault` for all new Obsidian and classifier configuration

@@ -50,7 +50,9 @@ Confirmed on `kayraspi2`:
 
 Notes:
 - `[cloud-vault]` lives on the storage server
-- Canonical Obsidian location should now be treated as `\\kayraspi2\cloud-vault\local-doc-classifier-vault`
+- Current canonical Obsidian location is `\\kayraspi2\cloud-vault\document-vault`.
+  `local-doc-classifier-vault` remains only as a compatibility link during the
+  soak period.
 
 ## Backup And Archive Directories
 

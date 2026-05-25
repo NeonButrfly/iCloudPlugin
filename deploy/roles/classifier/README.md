@@ -9,8 +9,8 @@ Typical host:
 
 Expected shared mount:
 
-- current live path on `tichuml1`: `/mnt/cloud-vault/local-doc-classifier-vault`
-- target future path after vault rename: `/srv/cloud-vault/document-vault`
+- current live path on `tichuml1`: `/mnt/cloud-vault/document-vault`
+- legacy compatibility path on the storage host: `/srv/cloud-vault/local-doc-classifier-vault`
 
 Live migration note:
 
@@ -31,5 +31,5 @@ Primary services in `docker-compose.yml`:
 Operational defaults:
 
 - `ENABLE_SHADOW_WORKER=0` to keep the API role focused on request handling
-- `CLASSIFIER_API_WORKERS=2` so health and metadata endpoints can still respond
-  while a long classification request is running
+- `CLASSIFIER_API_WORKERS=4` so health and metadata endpoints can still respond
+  while concurrent long classification requests are running

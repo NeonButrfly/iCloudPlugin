@@ -85,7 +85,7 @@ Health checks:
 - This is the live classifier host
 - It writes into the shared vault on `kayraspi2`
 - It also carries a `tichu-postgres` container and a checked-out `tichuml` repo, but not a live `4310` backend
-- For sanitized architecture docs, the canonical Obsidian location should now be treated as `\\kayraspi2\cloud-vault\local-doc-classifier-vault`
+- For sanitized architecture docs, the canonical Obsidian location should now be treated as `\\kayraspi2\cloud-vault\document-vault`; `local-doc-classifier-vault` is a compatibility link during the soak period
 
 ## Open Questions
 

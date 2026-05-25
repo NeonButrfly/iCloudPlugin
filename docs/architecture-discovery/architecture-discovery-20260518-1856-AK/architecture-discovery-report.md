@@ -59,7 +59,7 @@ Not probed because preconditions were not met:
 - `tichuml1` mounts that storage read-write at `/mnt/cloud-vault`
 - `kayraspi` mounts that storage read-only at `/srv/cloud-vault`
 - `kayraspi2` exports the same path over SMB as `[cloud-vault]`
-- canonical Obsidian location should now be treated as `\\kayraspi2\cloud-vault\local-doc-classifier-vault`
+- canonical Obsidian location should now be treated as `\\kayraspi2\cloud-vault\document-vault`; `local-doc-classifier-vault` is a compatibility link during the soak period
 - iPhone backup directories are stored under `/srv/cloud-vault`
 
 ## Application And Service Dependencies

@@ -42,11 +42,11 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - architecture discovery bundle:
   - `C:\Code\iCloudPlugin\docs\architecture-discovery\architecture-discovery-20260518-1856-AK`
 
-- current live vault path:
-  - `/srv/cloud-vault/local-doc-classifier-vault`
-
-- target future vault path:
+- canonical live vault path:
   - `/srv/cloud-vault/document-vault`
+
+- legacy compatibility vault path:
+  - `/srv/cloud-vault/local-doc-classifier-vault` -> `document-vault`
 
 ## What Was Completed
 
@@ -62,7 +62,7 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - the classifier image was fixed to use `CMD` instead of `ENTRYPOINT` so API startup override works
 - the classifier API role was hardened for live traffic:
   - `ENABLE_SHADOW_WORKER=0` by default in the API role
-  - multiple Uvicorn workers in the classifier API role
+  - four Uvicorn workers in the classifier API role
 - on `kayraspi`, `CLASSIFIER_VAULT_RECONCILIATION_ENABLED=false` is intentional because `/srv/cloud-vault` is mounted read-only there
 
 ## Current Status
@@ -71,11 +71,12 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - `kayraspi` `/refresh/status` is running
 - `tichuml1` classifier health is OK
 - live uploads from `kayraspi` to `tichuml1` classifier are succeeding
+- aggregate mirror indexing has picked up both `google1` and `google2`
+- `document-vault` is the canonical local Obsidian vault
 - `kayraspi2` remains the storage/share/proxy host
 
 ## Not Finished Yet
 
-- rename the live vault from `local-doc-classifier-vault` to `document-vault`
 - normalize old hash-heavy note filenames
 - retire/archive the old standalone `local-doc-classifier` checkout after safe soak period
 - decide whether `cloudsync/api` should remain on `kayraspi` or be intentionally moved later
@@ -99,7 +100,7 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 1. Use `C:\Code\iCloudPlugin` as the workspace.
 2. Read `docs/workspace-map.md`.
 3. Read this file.
-4. Do not assume the live vault rename has happened yet.
+4. Treat `/srv/cloud-vault/document-vault` as the canonical Obsidian vault.
 5. Assume:
    - `kayraspi2` is storage/share/proxy
    - `kayraspi` is sync/API

@@ -154,7 +154,9 @@ it successfully.
 - it can run a bounded vault reconciliation pass against `CLASSIFIER_VAULT_ROOT`
   after submission polls; this first pass repairs note metadata only and does
   not replace the underlying host-level cloud sync direction
-- the default vault root for that role is now `/srv/cloud-vault/document-vault`
+- the canonical vault root for that role is now `/srv/cloud-vault/document-vault`
+- the old `/srv/cloud-vault/local-doc-classifier-vault` name is a compatibility
+  symlink during the soak period
 - default throughput is intentionally conservative:
   `CLASSIFICATION_SUBMISSION_CONCURRENCY=2`
 - `CLASSIFICATION_MAX_ATTEMPTS` controls retry budget
