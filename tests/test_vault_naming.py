@@ -108,10 +108,13 @@ def test_write_obsidian_note_prefers_canonical_filename_over_staged_upload_name(
         extracted = vault / "_system" / "extracted-markdown" / "medical" / "appeals" / (
             "Aetna Life Insurance Company - APPEAL 1 FFS.extracted.md"
         )
+        note_text = note_path.read_text(encoding="utf-8")
 
         assert note_path.parent.relative_to(vault).as_posix() == "01 Classified/medical/appeals"
         assert note_path.name == "Aetna Life Insurance Company - APPEAL 1 FFS - medical - appeals.md"
         assert "326d39e1bebd4d9aaac79a91206320ec" not in note_path.name
-        assert "326d39e1bebd4d9aaac79a91206320ec" not in note_path.read_text(encoding="utf-8")
-        assert attachment.exists()
+        assert "326d39e1bebd4d9aaac79a91206320ec" not in note_text
+        assert 'attachment_mode: "canonical-source-link"' in note_text
+        assert "file://192.168.50.86/cloud-vault/mirrors/google1/Aetna%20Life%20Insurance%20Company%20-%20APPEAL%201%20FFS.docx" in note_text
+        assert not attachment.exists()
         assert extracted.exists()

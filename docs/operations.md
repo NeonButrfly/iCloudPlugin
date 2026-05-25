@@ -176,9 +176,11 @@ classification was run from `google1`:
 
 - `/srv/cloud-vault/mirrors/google1/Aetna Life Insurance Company - APPEAL 1 FFS.docx`
 
-Generated Obsidian note, attachment, and extracted-markdown filenames should use
-that canonical source filename, not the classifier API's temporary staged upload
-name.
+Generated Obsidian note and extracted-markdown filenames should use that
+canonical source filename, not the classifier API's temporary staged upload name.
+For canonical mirror submissions, issue #19 makes the note's `attachment` and
+`source_link` metadata point back to the mirrored source file; the classifier
+should not create a duplicate file under `90 Attachments`.
 
 Medical or insurance appeal classifications should be written under
 `01 Classified/medical/appeals` with a visible suffix of `medical - appeals`,

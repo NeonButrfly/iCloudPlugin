@@ -13,6 +13,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
+from urllib.parse import quote
 from xml.etree import ElementTree as ET
 from zoneinfo import ZoneInfo
 
@@ -135,6 +136,8 @@ def build_note_contract_metadata(
     source_path: Path,
     file_hash: str,
     attachment_link: str,
+    attachment_mode: str,
+    source_link: str = "",
     canonical_source_path: str | None = None,
     canonical_source_hash: str | None = None,
     last_seen_filename: str | None = None,
@@ -143,8 +146,9 @@ def build_note_contract_metadata(
         "canonical_source_path": canonical_source_path or str(source_path),
         "canonical_source_hash": canonical_source_hash or file_hash,
         "last_seen_filename": last_seen_filename or source_path.name,
-        "attachment_mode": "copied-compatibility" if attachment_link else "none",
-        "compatibility_attachment_path": attachment_link,
+        "attachment_mode": attachment_mode,
+        "compatibility_attachment_path": attachment_link if attachment_mode == "copied-compatibility" else "",
+        "source_link": source_link,
     }
 
 
@@ -160,6 +164,33 @@ def display_source_name(
             if name:
                 return name
     return source_path.name
+
+
+def build_canonical_source_link(canonical_source_path: str | None, display_name: str) -> str:
+    if not canonical_source_path:
+        return ""
+
+    source_path = canonical_source_path.strip().replace("\\", "/")
+    if not source_path:
+        return ""
+
+    cloud_vault_prefix = "/srv/cloud-vault/"
+    if source_path.startswith(cloud_vault_prefix):
+        relative_path = source_path[len(cloud_vault_prefix):]
+        base_url = os.getenv(
+            "CLASSIFIER_SOURCE_LINK_BASE_URL",
+            "file://192.168.50.86/cloud-vault",
+        ).rstrip("/")
+        url = f"{base_url}/{quote(relative_path, safe='/')}"
+    elif source_path.startswith("/"):
+        url = f"file://{quote(source_path, safe='/')}"
+    elif re.match(r"^[A-Za-z]:/", source_path):
+        url = f"file:///{quote(source_path, safe='/:')}"
+    else:
+        url = f"file://{quote(source_path, safe='/')}"
+
+    label = display_name.replace("]", r"\]")
+    return f"[{label}]({url})"
 
 
 def build_summary_fallback(
@@ -1119,8 +1150,11 @@ def write_obsidian_note(
         extracted_path.write_text(markdown, encoding="utf-8")
         extracted_link = f"[[{extracted_path.relative_to(vault).as_posix()}]]"
 
-    attachment_link = ""
-    if attach_originals:
+    source_link = build_canonical_source_link(canonical_source_path, visible_source_name)
+    attachment_link = source_link
+    attachment_mode = "canonical-source-link" if source_link else "none"
+
+    if attach_originals and not source_link:
         attachment_dir = vault / "90 Attachments" / category_path
         attachment_dir.mkdir(parents=True, exist_ok=True)
         copied = attachment_dir / build_attachment_filename(
@@ -1130,10 +1164,13 @@ def write_obsidian_note(
         if not copied.exists():
             shutil.copy2(source_path, copied)
         attachment_link = f"[[{copied.relative_to(vault).as_posix()}]]"
+        attachment_mode = "copied-compatibility"
     note_contract = build_note_contract_metadata(
         source_path=source_path,
         file_hash=file_hash,
         attachment_link=attachment_link,
+        attachment_mode=attachment_mode,
+        source_link=source_link,
         canonical_source_path=canonical_source_path,
         canonical_source_hash=canonical_source_hash,
         last_seen_filename=last_seen_filename,
@@ -1165,6 +1202,7 @@ canonical_source_hash: {json.dumps(note_contract["canonical_source_hash"], ensur
 last_seen_filename: {json.dumps(note_contract["last_seen_filename"], ensure_ascii=False)}
 attachment_mode: {json.dumps(note_contract["attachment_mode"], ensure_ascii=False)}
 compatibility_attachment_path: {json.dumps(note_contract["compatibility_attachment_path"], ensure_ascii=False)}
+source_link: {json.dumps(note_contract["source_link"], ensure_ascii=False)}
 classified_at: {json.dumps(now_ak())}
 file_date_guess: {json.dumps(file_date_guess, ensure_ascii=False)}
 language: {json.dumps(language, ensure_ascii=False)}
@@ -1489,6 +1527,19 @@ def main() -> int:
                         classification.get("secondary_labels", []) or [],
                     )
                 )
+                record_source_link = build_canonical_source_link(
+                    args.canonical_source_path or None,
+                    visible_source_name,
+                )
+                record_attachment_link = record_source_link
+                record_attachment_mode = "canonical-source-link" if record_source_link else "none"
+                if args.attach_originals and not record_source_link:
+                    record_attachment_link = (
+                        f"[[90 Attachments/"
+                        f"{record_category_path}/"
+                        f"{visible_source_name}]]"
+                    )
+                    record_attachment_mode = "copied-compatibility"
 
                 record = {
                     "ok": True,
@@ -1499,13 +1550,9 @@ def main() -> int:
                     **build_note_contract_metadata(
                         source_path=source_path,
                         file_hash=file_hash,
-                        attachment_link=(
-                            f"[[90 Attachments/"
-                            f"{record_category_path}/"
-                            f"{visible_source_name}]]"
-                            if args.attach_originals
-                            else ""
-                        ),
+                        attachment_link=record_attachment_link,
+                        attachment_mode=record_attachment_mode,
+                        source_link=record_source_link,
                         canonical_source_path=args.canonical_source_path or None,
                         canonical_source_hash=args.canonical_source_hash or None,
                         last_seen_filename=args.last_seen_filename or None,
