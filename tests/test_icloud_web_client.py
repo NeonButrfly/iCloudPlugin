@@ -303,6 +303,17 @@ def test_filesystem_mirror_client_lists_batches_and_respects_excludes_and_size_c
     assert completed_snapshot is False
     assert first_batch == [
         {
+            "id": "filesystem::/Documents/large.pdf",
+            "name": "large.pdf",
+            "path": "/Documents/large.pdf",
+            "extension": "pdf",
+            "contentType": "application/pdf",
+            "size": 2048,
+            "modified": ANY,
+        }
+    ]
+    assert second_batch == [
+        {
             "id": "filesystem::/Documents/tiny.txt",
             "name": "tiny.txt",
             "path": "/Documents/tiny.txt",
@@ -313,16 +324,41 @@ def test_filesystem_mirror_client_lists_batches_and_respects_excludes_and_size_c
             "content_bytes": b"ok",
         }
     ]
-    assert second_batch == [
-        {
-            "id": "filesystem::/Documents/large.pdf",
-            "name": "large.pdf",
-            "path": "/Documents/large.pdf",
-            "extension": "pdf",
-            "contentType": "application/pdf",
-            "size": 2048,
-            "modified": ANY,
-        }
+    assert final_frontier == []
+    assert finished is True
+
+
+def test_filesystem_mirror_client_gives_each_top_level_provider_early_attention(
+    monkeypatch,
+    tmp_path,
+):
+    mirror_root = tmp_path / "mirrors"
+    (mirror_root / "google1").mkdir(parents=True)
+    (mirror_root / "google2").mkdir(parents=True)
+    (mirror_root / "icloud" / "Deep" / "Nested").mkdir(parents=True)
+    (mirror_root / "google1" / "Budget.txt").write_text("g1", encoding="utf-8")
+    (mirror_root / "google2" / "Receipt.txt").write_text("g2", encoding="utf-8")
+    (mirror_root / "icloud" / "Deep" / "Nested" / "Later.txt").write_text("icloud", encoding="utf-8")
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+
+    client = create_icloud_web_client()
+
+    first_batch, next_frontier, completed_snapshot = client.list_drive_items_batch(
+        client.build_traversal_frontier(),
+        limit=2,
+    )
+    second_batch, final_frontier, finished = client.list_drive_items_batch(
+        next_frontier,
+        limit=10,
+    )
+
+    assert completed_snapshot is False
+    assert [item["path"] for item in first_batch] == [
+        "/google1/Budget.txt",
+        "/google2/Receipt.txt",
     ]
+    assert [item["path"] for item in second_batch] == ["/icloud/Deep/Nested/Later.txt"]
     assert final_frontier == []
     assert finished is True

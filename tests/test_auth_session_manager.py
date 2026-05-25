@@ -46,7 +46,7 @@ def test_detect_auth_session_state_reports_configured_for_filesystem_mirror_mode
     monkeypatch,
 ):
     monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
-    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", "/srv/cloud-vault/mirrors/icloud")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", "/srv/cloud-vault/mirrors")
     monkeypatch.delenv("ICLOUD_APPLE_ID", raising=False)
     monkeypatch.delenv("ICLOUD_APPLE_PASSWORD", raising=False)
 

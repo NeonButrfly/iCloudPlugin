@@ -52,7 +52,7 @@ services:
       PLUGIN_SERVICE_URL: ${PLUGIN_SERVICE_URL:-http://127.0.0.1:8080}
       PLUGIN_API_TOKEN: ${PLUGIN_API_TOKEN:-change-me}
       ICLOUD_SOURCE_MODE: ${ICLOUD_SOURCE_MODE:-filesystem-mirror}
-      ICLOUD_MIRROR_ROOT: ${ICLOUD_MIRROR_ROOT:-/srv/cloud-vault/mirrors/icloud}
+      ICLOUD_MIRROR_ROOT: ${ICLOUD_MIRROR_ROOT:-/srv/cloud-vault/mirrors}
       ICLOUD_COOKIE_DIRECTORY: ${ICLOUD_COOKIE_DIRECTORY:-.runtime/pyicloud}
       ICLOUD_MAX_DOWNLOAD_BYTES: ${ICLOUD_MAX_DOWNLOAD_BYTES:-1048576}
       ICLOUD_VERIFY_TLS: ${ICLOUD_VERIFY_TLS:-true}
@@ -88,7 +88,7 @@ services:
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-icloud_index}
       ICLOUD_SOURCE_MODE: ${ICLOUD_SOURCE_MODE:-filesystem-mirror}
-      ICLOUD_MIRROR_ROOT: ${ICLOUD_MIRROR_ROOT:-/srv/cloud-vault/mirrors/icloud}
+      ICLOUD_MIRROR_ROOT: ${ICLOUD_MIRROR_ROOT:-/srv/cloud-vault/mirrors}
       ICLOUD_COOKIE_DIRECTORY: ${ICLOUD_COOKIE_DIRECTORY:-.runtime/pyicloud}
       ICLOUD_MAX_DOWNLOAD_BYTES: ${ICLOUD_MAX_DOWNLOAD_BYTES:-1048576}
       ICLOUD_VERIFY_TLS: ${ICLOUD_VERIFY_TLS:-true}
@@ -125,7 +125,7 @@ services:
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       POSTGRES_DB: ${POSTGRES_DB:-icloud_index}
       ICLOUD_SOURCE_MODE: ${ICLOUD_SOURCE_MODE:-filesystem-mirror}
-      ICLOUD_MIRROR_ROOT: ${ICLOUD_MIRROR_ROOT:-/srv/cloud-vault/mirrors/icloud}
+      ICLOUD_MIRROR_ROOT: ${ICLOUD_MIRROR_ROOT:-/srv/cloud-vault/mirrors}
       CLASSIFIER_API_URL: ${CLASSIFIER_API_URL:-http://192.168.50.196:4319}
       CLASSIFIER_API_TOKEN: ${CLASSIFIER_API_TOKEN:-}
       CLASSIFIER_VAULT_ROOT: ${CLASSIFIER_VAULT_ROOT:-/srv/cloud-vault/document-vault}

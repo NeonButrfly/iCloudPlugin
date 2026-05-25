@@ -40,6 +40,13 @@ folders:
 - `gdrive1:` <-> `/srv/cloud-vault/mirrors/google1`
 - `gdrive2:` <-> `/srv/cloud-vault/mirrors/google2`
 
+The sync/index/classifier-facing mirror root should point at:
+
+- `/srv/cloud-vault/mirrors`
+
+That keeps one local source of truth for indexing and classifier submission
+while still preserving provider-specific provenance by folder.
+
 The script is intentionally resilient:
 
 - missing or unauthenticated remotes are skipped instead of failing the whole

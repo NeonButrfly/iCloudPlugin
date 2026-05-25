@@ -55,7 +55,7 @@ directly instead of traversing Apple web APIs.
 For the `kayraspi2` deployment:
 
 - set `ICLOUD_SOURCE_MODE=filesystem-mirror`
-- set `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors/icloud`
+- set `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors`
 - make sure the host mirror mount is also visible inside the containers; by default compose binds `${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}` to `/srv/cloud-vault`
 - leave Apple credentials unset unless you still want the optional direct mode
 
@@ -77,6 +77,17 @@ Canonical host-side mappings:
 - `icloud:` <-> `/srv/cloud-vault/mirrors/icloud`
 - `gdrive1:` <-> `/srv/cloud-vault/mirrors/google1`
 - `gdrive2:` <-> `/srv/cloud-vault/mirrors/google2`
+
+Classifier and indexing source-of-truth:
+
+- point `ICLOUD_MIRROR_ROOT` at the aggregate root `/srv/cloud-vault/mirrors`
+- keep provider-specific provenance in the first path segment:
+  - `/icloud/...`
+  - `/google1/...`
+  - `/google2/...`
+- do not funnel Google Drive content into iCloud just to create a single cloud
+  provider source; use the local aggregate mirror as the single classifier
+  source of truth instead
 
 Recommended live assets:
 
@@ -208,7 +219,7 @@ CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS=5
 CLASSIFICATION_MAX_ATTEMPTS=3
 CLASSIFICATION_RETRY_BACKOFF_SECONDS=0
 ICLOUD_SOURCE_MODE=filesystem-mirror
-ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors/icloud
+ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors
 ICLOUD_MIRROR_MOUNT_SOURCE=/srv/cloud-vault
 ICLOUD_COOKIE_DIRECTORY=.runtime/pyicloud
 ICLOUD_OCR_LANGS=eng

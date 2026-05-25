@@ -304,6 +304,53 @@ def test_run_next_classification_job_submits_file_and_persists_completed_state(
     assert state.classifier_note_path == "01 Classified/finance/Budget.md"
 
 
+def test_run_next_classification_job_supports_nested_provider_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    mirror_root = tmp_path / "mirrors"
+    local_file = mirror_root / "google1" / "Shared" / "Budget.pdf"
+    local_file.parent.mkdir(parents=True)
+    local_file.write_bytes(b"pdf-bytes")
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+
+    try:
+        file_record = _add_file(
+            session,
+            external_id="pdf-google-1",
+            name="Budget.pdf",
+            path="/google1/Shared/Budget.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=9,
+        )
+        enqueue_classification_backfill(session, limit=10)
+        client = FakeClassifierClient()
+
+        completed_job = run_next_classification_job(
+            session,
+            client=client,
+            worker_id="classifier-a",
+        )
+        state = session.scalar(
+            select(ClassificationState).where(ClassificationState.file_id == file_record.id)
+        )
+    finally:
+        session.close()
+
+    assert completed_job is not None
+    assert completed_job.status == CLASSIFICATION_STATUS_COMPLETED
+    assert client.calls[0]["file_path"] == local_file
+    assert client.calls[0]["canonical_source_path"] == str(local_file)
+    assert state is not None
+    assert state.submission_status == CLASSIFICATION_STATUS_COMPLETED
+
+
 def test_run_next_classification_job_retries_then_fails_after_attempt_budget(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

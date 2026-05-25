@@ -31,7 +31,7 @@ The live refresh path now supports two source modes in
 - `filesystem-mirror`
   - refresh jobs crawl a live mirrored filesystem root instead of talking to Apple directly
   - configure `ICLOUD_SOURCE_MODE=filesystem-mirror`
-  - configure `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors/icloud` on `kayraspi2`
+  - configure `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors` on `kayraspi2`
   - make `/srv/cloud-vault` available inside the service and worker containers, or override `ICLOUD_MIRROR_MOUNT_SOURCE` if the host mount lives elsewhere
 
 ## Recommended deployment root
@@ -113,6 +113,9 @@ under `/opt/iCloudPlugin`.
   `classification_states` records, including note path, summary, and label
 - files are submitted from the mirrored filesystem source, not re-downloaded
   from Apple during classification
+- the canonical classifier-facing mirror root can be the aggregate
+  `/srv/cloud-vault/mirrors`, preserving upstream-specific subfolders such as
+  `/icloud`, `/google1`, and `/google2` under one local source of truth
 - note reconciliation repairs note metadata only; it does not replace the
   separate host-level cloud sync job
 - the new classifier role code lives in `apps/classifier`

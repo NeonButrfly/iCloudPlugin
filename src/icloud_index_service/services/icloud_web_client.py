@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import mimetypes
 import os
+from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -367,14 +368,14 @@ class FilesystemMirrorICloudWebClient(ICloudWebClient):
         limit: int,
         heartbeat: HeartbeatCallback | None = None,
     ) -> tuple[list[dict[str, object]], list[dict[str, object]], bool]:
-        active_frontier = list(frontier or self.build_traversal_frontier())
+        active_frontier = deque(frontier or self.build_traversal_frontier())
         items: list[dict[str, object]] = []
 
         while active_frontier and len(items) < limit:
             if heartbeat is not None:
                 heartbeat()
 
-            entry = active_frontier.pop()
+            entry = active_frontier.popleft()
             entry_type = str(entry["type"])
             entry_name = str(entry["name"])
             local_path = Path(str(entry["local_path"]))
@@ -393,7 +394,7 @@ class FilesystemMirrorICloudWebClient(ICloudWebClient):
                 if local_path.exists() and local_path.is_file():
                     items.append(self._serialize_local_file_entry(local_path, logical_path=str(entry["path"])))
 
-        return items, active_frontier, not active_frontier
+        return items, list(active_frontier), not active_frontier
 
     def _list_child_entries(self, directory: Path, *, parent_path: str) -> list[dict[str, object]]:
         child_entries: list[dict[str, object]] = []

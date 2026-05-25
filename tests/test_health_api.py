@@ -154,7 +154,7 @@ def test_compose_passes_filesystem_mirror_environment_to_service_and_worker():
     repo_root = Path(__file__).resolve().parents[1]
     env = os.environ | {
         "ICLOUD_SOURCE_MODE": "filesystem-mirror",
-        "ICLOUD_MIRROR_ROOT": "/srv/cloud-vault/mirrors/icloud",
+        "ICLOUD_MIRROR_ROOT": "/srv/cloud-vault/mirrors",
     }
     result = subprocess.run(
         ["docker", "compose", "config", "--format", "json"],
@@ -172,7 +172,7 @@ def test_compose_passes_filesystem_mirror_environment_to_service_and_worker():
 
     for container_env in (service_env, worker_env):
         assert container_env["ICLOUD_SOURCE_MODE"] == "filesystem-mirror"
-        assert container_env["ICLOUD_MIRROR_ROOT"] == "/srv/cloud-vault/mirrors/icloud"
+        assert container_env["ICLOUD_MIRROR_ROOT"] == "/srv/cloud-vault/mirrors"
 
 
 def test_compose_mounts_cloud_vault_into_service_and_worker_for_mirror_mode():
