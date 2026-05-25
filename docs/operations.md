@@ -163,6 +163,22 @@ it successfully.
 - `CLASSIFICATION_RETRY_BACKOFF_SECONDS` controls when retriable failures can
   be claimed again; the current default is `0`
 
+### Reset state
+
+As of 2026-05-24 AKDT, `document-vault` was intentionally reset before the full
+all-drive note run. The automated `classification-worker` is paused, generated
+vault content was cleared, classifier job/state rows were cleared, and trained
+classifier artifacts such as `lightgbm-classifier.joblib`,
+`taxonomy-router.joblib`, `corrections.jsonl`, and `examples.jsonl` were removed.
+
+The source mirrors and `files` index were preserved. One manual smoke
+classification was run from `google1`:
+
+- `/srv/cloud-vault/mirrors/google1/Aetna Life Insurance Company - APPEAL 1 FFS.docx`
+
+Do not resume bulk real-folder submissions until classifier readiness has been
+rebuilt and `/readiness` reports `real_ingestion_allowed=true`.
+
 Current classifier submission coverage follows the classifier API's accepted
 extensions:
 

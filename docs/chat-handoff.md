@@ -70,13 +70,21 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - `kayraspi` `iCloudPlugin` health is OK
 - `kayraspi` `/refresh/status` is running
 - `tichuml1` classifier health is OK
-- live uploads from `kayraspi` to `tichuml1` classifier are succeeding
+- `classification-worker` on `kayraspi` is intentionally stopped after reset
 - aggregate mirror indexing has picked up both `google1` and `google2`
 - `document-vault` is the canonical local Obsidian vault
+- `document-vault` was reset on 2026-05-24 AKDT and contains only the fresh
+  classifier smoke output
+- classifier training/runtime state was cleared; `/readiness` reports
+  `model_exists=false` and `real_ingestion_allowed=false`
+- the smoke classification used
+  `/srv/cloud-vault/mirrors/google1/Aetna Life Insurance Company - APPEAL 1 FFS.docx`
+  and created an `appeal` note in `document-vault`
 - `kayraspi2` remains the storage/share/proxy host
 
 ## Not Finished Yet
 
+- retrain/approve classifier readiness before resuming bulk real-folder submissions
 - normalize old hash-heavy note filenames
 - retire/archive the old standalone `local-doc-classifier` checkout after safe soak period
 - decide whether `cloudsync/api` should remain on `kayraspi` or be intentionally moved later
