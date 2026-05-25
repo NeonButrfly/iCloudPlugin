@@ -180,6 +180,10 @@ Generated Obsidian note, attachment, and extracted-markdown filenames should use
 that canonical source filename, not the classifier API's temporary staged upload
 name.
 
+Medical or insurance appeal classifications should be written under
+`01 Classified/medical/appeals` with a visible suffix of `medical - appeals`,
+not as a vague top-level `appeal` category.
+
 Do not resume bulk real-folder submissions until classifier readiness has been
 rebuilt and `/readiness` reports `real_ingestion_allowed=true`.
 

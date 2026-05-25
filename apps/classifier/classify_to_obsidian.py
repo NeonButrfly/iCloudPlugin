@@ -97,6 +97,33 @@ def obsidian_tag(value: str) -> str:
     value = re.sub(r"[^a-z0-9_-]+", "-", value)
     return value.strip("-") or "unknown"
 
+
+def normalize_vault_classification(classification: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = dict(classification)
+    primary = obsidian_tag(str(normalized.get("primary_label", "unknown") or "unknown"))
+    secondary = list(normalized.get("secondary_labels", []) or [])
+
+    if primary == "appeal":
+        normalized["primary_label"] = "medical"
+        if not any(obsidian_tag(item) == "appeals" for item in secondary):
+            secondary.insert(0, "appeals")
+        normalized["secondary_labels"] = secondary
+
+    return normalized
+
+
+def vault_category_parts(primary: str, secondary: List[Any]) -> List[str]:
+    primary_tag = obsidian_tag(primary)
+    secondary_tags = {obsidian_tag(item) for item in secondary}
+    if primary_tag == "medical" and ({"appeal", "appeals"} & secondary_tags):
+        return ["medical", "appeals"]
+    return [primary_tag]
+
+
+def vault_category_label(parts: List[str]) -> str:
+    return " - ".join(parts)
+
+
 def yaml_list(items: List[Any]) -> str:
     if not items:
         return "[]"
@@ -1027,6 +1054,7 @@ def write_obsidian_note(
         pass
     # --- image-normalize-before-note END ---
 
+    classification = normalize_vault_classification(classification)
 
     primary = str(classification.get("primary_label", "unknown") or "unknown")
     secondary = classification.get("secondary_labels", []) or []
@@ -1055,11 +1083,14 @@ def write_obsidian_note(
         needs_review=needs_review,
         primary_label=primary,
     )
+    category_parts = vault_category_parts(primary, secondary)
+    category_label = vault_category_label(category_parts)
+    category_path = Path(*category_parts)
 
     if needs_review:
         note_dir = vault / "02 Needs Review"
     else:
-        note_dir = vault / "01 Classified" / obsidian_tag(primary)
+        note_dir = vault / "01 Classified" / category_path
 
     note_dir.mkdir(parents=True, exist_ok=True)
     visible_source_name = display_source_name(
@@ -1071,7 +1102,7 @@ def write_obsidian_note(
 
     note_filename = build_note_filename(
         title=visible_title,
-        primary_label=obsidian_tag(primary),
+        primary_label=category_label,
         existing_names={path.name for path in note_dir.glob("*.md")},
     )
     note_path = note_dir / note_filename
@@ -1079,7 +1110,7 @@ def write_obsidian_note(
 
     extracted_link = ""
     if markdown is not None:
-        extracted_dir = vault / "_system" / "extracted-markdown" / obsidian_tag(primary)
+        extracted_dir = vault / "_system" / "extracted-markdown" / category_path
         extracted_dir.mkdir(parents=True, exist_ok=True)
         extracted_path = extracted_dir / build_extracted_markdown_filename(
             title=visible_title,
@@ -1090,7 +1121,7 @@ def write_obsidian_note(
 
     attachment_link = ""
     if attach_originals:
-        attachment_dir = vault / "90 Attachments" / obsidian_tag(primary)
+        attachment_dir = vault / "90 Attachments" / category_path
         attachment_dir.mkdir(parents=True, exist_ok=True)
         copied = attachment_dir / build_attachment_filename(
             source_name=visible_source_name,
@@ -1127,7 +1158,7 @@ type: classified-document
 primary_label: {json.dumps(primary, ensure_ascii=False)}
 secondary_labels: {yaml_list(secondary)}
 confidence: {confidence}
-source_file: {json.dumps(str(source_path), ensure_ascii=False)}
+source_file: {json.dumps(note_contract["canonical_source_path"], ensure_ascii=False)}
 sha256: {json.dumps(file_hash)}
 canonical_source_path: {json.dumps(note_contract["canonical_source_path"], ensure_ascii=False)}
 canonical_source_hash: {json.dumps(note_contract["canonical_source_hash"], ensure_ascii=False)}
@@ -1145,7 +1176,7 @@ tags:
 {tags_yaml}
 ---
 
-# {source_path.name}
+# {visible_source_name}
 
 ## Summary
 
@@ -1428,6 +1459,7 @@ def main() -> int:
                     if hybrid_meta["decision"]["live_source"] == "heuristic-fast-path":
                         timing["model_ms"] = 0.0
 
+                classification = normalize_vault_classification(classification)
                 note_started_at = time.perf_counter()
                 note_path = write_obsidian_note(
                     vault=vault,
@@ -1451,6 +1483,12 @@ def main() -> int:
                     canonical_source_path=args.canonical_source_path or None,
                     last_seen_filename=args.last_seen_filename or None,
                 )
+                record_category_path = "/".join(
+                    vault_category_parts(
+                        str(classification.get("primary_label", "unknown") or "unknown"),
+                        classification.get("secondary_labels", []) or [],
+                    )
+                )
 
                 record = {
                     "ok": True,
@@ -1463,7 +1501,7 @@ def main() -> int:
                         file_hash=file_hash,
                         attachment_link=(
                             f"[[90 Attachments/"
-                            f"{obsidian_tag(str(classification.get('primary_label', 'unknown') or 'unknown'))}/"
+                            f"{record_category_path}/"
                             f"{visible_source_name}]]"
                             if args.attach_originals
                             else ""
