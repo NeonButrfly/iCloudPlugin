@@ -176,6 +176,10 @@ classification was run from `google1`:
 
 - `/srv/cloud-vault/mirrors/google1/Aetna Life Insurance Company - APPEAL 1 FFS.docx`
 
+Generated Obsidian note, attachment, and extracted-markdown filenames should use
+that canonical source filename, not the classifier API's temporary staged upload
+name.
+
 Do not resume bulk real-folder submissions until classifier readiness has been
 rebuilt and `/readiness` reports `real_ingestion_allowed=true`.
 

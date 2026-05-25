@@ -121,6 +121,20 @@ def build_note_contract_metadata(
     }
 
 
+def display_source_name(
+    *,
+    source_path: Path,
+    canonical_source_path: str | None = None,
+    last_seen_filename: str | None = None,
+) -> str:
+    for candidate in (last_seen_filename, canonical_source_path):
+        if candidate:
+            name = Path(candidate).name.strip()
+            if name:
+                return name
+    return source_path.name
+
+
 def build_summary_fallback(
     *,
     summary: str,
@@ -1048,9 +1062,15 @@ def write_obsidian_note(
         note_dir = vault / "01 Classified" / obsidian_tag(primary)
 
     note_dir.mkdir(parents=True, exist_ok=True)
+    visible_source_name = display_source_name(
+        source_path=source_path,
+        canonical_source_path=canonical_source_path,
+        last_seen_filename=last_seen_filename,
+    )
+    visible_title = Path(visible_source_name).stem
 
     note_filename = build_note_filename(
-        title=source_path.stem,
+        title=visible_title,
         primary_label=obsidian_tag(primary),
         existing_names={path.name for path in note_dir.glob("*.md")},
     )
@@ -1062,7 +1082,7 @@ def write_obsidian_note(
         extracted_dir = vault / "_system" / "extracted-markdown" / obsidian_tag(primary)
         extracted_dir.mkdir(parents=True, exist_ok=True)
         extracted_path = extracted_dir / build_extracted_markdown_filename(
-            title=source_path.stem,
+            title=visible_title,
             existing_names={path.name for path in extracted_dir.glob("*.md")},
         )
         extracted_path.write_text(markdown, encoding="utf-8")
@@ -1073,7 +1093,7 @@ def write_obsidian_note(
         attachment_dir = vault / "90 Attachments" / obsidian_tag(primary)
         attachment_dir.mkdir(parents=True, exist_ok=True)
         copied = attachment_dir / build_attachment_filename(
-            source_name=source_path.name,
+            source_name=visible_source_name,
             existing_names={path.name for path in attachment_dir.iterdir() if path.is_file()},
         )
         if not copied.exists():
@@ -1426,6 +1446,11 @@ def main() -> int:
                 timing["confidence"] = classification.get("confidence")
                 timing["ok"] = True
                 timing["total_ms"] = elapsed_ms(file_started_at)
+                visible_source_name = display_source_name(
+                    source_path=source_path,
+                    canonical_source_path=args.canonical_source_path or None,
+                    last_seen_filename=args.last_seen_filename or None,
+                )
 
                 record = {
                     "ok": True,
@@ -1437,7 +1462,9 @@ def main() -> int:
                         source_path=source_path,
                         file_hash=file_hash,
                         attachment_link=(
-                            f"[[90 Attachments/{obsidian_tag(str(classification.get('primary_label', 'unknown') or 'unknown'))}/{source_path.name}]]"
+                            f"[[90 Attachments/"
+                            f"{obsidian_tag(str(classification.get('primary_label', 'unknown') or 'unknown'))}/"
+                            f"{visible_source_name}]]"
                             if args.attach_originals
                             else ""
                         ),

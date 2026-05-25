@@ -68,3 +68,48 @@ def test_write_obsidian_note_uses_clean_visible_note_name():
         )
 
     assert note_path.name == "Budget Draft - financial.md"
+
+
+def test_write_obsidian_note_prefers_canonical_filename_over_staged_upload_name():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        vault = root / "vault"
+        source_path = root / "input" / "api" / (
+            "326d39e1bebd4d9aaac79a91206320ec-"
+            "Aetna Life Insurance Company - APPEAL 1 FFS.docx"
+        )
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_bytes(b"appeal-doc")
+        ensure_vault(vault)
+
+        note_path = write_obsidian_note(
+            vault=vault,
+            source_path=source_path,
+            file_hash="abcdef1234567890",
+            markdown="Appeal preview",
+            classification={
+                "primary_label": "appeal",
+                "secondary_labels": [],
+                "confidence": 0.95,
+                "summary": "Appeal summary.",
+                "reason": "Insurance appeal document.",
+                "sensitive_flags": [],
+                "recommended_action": "review",
+                "file_date_guess": "2026-05-24",
+                "language": "English",
+            },
+            attach_originals=True,
+            canonical_source_path="/srv/cloud-vault/mirrors/google1/Aetna Life Insurance Company - APPEAL 1 FFS.docx",
+            canonical_source_hash="abcdef1234567890",
+            last_seen_filename="Aetna Life Insurance Company - APPEAL 1 FFS.docx",
+        )
+
+        attachment = vault / "90 Attachments" / "appeal" / "Aetna Life Insurance Company - APPEAL 1 FFS.docx"
+        extracted = vault / "_system" / "extracted-markdown" / "appeal" / (
+            "Aetna Life Insurance Company - APPEAL 1 FFS.extracted.md"
+        )
+
+        assert note_path.name == "Aetna Life Insurance Company - APPEAL 1 FFS - appeal.md"
+        assert "326d39e1bebd4d9aaac79a91206320ec" not in note_path.name
+        assert attachment.exists()
+        assert extracted.exists()
