@@ -1,0 +1,26 @@
+flowchart LR
+  CF["Cloudflare DNS and proxy\nscreenshot-derived names:\nhome, classify, clouddrive, calsync"]
+  TS["Tailscale"]
+  APPLE["Apple and iCloud services"]
+  RCLONE["rclone remotes\nicloud, gdrive1"]
+
+  subgraph LAN["LAN 192.168.50.0/24"]
+    KR["kayraspi\n192.168.50.232 / 192.168.50.235\nDebian 13\nDocker: iCloudPlugin 8080, Postgres 5432, NxFilter 89 and 8090\nTailscale 100.96.90.42"]
+    KR2["kayraspi2\n192.168.50.86 / 192.168.50.88\nDebian 13\nCaddy 80 and 443\nNFS and SMB server\n/srv/cloud-vault on local 3.6T disk"]
+    T1["tichuml1\n192.168.50.196\nUbuntu 25.10\nlocal-doc-classifier 4319\nOllama 11434 localhost\nNxFilter 8444\ntichu-postgres 54329"]
+    T0["tichuml\n192.168.50.36\nUbuntu 24.04.4\nNxFilter 8090 and 8943\ntichu-postgres 54329\nno 4310 backend observed"]
+  end
+
+  CF -->|"home.neonbutterfly.net\nstatic response"| KR2
+  CF -->|"classify.neonbutterfly.net\nproxy to 192.168.50.196:4319"| KR2
+  CF -->|"clouddrive.neonbutterfly.net\nproxy to 192.168.50.232:8080"| KR2
+  CF -->|"calsync.neonbutterfly.net\nproxy to 192.168.50.232:3080\nupstream absent during probe"| KR2
+
+  APPLE -->|"iCloud indexing workload"| KR
+  APPLE -->|"iPhone backup workflows"| KR2
+  RCLONE --- KR2
+  TS --- KR
+
+  KR -->|"classifier submission target\n/classify/upload"| T1
+  T1 -->|"NFS rw mount\n/mnt/cloud-vault"| KR2
+  KR -->|"NFS ro mount\n/srv/cloud-vault"| KR2
