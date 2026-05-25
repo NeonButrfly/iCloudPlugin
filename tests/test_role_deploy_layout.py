@@ -25,6 +25,26 @@ def test_cloudsync_role_sync_assets_exist():
     assert all(path.exists() for path in expected)
 
 
+def test_cloudsync_role_uses_remote_preferred_initial_resync_for_google_mirrors():
+    repo_root = Path(__file__).resolve().parents[1]
+    sync_script = repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh"
+    script_text = sync_script.read_text(encoding="utf-8")
+
+    assert 'REMOTE_ICLOUD_INITIAL_RESYNC_MODE="${REMOTE_ICLOUD_INITIAL_RESYNC_MODE:-path2}"' in script_text
+    assert 'REMOTE_GOOGLE_1_INITIAL_RESYNC_MODE="${REMOTE_GOOGLE_1_INITIAL_RESYNC_MODE:-path1}"' in script_text
+    assert 'REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE="${REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE:-path1}"' in script_text
+    assert 'run_bisync "${REMOTE_GOOGLE_1}" "${REMOTE_GOOGLE_1}:" "${VAULT_MOUNT}/mirrors/google1" "${LOG_DIR}/google1.log" "${REMOTE_GOOGLE_1_INITIAL_RESYNC_MODE}"' in script_text
+    assert 'run_bisync "${REMOTE_GOOGLE_2}" "${REMOTE_GOOGLE_2}:" "${VAULT_MOUNT}/mirrors/google2" "${LOG_DIR}/google2.log" "${REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE}"' in script_text
+
+
+def test_cloudsync_role_skips_dangling_google_drive_shortcuts():
+    repo_root = Path(__file__).resolve().parents[1]
+    sync_script = repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh"
+    script_text = sync_script.read_text(encoding="utf-8")
+
+    assert "--drive-skip-dangling-shortcuts" in script_text
+
+
 def test_role_compose_files_exist_for_cloudsync_classifier_and_combined():
     repo_root = Path(__file__).resolve().parents[1]
     expected = [

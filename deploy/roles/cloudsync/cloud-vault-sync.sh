@@ -10,6 +10,9 @@ STATE_DIR="${STATE_DIR:-${VAULT_MOUNT}/.rclone-bisync}"
 REMOTE_ICLOUD="${REMOTE_ICLOUD:-icloud}"
 REMOTE_GOOGLE_1="${REMOTE_GOOGLE_1:-gdrive1}"
 REMOTE_GOOGLE_2="${REMOTE_GOOGLE_2:-gdrive2}"
+REMOTE_ICLOUD_INITIAL_RESYNC_MODE="${REMOTE_ICLOUD_INITIAL_RESYNC_MODE:-path2}"
+REMOTE_GOOGLE_1_INITIAL_RESYNC_MODE="${REMOTE_GOOGLE_1_INITIAL_RESYNC_MODE:-path1}"
+REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE="${REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE:-path1}"
 
 CHECK_FILENAME="${CHECK_FILENAME:-RCLONE_TEST}"
 RCLONE_COMMON_ARGS=(
@@ -18,6 +21,7 @@ RCLONE_COMMON_ARGS=(
   --check-filename "${CHECK_FILENAME}"
   --compare size,modtime
   --conflict-resolve newer
+  --drive-skip-dangling-shortcuts
   --resilient
   --recover
 )
@@ -45,6 +49,7 @@ run_bisync() {
   local remote_path="$2"
   local dest_path="$3"
   local log_file="$4"
+  local initial_resync_mode="$5"
   local workdir="${STATE_DIR}/${remote_name}"
 
   if ! remote_is_configured "${remote_name}"; then
@@ -63,12 +68,13 @@ run_bisync() {
     printf 'cloud-vault-check\n' > "${dest_path}/${CHECK_FILENAME}"
   fi
 
-  # The first bisync run needs a baseline listing. Prefer the local mirror if
-  # the bisync state does not exist yet so we do not wipe the existing copy.
+  # The first bisync run needs a baseline listing. Existing local mirrors such
+  # as iCloud can prefer path2, while newly connected remotes should prefer
+  # path1 so an empty local mirror does not become the source of truth.
   local bisync_args=("${RCLONE_COMMON_ARGS[@]}" --workdir "${workdir}")
   if ! compgen -G "${workdir}/*.lst" > /dev/null; then
-    bisync_args+=(--resync --resync-mode path2)
-    log_line "${log_file}" "No bisync state found for ${remote_name}. Running initial resync with local mirror preferred."
+    bisync_args+=(--resync --resync-mode "${initial_resync_mode}")
+    log_line "${log_file}" "No bisync state found for ${remote_name}. Running initial resync with ${initial_resync_mode} preferred."
   fi
 
   log_line "${log_file}" "===== ${remote_name} bisync started ====="
@@ -94,8 +100,8 @@ fi
     exit 0
   }
 
-  run_bisync "${REMOTE_ICLOUD}" "${REMOTE_ICLOUD}:" "${VAULT_MOUNT}/mirrors/icloud" "${LOG_DIR}/icloud.log"
-  run_bisync "${REMOTE_GOOGLE_1}" "${REMOTE_GOOGLE_1}:" "${VAULT_MOUNT}/mirrors/google1" "${LOG_DIR}/google1.log"
-  run_bisync "${REMOTE_GOOGLE_2}" "${REMOTE_GOOGLE_2}:" "${VAULT_MOUNT}/mirrors/google2" "${LOG_DIR}/google2.log"
+  run_bisync "${REMOTE_ICLOUD}" "${REMOTE_ICLOUD}:" "${VAULT_MOUNT}/mirrors/icloud" "${LOG_DIR}/icloud.log" "${REMOTE_ICLOUD_INITIAL_RESYNC_MODE}"
+  run_bisync "${REMOTE_GOOGLE_1}" "${REMOTE_GOOGLE_1}:" "${VAULT_MOUNT}/mirrors/google1" "${LOG_DIR}/google1.log" "${REMOTE_GOOGLE_1_INITIAL_RESYNC_MODE}"
+  run_bisync "${REMOTE_GOOGLE_2}" "${REMOTE_GOOGLE_2}:" "${VAULT_MOUNT}/mirrors/google2" "${LOG_DIR}/google2.log" "${REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE}"
 
 ) 9>"${LOCK_FILE}"

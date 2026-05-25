@@ -51,6 +51,10 @@ The script is intentionally resilient:
 
 - missing or unauthenticated remotes are skipped instead of failing the whole
   timer run
-- the first run seeds bisync state from the local mirror copy
+- the first iCloud run seeds bisync state from the existing local mirror copy
+- the first Google Drive runs seed bisync state from the remote Drive accounts
+  so an empty local mirror cannot become the initial source of truth
+- dangling Google Drive shortcuts are skipped because rclone cannot read them
+  as source objects
 - ongoing runs use a dedicated state directory under
   `/srv/cloud-vault/.rclone-bisync`

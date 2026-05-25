@@ -98,10 +98,14 @@ Recommended live assets:
 Behavior:
 
 - `rclone bisync` is used for each configured remote
-- the first run seeds bisync state from the local mirror so an existing mirror
-  is not discarded
+- the first iCloud run seeds bisync state from the local mirror so the existing
+  iCloud mirror is not discarded
+- the first Google Drive runs seed bisync state from the remote Drive accounts
+  so newly connected or empty local Google mirrors do not become authoritative
 - remotes that are missing or unauthenticated are logged and skipped instead of
   failing the entire timer run
+- Google Drive dangling shortcuts are skipped because they cannot be read as
+  source objects during mirror initialization
 - `RCLONE_TEST` is maintained as the access-health probe file for bisync
 
 Current Google Drive expectation:
