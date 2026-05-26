@@ -96,3 +96,20 @@ def test_extract_text_content_keeps_video_files_metadata_only():
         )
         == ""
     )
+
+
+def test_extract_text_content_uses_pdf_ocr_fallback_for_scanned_pdfs(monkeypatch):
+    monkeypatch.setattr(
+        extractor_module,
+        "extract_text_from_pdf_bytes",
+        lambda payload: "Appeal form confirmation from scanned PDF",
+    )
+
+    assert (
+        extract_text_content(
+            path="/Scanned/appeal.pdf",
+            mime_type="application/pdf",
+            payload=b"%PDF-scanned",
+        )
+        == "Appeal form confirmation from scanned PDF"
+    )

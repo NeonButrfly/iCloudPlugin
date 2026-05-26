@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-from io import BytesIO
+from packages.classification.ocr_pipeline import extract_pdf_text_with_metadata
 
 
 def extract_text_from_pdf_bytes(payload: bytes) -> str:
-    from pypdf import PdfReader
-
-    reader = PdfReader(BytesIO(payload))
-    return "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+    return str(extract_pdf_text_with_metadata(payload).get("text", "")).strip()

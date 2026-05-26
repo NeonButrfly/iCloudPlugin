@@ -3,6 +3,7 @@ import argparse
 import base64
 import hashlib
 import json
+import mimetypes
 import os
 import re
 import shutil
@@ -19,6 +20,10 @@ from xml.etree import ElementTree as ET
 from zoneinfo import ZoneInfo
 
 import requests
+from packages.classification.ocr_pipeline import (
+    extract_image_text_with_metadata,
+    extract_pdf_text_with_metadata,
+)
 from packages.classification.retrieval_metadata import build_retrieval_metadata
 from packages.vault.naming import (
     build_attachment_filename,
@@ -74,6 +79,8 @@ PDF_EXTENSIONS = {
 PLAIN_EXTENSIONS = {
     ".txt", ".md", ".markdown", ".csv"
 }
+
+IMAGE_OCR_MIN_CHARS = int(os.environ.get("IMAGE_OCR_MIN_CHARS", "48") or "48")
 
 def now_ak() -> str:
     return datetime.now(ALASKA_TZ).isoformat(timespec="seconds")
@@ -361,6 +368,15 @@ def parse_pdf_fast(path: Path) -> tuple[str, str]:
     if proc.returncode != 0 or len(text) < 80:
         raise RuntimeError(f"pdftotext did not produce usable text for {path}")
     return text, "pdftotext"
+
+
+def parse_pdf_with_ocr_fallback(path: Path) -> tuple[str, str]:
+    result = extract_pdf_text_with_metadata(path.read_bytes(), source_name=path.name)
+    text = str(result.get("text", "") or "").strip()
+    parser_name = str(result.get("parser", "") or "pdf-ocr")
+    if not text:
+        raise RuntimeError(f"No text extracted from PDF after OCR fallback: {path}")
+    return text, parser_name
 
 def build_fast_document_classification(
     primary: str,
@@ -778,12 +794,15 @@ def process_shadow_queue_command(
         mode = str(job.get("mode", "document"))
         if mode == "image":
             source_path = Path(str(job.get("source_path", "")))
-            return classify_image(
+            classification, _, _ = classify_image(
                 source_path=source_path,
                 categories=categories,
                 ollama_url=ollama_url,
+                model=model,
                 vision_model=vision_model,
+                max_chars=max_chars,
             )
+            return classification
 
         return classify_markdown(
             markdown=str(job.get("markdown", "")),
@@ -817,7 +836,7 @@ def parse_document(path: Path, work_dir: Path) -> tuple[str, str]:
         try:
             return parse_pdf_fast(path)
         except Exception:
-            pass
+            return parse_pdf_with_ocr_fallback(path)
 
     if ext in PLAIN_EXTENSIONS:
         return parse_plain_text(path), "plain-text"
@@ -969,7 +988,7 @@ Extracted content:
     result["candidate_categories_used"] = candidate_categories
     return result
 
-def classify_image(
+def classify_image_vision(
     source_path: Path,
     categories: List[str],
     ollama_url: str,
@@ -1056,6 +1075,70 @@ Filename:
     result = extract_json(content)
     result["candidate_categories_used"] = candidate_categories
     return normalize_image_classification_result(result)
+
+
+def classify_image(
+    source_path: Path,
+    categories: List[str],
+    ollama_url: str,
+    model: str,
+    vision_model: str,
+    max_chars: int,
+    gating_config: Optional[Dict[str, Any]] = None,
+    heuristic_rules: Optional[Dict[str, Any]] = None,
+    timing: Optional[Dict[str, Any]] = None,
+) -> tuple[Dict[str, Any], Optional[Dict[str, Any]], str]:
+    mime_type = mimetypes.guess_type(source_path.name)[0] or "image/png"
+    ocr_evidence = extract_image_text_with_metadata(
+        path=str(source_path),
+        mime_type=mime_type,
+        payload=source_path.read_bytes(),
+    )
+    ocr_text = str(ocr_evidence.get("text", "") or "")
+    ocr_engine = str(ocr_evidence.get("engine", "") or "")
+    ocr_quality = str(ocr_evidence.get("quality", "empty") or "empty")
+
+    if timing is not None:
+        timing["ocr_engine"] = ocr_engine
+        timing["ocr_quality"] = ocr_quality
+        timing["ocr_chars"] = int(ocr_evidence.get("char_count", 0) or 0)
+
+    if int(ocr_evidence.get("char_count", 0) or 0) >= IMAGE_OCR_MIN_CHARS:
+        parser_name = f"image-ocr-{ocr_engine or 'unknown'}"
+        heuristic_classification = classify_document_fast(
+            source_path=source_path,
+            markdown=ocr_text,
+            categories=categories,
+            rules=heuristic_rules,
+        )
+        classification, hybrid_meta = resolve_hybrid_document_decision(
+            source_path=source_path,
+            markdown=ocr_text,
+            parser_name=parser_name,
+            categories=categories,
+            heuristic_result=heuristic_classification,
+            ollama_url=ollama_url,
+            model=model,
+            max_chars=max_chars,
+            gating_config=gating_config,
+            timing=timing,
+        )
+        classification["ocr_engine"] = ocr_engine
+        classification["ocr_quality"] = ocr_quality
+        classification["ocr_char_count"] = int(ocr_evidence.get("char_count", 0) or 0)
+        return classification, hybrid_meta, ocr_text
+
+    classification = classify_image_vision(
+        source_path=source_path,
+        categories=categories,
+        ollama_url=ollama_url,
+        vision_model=vision_model,
+        timing=timing,
+    )
+    classification["ocr_engine"] = ocr_engine
+    classification["ocr_quality"] = ocr_quality
+    classification["ocr_char_count"] = int(ocr_evidence.get("char_count", 0) or 0)
+    return classification, None, ""
 
 def write_obsidian_note(
     vault: Path,
@@ -1471,13 +1554,25 @@ def main() -> int:
                 timing["sha256_ms"] = elapsed_ms(hash_started_at)
 
                 if ext in IMAGE_EXTENSIONS and not args.no_vision:
-                    classification = classify_image(
+                    classification, hybrid_meta, markdown = classify_image(
                         source_path=source_path,
                         categories=categories,
                         ollama_url=args.ollama_url,
+                        model=args.model,
                         vision_model=args.vision_model,
+                        max_chars=args.max_chars,
+                        gating_config=gating_config,
+                        heuristic_rules=heuristic_rules,
                         timing=timing,
                     )
+                    timing["parser"] = (
+                        f"image-ocr-{classification.get('ocr_engine', '')}".rstrip("-")
+                        if hybrid_meta is not None
+                        else "vision-qwen"
+                    )
+                    timing["markdown_chars"] = len(markdown or "")
+                    timing["clipped_markdown_chars"] = len((markdown or "")[: args.max_chars])
+                    timing["classifier"] = "ocr-document-path" if hybrid_meta is not None else "vision-qwen-fallback"
                 elif ext in SPREADSHEET_EXTENSIONS:
                     parse_started_at = time.perf_counter()
                     markdown, parser_name, spreadsheet_metadata = parse_spreadsheet_fast(source_path)
@@ -1632,7 +1727,7 @@ def main() -> int:
                     "retrieval_terms": retrieval_metadata["retrieval_terms"],
                     "retrieval_text": retrieval_metadata["retrieval_text"],
                     "classification": classification,
-                    "hybrid": hybrid_meta if ext not in IMAGE_EXTENSIONS or args.no_vision else None,
+                    "hybrid": hybrid_meta,
                     "timing": timing,
                 }
 

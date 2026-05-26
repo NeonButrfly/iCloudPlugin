@@ -127,6 +127,13 @@ it successfully.
 - `ICLOUD_REFRESH_BATCH_FILE_LIMIT` controls how many file entries are processed
   per resumable batch
 - `ICLOUD_OCR_LANGS` controls the Tesseract language set used for still-image OCR
+- the OCR path is now image-first and cheap by default:
+  - image files try PaddleOCR when available, then fall back to Tesseract
+  - scanned PDFs fall back to page-render OCR when native PDF text is sparse
+- `ICLOUD_PADDLE_OCR_ENABLED` controls whether the optional PaddleOCR path is attempted before Tesseract
+- `ICLOUD_PDF_NATIVE_TEXT_MIN_CHARS` controls when a PDF is considered too text-sparse and should be OCRed
+- `ICLOUD_PDF_OCR_MAX_PAGES` bounds how many rendered PDF pages are OCRed per file
+- `ICLOUD_PDF_OCR_DPI` controls PDF page render resolution for OCR fallback
 - batch progress is stored in the `jobs` payload, so the worker can immediately
   resume where it left off after a restart
 - restart recovery keeps the same job frontier and sync run instead of opening
@@ -166,6 +173,8 @@ it successfully.
   operator intentionally enables the Codex final-arbiter path tracked in issue
   #20. With the default value, classifier submissions do not pass the Codex
   arbiter flag into the note-generation process.
+- `IMAGE_OCR_MIN_CHARS` controls when an image is routed through the OCR-backed
+  document path instead of going straight to Qwen vision fallback.
 
 ### Reset state
 
@@ -199,6 +208,10 @@ extensions:
 - documents: `.pdf`, `.docx`, `.doc`, `.xlsx`, `.xls`, `.pptx`, `.ppt`,
   `.txt`, `.md`, `.markdown`, `.csv`, `.html`, `.htm`
 - images: `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`
+
+For image-heavy and scan-heavy files, the classifier now prefers cheap OCR
+evidence first and only falls back to Qwen vision when the extracted text is
+too sparse to support the document pipeline.
 
 Useful endpoints:
 

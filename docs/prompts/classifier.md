@@ -45,3 +45,12 @@
 - Retrieval note: search now needs to find files by semantic clues even when their folder is wrong, so entity summaries, topic summaries, and retrieval terms must survive from classification into both the database index and the vault note layer.
 - Self-learning note: the live shadow loop should respect runtime gating, update heuristic disagreement rules only when enabled, and retrain LightGBM only after enough new teacher-approved rows have accumulated.
 - Affected systems: classifier note generation, LightGBM feature text, shadow queue processing, index search ranking, classification state persistence, operator docs.
+
+## 2026-05-26 - OCR-first image and scanned-PDF classifier path
+
+- Issue: [#3](https://github.com/NeonButrfly/iCloudPlugin/issues/3)
+- Source prompt: "image recognition/ocr/image parsing in the pipeline" and later "is there a faster easier ocr / image recognition type package other than qwen that we can cheaply insert in the pipeline. ok go"
+- Interpreted requirement: stop relying on Qwen vision as the first stop for image-heavy files, add a cheap OCR-first evidence layer for still images and scanned PDFs, and keep Qwen as the fallback when OCR is still too sparse to support the normal document classifier path.
+- OCR note: the runtime now attempts optional PaddleOCR before Tesseract for still images, then routes image files with strong OCR text through the normal heuristic plus LightGBM document path instead of forcing them into the vision-only path.
+- PDF note: when native PDF extraction is too sparse, scanned PDFs now fall back to page-render OCR via `pdftoppm` plus the same shared image OCR stack.
+- Affected systems: index extraction, scanned PDF handling, live classifier image routing, Docker/runtime env defaults, operator docs.
