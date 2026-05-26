@@ -28,6 +28,76 @@ def test_build_feature_text_includes_retrieval_metadata():
     assert "retrieval-text Aetna appeal packet for insurance review" in feature_text
 
 
+def test_build_feature_text_includes_ocr_and_extraction_quality_metadata():
+    feature_text = hybrid_runtime.build_feature_text(
+        {
+            "filename": "scan.png",
+            "extension": ".png",
+            "parser": "image-ocr-paddleocr",
+            "heuristic_primary": "invoice",
+            "taxonomy_candidates": ["invoice", "receipt"],
+            "ocr_engine": "paddleocr",
+            "ocr_quality": "high",
+            "ocr_char_count": 184,
+            "extraction_quality": "high",
+            "text_preview": "Invoice total due paid amount provider account number",
+        }
+    )
+
+    assert "ocr-engine paddleocr" in feature_text
+    assert "ocr-quality high" in feature_text
+    assert "ocr-chars 184" in feature_text
+    assert "extraction-quality high" in feature_text
+
+
+def test_build_training_rows_from_runtime_carries_extraction_metadata(tmp_path: Path):
+    manifest_path = tmp_path / "manifest.jsonl"
+    comparisons_path = tmp_path / "comparisons.jsonl"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "source_path": "/vault/scan.png",
+                "timing": {
+                    "parser": "image-ocr-paddleocr",
+                    "ocr_engine": "paddleocr",
+                    "ocr_quality": "high",
+                    "ocr_chars": 184,
+                    "extraction_quality": "high",
+                },
+                "classification": {
+                    "primary_label": "invoice",
+                    "summary": "Invoice for medical provider",
+                    "reason": "OCR text was strong.",
+                    "ocr_engine": "paddleocr",
+                    "ocr_quality": "high",
+                    "ocr_char_count": 184,
+                    "extraction_quality": "high",
+                },
+                "hybrid": {
+                    "decision": {"live_source": "heuristic-fast-path", "selected_primary_hint": "invoice"},
+                    "taxonomy_candidates": ["invoice", "receipt"],
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    comparisons_path.write_text("", encoding="utf-8")
+
+    rows = hybrid_runtime.build_training_rows_from_runtime(
+        manifest_path=manifest_path,
+        corrections_path=tmp_path / "corrections.jsonl",
+        examples_path=tmp_path / "examples.jsonl",
+        comparisons_path=comparisons_path,
+    )
+
+    assert rows[0]["ocr_engine"] == "paddleocr"
+    assert rows[0]["ocr_quality"] == "high"
+    assert rows[0]["ocr_char_count"] == 184
+    assert rows[0]["extraction_quality"] == "high"
+
+
 def test_run_autonomous_shadow_cycle_respects_disabled_retrain_and_threshold_updates(
     tmp_path: Path,
     monkeypatch,

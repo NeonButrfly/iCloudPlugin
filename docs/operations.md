@@ -130,6 +130,8 @@ it successfully.
 - the OCR path is now image-first and cheap by default:
   - image files try PaddleOCR when available, then fall back to Tesseract
   - scanned PDFs fall back to page-render OCR when native PDF text is sparse
+- the classifier runtime image now installs the CPU PaddlePaddle runtime ahead
+  of `paddleocr`, so the faster OCR path is present in normal container builds
 - `ICLOUD_PADDLE_OCR_ENABLED` controls whether the optional PaddleOCR path is attempted before Tesseract
 - `ICLOUD_PDF_NATIVE_TEXT_MIN_CHARS` controls when a PDF is considered too text-sparse and should be OCRed
 - `ICLOUD_PDF_OCR_MAX_PAGES` bounds how many rendered PDF pages are OCRed per file
@@ -313,6 +315,29 @@ The example corpus and report now include:
 
 Those fields are consumed by the taxonomy router and LightGBM runtime training
 rows so both layers train on the same evidence-rich examples.
+
+## OCR-rich classifier feature text
+
+Issue [#27](https://github.com/NeonButrfly/iCloudPlugin/issues/27) promotes OCR
+quality into the classifier runtime and training rows instead of treating OCR as
+an opaque text source.
+
+Current behavior:
+
+- the classifier runtime image installs `paddlepaddle` plus `paddleocr` during
+  the normal Docker build, so PaddleOCR is available in the shipped container
+- image OCR and scanned-PDF OCR now preserve:
+  - `ocr_engine`
+  - `ocr_quality`
+  - `ocr_char_count`
+  - `extraction_quality`
+- those fields now flow into:
+  - live LightGBM feature text
+  - shadow comparison rows
+  - runtime-manifest retraining rows
+
+That means weak OCR can now lower model confidence or push borderline files back
+toward the inline teacher path instead of only shortening the extracted text.
 
 ## Retrieval-first vault intelligence
 

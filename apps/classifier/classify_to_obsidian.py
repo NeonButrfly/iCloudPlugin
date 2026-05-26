@@ -82,6 +82,17 @@ PLAIN_EXTENSIONS = {
 
 IMAGE_OCR_MIN_CHARS = int(os.environ.get("IMAGE_OCR_MIN_CHARS", "48") or "48")
 
+
+def extraction_quality_for_text(text: str) -> str:
+    chars = sum(1 for char in str(text or "") if char.isalnum())
+    if chars >= 120:
+        return "high"
+    if chars >= 20:
+        return "medium"
+    if chars >= 8:
+        return "low"
+    return "empty"
+
 def now_ak() -> str:
     return datetime.now(ALASKA_TZ).isoformat(timespec="seconds")
 
@@ -370,13 +381,18 @@ def parse_pdf_fast(path: Path) -> tuple[str, str]:
     return text, "pdftotext"
 
 
-def parse_pdf_with_ocr_fallback(path: Path) -> tuple[str, str]:
+def parse_pdf_with_ocr_fallback(path: Path) -> tuple[str, str, Dict[str, Any]]:
     result = extract_pdf_text_with_metadata(path.read_bytes(), source_name=path.name)
     text = str(result.get("text", "") or "").strip()
     parser_name = str(result.get("parser", "") or "pdf-ocr")
     if not text:
         raise RuntimeError(f"No text extracted from PDF after OCR fallback: {path}")
-    return text, parser_name
+    return text, parser_name, {
+        "ocr_engine": str(result.get("ocr_engine", "") or ""),
+        "ocr_quality": str(result.get("quality", "empty") or "empty"),
+        "ocr_char_count": sum(1 for char in text if char.isalnum()),
+        "extraction_quality": str(result.get("quality", "empty") or "empty"),
+    }
 
 def build_fast_document_classification(
     primary: str,
@@ -664,7 +680,9 @@ def resolve_hybrid_document_decision(
     lightgbm_model_path: Optional[Path] = None,
     gating_config: Optional[Dict[str, Any]] = None,
     timing: Optional[Dict[str, Any]] = None,
+    extraction_metadata: Optional[Dict[str, Any]] = None,
 ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    extraction_metadata = dict(extraction_metadata or {})
     retrieval_metadata = build_retrieval_metadata(
         source_path=source_path,
         text=markdown,
@@ -689,6 +707,7 @@ def resolve_hybrid_document_decision(
                 "text_preview": markdown,
                 "heuristic_primary": (heuristic_result or {}).get("primary_label", "unknown"),
                 "taxonomy_candidates": taxonomy_candidates,
+                **extraction_metadata,
                 **retrieval_metadata,
             },
             model_path=model_path,
@@ -766,6 +785,7 @@ def resolve_hybrid_document_decision(
         "lightgbm": lightgbm_result,
         "decision": decision,
         "retrieval": retrieval_metadata,
+        "extraction": extraction_metadata,
     }
     return classification, hybrid_meta
 
@@ -819,40 +839,81 @@ def process_shadow_queue_command(
         gating_config=gating_config,
     )
 
-def parse_document(path: Path, work_dir: Path) -> tuple[str, str]:
+def parse_document(path: Path, work_dir: Path) -> tuple[str, str, Dict[str, Any]]:
     ext = path.suffix.lower()
 
     if ext in SPREADSHEET_EXTENSIONS:
         markdown, parser_name, _ = parse_spreadsheet_fast(path)
-        return markdown, parser_name
+        return markdown, parser_name, {
+            "ocr_engine": "",
+            "ocr_quality": "",
+            "ocr_char_count": 0,
+            "extraction_quality": extraction_quality_for_text(markdown),
+        }
 
     if ext in DOCX_EXTENSIONS:
         try:
-            return parse_docx_fast(path)
+            markdown, parser_name = parse_docx_fast(path)
+            return markdown, parser_name, {
+                "ocr_engine": "",
+                "ocr_quality": "",
+                "ocr_char_count": 0,
+                "extraction_quality": extraction_quality_for_text(markdown),
+            }
         except Exception:
             pass
 
     if ext in PDF_EXTENSIONS:
         try:
-            return parse_pdf_fast(path)
+            markdown, parser_name = parse_pdf_fast(path)
+            return markdown, parser_name, {
+                "ocr_engine": "",
+                "ocr_quality": "",
+                "ocr_char_count": 0,
+                "extraction_quality": extraction_quality_for_text(markdown),
+            }
         except Exception:
             return parse_pdf_with_ocr_fallback(path)
 
     if ext in PLAIN_EXTENSIONS:
-        return parse_plain_text(path), "plain-text"
+        markdown = parse_plain_text(path)
+        return markdown, "plain-text", {
+            "ocr_engine": "",
+            "ocr_quality": "",
+            "ocr_char_count": 0,
+            "extraction_quality": extraction_quality_for_text(markdown),
+        }
 
     try:
-        return parse_with_docling(path), "docling"
+        markdown = parse_with_docling(path)
+        return markdown, "docling", {
+            "ocr_engine": "",
+            "ocr_quality": "",
+            "ocr_char_count": 0,
+            "extraction_quality": extraction_quality_for_text(markdown),
+        }
     except Exception as first_error:
         converted = convert_legacy_office(path, work_dir)
         if converted:
             try:
-                return parse_with_docling(converted), "docling-converted"
+                markdown = parse_with_docling(converted)
+                return markdown, "docling-converted", {
+                    "ocr_engine": "",
+                    "ocr_quality": "",
+                    "ocr_char_count": 0,
+                    "extraction_quality": extraction_quality_for_text(markdown),
+                }
             except Exception:
                 pass
 
         if ext in {".html", ".htm"}:
-            return parse_plain_text(path), "html-plain"
+            markdown = parse_plain_text(path)
+            return markdown, "html-plain", {
+                "ocr_engine": "",
+                "ocr_quality": "",
+                "ocr_char_count": 0,
+                "extraction_quality": extraction_quality_for_text(markdown),
+            }
 
         raise RuntimeError(f"Document parsing failed for {path}: {first_error}") from first_error
 
@@ -1102,9 +1163,16 @@ def classify_image(
         timing["ocr_engine"] = ocr_engine
         timing["ocr_quality"] = ocr_quality
         timing["ocr_chars"] = int(ocr_evidence.get("char_count", 0) or 0)
+        timing["extraction_quality"] = ocr_quality
 
     if int(ocr_evidence.get("char_count", 0) or 0) >= IMAGE_OCR_MIN_CHARS:
         parser_name = f"image-ocr-{ocr_engine or 'unknown'}"
+        extraction_metadata = {
+            "ocr_engine": ocr_engine,
+            "ocr_quality": ocr_quality,
+            "ocr_char_count": int(ocr_evidence.get("char_count", 0) or 0),
+            "extraction_quality": ocr_quality,
+        }
         heuristic_classification = classify_document_fast(
             source_path=source_path,
             markdown=ocr_text,
@@ -1122,10 +1190,12 @@ def classify_image(
             max_chars=max_chars,
             gating_config=gating_config,
             timing=timing,
+            extraction_metadata=extraction_metadata,
         )
         classification["ocr_engine"] = ocr_engine
         classification["ocr_quality"] = ocr_quality
         classification["ocr_char_count"] = int(ocr_evidence.get("char_count", 0) or 0)
+        classification["extraction_quality"] = ocr_quality
         return classification, hybrid_meta, ocr_text
 
     classification = classify_image_vision(
@@ -1138,6 +1208,7 @@ def classify_image(
     classification["ocr_engine"] = ocr_engine
     classification["ocr_quality"] = ocr_quality
     classification["ocr_char_count"] = int(ocr_evidence.get("char_count", 0) or 0)
+    classification["extraction_quality"] = ocr_quality
     return classification, None, ""
 
 def write_obsidian_note(
@@ -1588,6 +1659,13 @@ def main() -> int:
                     timing["markdown_chars"] = len(markdown)
                     timing["clipped_markdown_chars"] = len(markdown)
                     timing["sheet_count"] = spreadsheet_metadata.get("sheet_count", 0)
+                    extraction_metadata = {
+                        "ocr_engine": "",
+                        "ocr_quality": "",
+                        "ocr_char_count": 0,
+                        "extraction_quality": extraction_quality_for_text(markdown),
+                    }
+                    timing["extraction_quality"] = extraction_metadata["extraction_quality"]
                     markdown, heuristic_classification, spreadsheet_metadata = classify_spreadsheet_fast(
                         source_path=source_path,
                         categories=categories,
@@ -1605,7 +1683,9 @@ def main() -> int:
                         max_chars=args.max_chars,
                         gating_config=gating_config,
                         timing=timing,
+                        extraction_metadata=extraction_metadata,
                     )
+                    classification["extraction_quality"] = extraction_metadata["extraction_quality"]
                     timing["classifier"] = (
                         "heuristic-spreadsheet-fast-path"
                         if hybrid_meta["decision"]["live_source"] == "heuristic-fast-path"
@@ -1615,9 +1695,14 @@ def main() -> int:
                         timing["model_ms"] = 0.0
                 else:
                     parse_started_at = time.perf_counter()
-                    markdown, parser_name = parse_document(source_path, work_dir)
+                    markdown, parser_name, extraction_metadata = parse_document(source_path, work_dir)
                     timing["parse_ms"] = elapsed_ms(parse_started_at)
                     timing["parser"] = parser_name
+                    timing["extraction_quality"] = extraction_metadata.get("extraction_quality", "")
+                    if extraction_metadata.get("ocr_engine"):
+                        timing["ocr_engine"] = extraction_metadata.get("ocr_engine", "")
+                        timing["ocr_quality"] = extraction_metadata.get("ocr_quality", "")
+                        timing["ocr_chars"] = int(extraction_metadata.get("ocr_char_count", 0) or 0)
                     heuristic_classification = classify_document_fast(
                         source_path=source_path,
                         markdown=markdown,
@@ -1637,7 +1722,13 @@ def main() -> int:
                         max_chars=args.max_chars,
                         gating_config=gating_config,
                         timing=timing,
+                        extraction_metadata=extraction_metadata,
                     )
+                    classification["extraction_quality"] = extraction_metadata.get("extraction_quality", "")
+                    if extraction_metadata.get("ocr_engine"):
+                        classification["ocr_engine"] = extraction_metadata.get("ocr_engine", "")
+                        classification["ocr_quality"] = extraction_metadata.get("ocr_quality", "")
+                        classification["ocr_char_count"] = int(extraction_metadata.get("ocr_char_count", 0) or 0)
                     timing["classifier"] = (
                         "heuristic-document-fast-path"
                         if hybrid_meta["decision"]["live_source"] == "heuristic-fast-path" and heuristic_classification is not None
@@ -1754,6 +1845,10 @@ def main() -> int:
                         "topic_summary": retrieval_metadata["topic_summary"],
                         "retrieval_terms": retrieval_metadata["retrieval_terms"],
                         "retrieval_text": retrieval_metadata["retrieval_text"],
+                        "ocr_engine": classification.get("ocr_engine", ""),
+                        "ocr_quality": classification.get("ocr_quality", ""),
+                        "ocr_char_count": int(classification.get("ocr_char_count", 0) or 0),
+                        "extraction_quality": classification.get("extraction_quality", ""),
                         "text_preview": ((markdown or classification.get("summary", ""))[:12000]),
                     }
                     enqueue_shadow_job(shadow_payload)

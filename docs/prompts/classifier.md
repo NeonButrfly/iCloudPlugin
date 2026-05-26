@@ -54,3 +54,12 @@
 - OCR note: the runtime now attempts optional PaddleOCR before Tesseract for still images, then routes image files with strong OCR text through the normal heuristic plus LightGBM document path instead of forcing them into the vision-only path.
 - PDF note: when native PDF extraction is too sparse, scanned PDFs now fall back to page-render OCR via `pdftoppm` plus the same shared image OCR stack.
 - Affected systems: index extraction, scanned PDF handling, live classifier image routing, Docker/runtime env defaults, operator docs.
+
+## 2026-05-26 - PaddleOCR runtime install and OCR-quality feature text
+
+- Issue: [#27](https://github.com/NeonButrfly/iCloudPlugin/issues/27)
+- Source prompt: "1 and 2" after the OCR-first rollout, referring to "bake PaddleOCR into the runtime image and smoke-test it on a real scanned batch from the mirror" plus "add extraction-quality fields into LightGBM feature text so weak OCR can explicitly lower confidence instead of only shortening the text"
+- Interpreted requirement: make the fast OCR engine part of the normal classifier container instead of an optional undeployed dependency, preserve OCR/extraction quality metadata across live classification and retraining rows, and verify the path on a small real mirror sample.
+- Runtime note: the shipped classifier image should install `paddlepaddle` before `paddleocr` so still-image OCR uses the faster path whenever it is enabled.
+- Training note: OCR evidence fields such as engine, quality, and character count must survive into LightGBM feature text, shadow comparisons, and runtime-manifest training rows so the model can learn that sparse OCR is a weaker signal than clean extracted text.
+- Affected systems: classifier Docker image, live hybrid feature builder, shadow queue/training rows, operator docs.

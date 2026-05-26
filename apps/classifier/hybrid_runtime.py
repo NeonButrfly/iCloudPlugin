@@ -181,6 +181,10 @@ def build_shadow_record(
     topic_summary: str = "",
     retrieval_terms: Optional[list[str]] = None,
     retrieval_text: str = "",
+    ocr_engine: str = "",
+    ocr_quality: str = "",
+    ocr_char_count: int = 0,
+    extraction_quality: str = "",
 ) -> Dict[str, Any]:
     heuristic_result = heuristic_result or {}
     lightgbm_result = lightgbm_result or {}
@@ -224,6 +228,10 @@ def build_shadow_record(
         "topic_summary": topic_summary,
         "retrieval_terms": retrieval_terms or [],
         "retrieval_text": retrieval_text[:4000],
+        "ocr_engine": ocr_engine,
+        "ocr_quality": ocr_quality,
+        "ocr_char_count": int(ocr_char_count or 0),
+        "extraction_quality": extraction_quality,
         "text_preview": text_preview[:4000],
     }
 
@@ -287,6 +295,10 @@ def build_feature_text(payload: Dict[str, Any]) -> str:
         for item in (payload.get("retrieval_terms", []) or [])
         if str(item).strip()
     )
+    ocr_engine = str(payload.get("ocr_engine", ""))
+    ocr_quality = str(payload.get("ocr_quality", ""))
+    ocr_char_count = payload.get("ocr_char_count", "")
+    extraction_quality = str(payload.get("extraction_quality", ""))
     text_preview = str(payload.get("text_preview", ""))[:12000]
     external_hint_text = build_external_taxonomy_hint_text(
         f"{filename}\n{topic_summary}\n{entity_summary}\n{retrieval_text}\n{text_preview}",
@@ -303,6 +315,10 @@ def build_feature_text(payload: Dict[str, Any]) -> str:
             f"entities {entity_summary}" if entity_summary else "",
             f"retrieval-terms {retrieval_terms}" if retrieval_terms else "",
             f"retrieval-text {retrieval_text}" if retrieval_text else "",
+            f"ocr-engine {ocr_engine}" if ocr_engine else "",
+            f"ocr-quality {ocr_quality}" if ocr_quality else "",
+            f"ocr-chars {ocr_char_count}" if str(ocr_char_count).strip() else "",
+            f"extraction-quality {extraction_quality}" if extraction_quality else "",
             f"external-taxonomy {external_hint_text}" if external_hint_text else "",
             text_preview,
         ]
@@ -495,6 +511,10 @@ def process_shadow_queue_once(
             topic_summary=str(job.get("topic_summary", "")),
             retrieval_terms=job.get("retrieval_terms", []) or [],
             retrieval_text=str(job.get("retrieval_text", "")),
+            ocr_engine=str(job.get("ocr_engine", "")),
+            ocr_quality=str(job.get("ocr_quality", "")),
+            ocr_char_count=int(job.get("ocr_char_count", 0) or 0),
+            extraction_quality=str(job.get("extraction_quality", "")),
         )
         append_jsonl(comparisons_path, comparison)
         try:
@@ -604,6 +624,10 @@ def maybe_retrain_from_shadow_data(
                 "topic_summary": row.get("topic_summary", ""),
                 "retrieval_terms": row.get("retrieval_terms", []),
                 "retrieval_text": row.get("retrieval_text", ""),
+                "ocr_engine": row.get("ocr_engine", ""),
+                "ocr_quality": row.get("ocr_quality", ""),
+                "ocr_char_count": int(row.get("ocr_char_count", 0) or 0),
+                "extraction_quality": row.get("extraction_quality", ""),
                 "accepted_primary": row.get("shadow_primary") or row.get("live_primary") or row.get("heuristic_primary") or "unknown",
                 "used_inline_llm": True,
                 "disagreement": bool(row.get("disagreement")),
@@ -717,6 +741,10 @@ def build_training_rows_from_runtime(
                 "topic_summary": str(classification.get("topic_summary", "")),
                 "retrieval_terms": classification.get("retrieval_terms", []) or [],
                 "retrieval_text": str(classification.get("retrieval_text", "")),
+                "ocr_engine": str(classification.get("ocr_engine", "") or (item.get("timing") or {}).get("ocr_engine", "")),
+                "ocr_quality": str(classification.get("ocr_quality", "") or (item.get("timing") or {}).get("ocr_quality", "")),
+                "ocr_char_count": int(classification.get("ocr_char_count", 0) or (item.get("timing") or {}).get("ocr_chars", 0) or 0),
+                "extraction_quality": str(classification.get("extraction_quality", "") or (item.get("timing") or {}).get("extraction_quality", "")),
                 "accepted_primary": classification.get("primary_label"),
                 "used_inline_llm": ((item.get("hybrid") or {}).get("decision") or {}).get("live_source") == "inline-llm",
                 "disagreement": False,
@@ -753,6 +781,10 @@ def build_training_rows_from_runtime(
                 "topic_summary": str(item.get("topic_summary", "")),
                 "retrieval_terms": item.get("retrieval_terms", []) or [],
                 "retrieval_text": str(item.get("retrieval_text", "")),
+                "ocr_engine": str(item.get("ocr_engine", "")),
+                "ocr_quality": str(item.get("ocr_quality", "")),
+                "ocr_char_count": int(item.get("ocr_char_count", 0) or 0),
+                "extraction_quality": str(item.get("extraction_quality", "")),
                 "accepted_primary": str(accepted),
                 "used_inline_llm": True,
                 "disagreement": bool(item.get("old_label") and item.get("old_label") != accepted),
@@ -772,6 +804,10 @@ def build_training_rows_from_runtime(
                 "topic_summary": str(item.get("topic_summary", "")),
                 "retrieval_terms": item.get("retrieval_terms", []) or [],
                 "retrieval_text": str(item.get("retrieval_text", "")),
+                "ocr_engine": str(item.get("ocr_engine", "")),
+                "ocr_quality": str(item.get("ocr_quality", "")),
+                "ocr_char_count": int(item.get("ocr_char_count", 0) or 0),
+                "extraction_quality": str(item.get("extraction_quality", "")),
                 "accepted_primary": str(item.get("shadow_primary") or item.get("live_primary") or item.get("heuristic_primary") or "unknown"),
                 "used_inline_llm": True,
                 "disagreement": bool(item.get("disagreement")),

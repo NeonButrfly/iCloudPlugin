@@ -12,3 +12,4 @@ joblib
 numpy
 scikit-learn
 lightgbm
+paddleocr
