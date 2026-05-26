@@ -84,6 +84,32 @@ IMAGE_EXTENSIONS = {
     "jxr",
 }
 
+ARCHIVE_EXTENSIONS = {
+    "7z",
+    "bz2",
+    "cab",
+    "dmg",
+    "gz",
+    "iso",
+    "rar",
+    "tar",
+    "tgz",
+    "xz",
+    "zip",
+}
+
+ARCHIVE_MIME_PREFIXES = (
+    "application/gzip",
+    "application/vnd.rar",
+    "application/x-7z-compressed",
+    "application/x-bzip2",
+    "application/x-compressed",
+    "application/x-compress",
+    "application/x-tar",
+    "application/x-xz",
+    "application/zip",
+)
+
 SPREADSHEET_EXTENSIONS = {"csv", "xls", "xlsx"}
 HTML_TEXT_EXTENSIONS = {"html", "htm", "txt", "md", "markdown"}
 SENSITIVE_KEYWORDS = {
@@ -227,6 +253,11 @@ def _is_doc_like(extension: str, mime_type: str) -> bool:
 
 def _is_image_like(extension: str, mime_type: str) -> bool:
     return extension in IMAGE_EXTENSIONS or mime_type.startswith("image/")
+
+
+def _is_archive_like(extension: str, mime_type: str) -> bool:
+    mime = mime_type.lower()
+    return extension in ARCHIVE_EXTENSIONS or any(mime.startswith(prefix) for prefix in ARCHIVE_MIME_PREFIXES)
 
 
 def _file_type_group(extension: str, mime_type: str) -> str:
@@ -409,6 +440,7 @@ def _annotate_record(record: dict[str, Any]) -> dict[str, Any]:
     file_type_group = teacher["file_type_group"]
     doc_like = _is_doc_like(extension, mime_type)
     image_like = _is_image_like(extension, mime_type)
+    archive_like = _is_archive_like(extension, mime_type)
     query_text = _normalize_text(name, path, content[:4000])
     content_tokens = _word_tokens(query_text)
     sensitive_topic = topics[0] if topics else ""
@@ -429,6 +461,8 @@ def _annotate_record(record: dict[str, Any]) -> dict[str, Any]:
         "query_text": query_text,
         "doc_like": doc_like,
         "image_like": image_like,
+        "archive_like": archive_like,
+        "sample_eligible": not archive_like,
         "file_type_group": file_type_group,
         "sensitive_topics": topics,
         "sensitive_hit": sensitive_hit,
@@ -514,6 +548,8 @@ def build_stratified_training_rows(
         split.update(sample_split)
 
     annotated = [_annotate_record(record) for record in records]
+    eligible = [row for row in annotated if row["sample_eligible"]]
+    excluded_archives = [row for row in annotated if row["archive_like"]]
     selected_ids: set[int] = set()
     selected_rows: list[dict[str, Any]] = []
     bucket_counts: Counter[str] = Counter()
@@ -548,9 +584,9 @@ def build_stratified_training_rows(
 
     provider_quota = _distribute_counts(split["provider_balanced"], PROVIDER_SAMPLE_SPLIT.keys())
     for provider, quota in provider_quota.items():
-        pool = [row for row in annotated if row["provider"] == provider and row["doc_like"]]
+        pool = [row for row in eligible if row["provider"] == provider and row["doc_like"]]
         if not pool:
-            pool = [row for row in annotated if row["provider"] == provider]
+            pool = [row for row in eligible if row["provider"] == provider]
         pool.sort(key=_priority_sort_key)
         pool = _sort_by_provider_balance(pool)
         add_rows(f"provider:{provider}", pool, quota)
@@ -558,32 +594,32 @@ def build_stratified_training_rows(
     sensitive_quota = _scale_weighted_counts(split["sensitive_keyword"], SENSITIVE_TOPIC_SPLIT)
     for topic, quota in sensitive_quota.items():
         pool = [
-            row for row in annotated
+            row for row in eligible
             if topic in row["sensitive_topics"] and row["file_id"] not in selected_ids
         ]
         pool.sort(key=lambda row: (-row["teacher_confidence"], row["file_id"]))
         add_rows(f"sensitive:{topic}", pool, quota)
 
     low_confidence_pool = [
-        row for row in annotated
+        row for row in eligible
         if row["file_id"] not in selected_ids and (row["teacher_confidence"] < 0.45 or row["teacher_label"] in {"unknown", "needs-review"})
     ]
     low_confidence_pool.sort(key=lambda row: (_priority_sort_key(row), row["teacher_confidence"], row["file_id"]))
     add_rows("low_confidence", low_confidence_pool, split["low_confidence"])
 
     ambiguous_pool = [
-        row for row in annotated
+        row for row in eligible
         if row["file_id"] not in selected_ids and (row["disagreement"] or row["ambiguity_score"] > 0 or row["teacher_confidence"] < 0.75)
     ]
     ambiguous_pool.sort(key=lambda row: (_priority_sort_key(row), -row["ambiguity_score"], row["teacher_confidence"], row["file_id"]))
     add_rows("ambiguous", ambiguous_pool, split["ambiguous"])
 
     file_type_groups = {
-        "pdf": [row for row in annotated if row["file_id"] not in selected_ids and row["file_type_group"] == "pdf"],
-        "docx": [row for row in annotated if row["file_id"] not in selected_ids and row["file_type_group"] == "docx"],
-        "spreadsheet": [row for row in annotated if row["file_id"] not in selected_ids and row["file_type_group"] == "spreadsheet"],
-        "html_text": [row for row in annotated if row["file_id"] not in selected_ids and row["file_type_group"] == "html_text"],
-        "images": [row for row in annotated if row["file_id"] not in selected_ids and row["file_type_group"] == "images"],
+        "pdf": [row for row in eligible if row["file_id"] not in selected_ids and row["file_type_group"] == "pdf"],
+        "docx": [row for row in eligible if row["file_id"] not in selected_ids and row["file_type_group"] == "docx"],
+        "spreadsheet": [row for row in eligible if row["file_id"] not in selected_ids and row["file_type_group"] == "spreadsheet"],
+        "html_text": [row for row in eligible if row["file_id"] not in selected_ids and row["file_type_group"] == "html_text"],
+        "images": [row for row in eligible if row["file_id"] not in selected_ids and row["file_type_group"] == "images"],
     }
     file_type_quota = _scale_weighted_counts(split["file_type_coverage"], FILE_TYPE_SAMPLE_SPLIT)
     for group, quota in file_type_quota.items():
@@ -593,7 +629,7 @@ def build_stratified_training_rows(
 
     requested_total = target_sample_size if target_sample_size is not None else sum(split.values())
     if len(selected_rows) < requested_total:
-        fallback_pool = [row for row in annotated if row["file_id"] not in selected_ids]
+        fallback_pool = [row for row in eligible if row["file_id"] not in selected_ids]
         fallback_pool.sort(
             key=lambda row: (
                 row["provider"],
@@ -621,14 +657,17 @@ def build_stratified_training_rows(
         "provider_counts": dict(provider_counts),
         "label_counts": dict(label_counts),
         "file_type_counts": dict(file_type_counts),
+        "excluded_archive_rows": len(excluded_archives),
+        "excluded_archive_extensions": dict(Counter(row["extension"] for row in excluded_archives)),
         "total_index_rows_seen": len(records),
         "annotated_rows": len(annotated),
+        "eligible_rows": len(eligible),
         "provider_pool_sizes": {
-            provider: sum(1 for row in annotated if row["provider"] == provider and row["doc_like"])
+            provider: sum(1 for row in eligible if row["provider"] == provider and row["doc_like"])
             for provider in PROVIDER_SAMPLE_SPLIT
         },
         "sensitive_topic_pool_sizes": {
-            topic: sum(1 for row in annotated if topic in row["sensitive_topics"])
+            topic: sum(1 for row in eligible if topic in row["sensitive_topics"])
             for topic in SENSITIVE_TOPIC_SPLIT
         },
     }
@@ -670,8 +709,11 @@ def train_lightgbm_from_index(
             "provider_counts": sample_report["provider_counts"],
             "label_counts": sample_report["label_counts"],
             "file_type_counts": sample_report["file_type_counts"],
+            "excluded_archive_rows": sample_report["excluded_archive_rows"],
+            "excluded_archive_extensions": sample_report["excluded_archive_extensions"],
             "total_index_rows_seen": sample_report["total_index_rows_seen"],
             "annotated_rows": sample_report["annotated_rows"],
+            "eligible_rows": sample_report["eligible_rows"],
             "provider_pool_sizes": sample_report["provider_pool_sizes"],
             "sensitive_topic_pool_sizes": sample_report["sensitive_topic_pool_sizes"],
         }

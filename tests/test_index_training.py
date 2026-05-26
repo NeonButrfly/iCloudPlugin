@@ -44,6 +44,7 @@ def test_build_stratified_training_rows_creates_all_requested_buckets():
         _make_record(13, provider="google2", name="presentation.pptx", path_tail="Decks/presentation.pptx", mime_type="application/vnd.openxmlformats-officedocument.presentationml.presentation", extension="pptx", content_text="project presentation"),
         _make_record(14, provider="icloud", name="generic_image.png", path_tail="Photos/generic_image.png", mime_type="image/png", extension="png", content_text=""),
         _make_record(15, provider="google1", name="readme.html", path_tail="Docs/readme.html", mime_type="text/html", extension="html", content_text="<html><body>technical note</body></html>"),
+        _make_record(16, provider="google1", name="archive.zip", path_tail="Archives/archive.zip", mime_type="application/zip", extension="zip", content_text=""),
     ]
 
     rows, report = build_stratified_training_rows(
@@ -62,6 +63,9 @@ def test_build_stratified_training_rows_creates_all_requested_buckets():
     assert len(rows) == 12
     assert report["selected_sample_size"] == 12
     assert sum(report["realized_bucket_counts"].values()) == 12
+    assert report["excluded_archive_rows"] == 1
+    assert report["excluded_archive_extensions"] == {"zip": 1}
+    assert all(row["extension"] != "zip" for row in rows)
     assert {row["sample_bucket"] for row in rows}
     assert any(row["provider"] == "icloud" for row in rows)
     assert any(row["provider"] == "google1" for row in rows)
