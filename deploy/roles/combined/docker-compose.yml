@@ -136,6 +136,7 @@ services:
       - CLASSIFY_MODEL=${CLASSIFY_MODEL:-qwen2.5:3b}
       - VISION_MODEL=${VISION_MODEL:-qwen2.5vl:3b}
       - CLASSIFIER_API_TOKEN=${CLASSIFIER_API_TOKEN:-}
+      - CODEX_ARBITER_ENABLED=${CODEX_ARBITER_ENABLED:-0}
       - TZ=${TZ:-America/Anchorage}
       - PYTHONPATH=/app
     volumes:

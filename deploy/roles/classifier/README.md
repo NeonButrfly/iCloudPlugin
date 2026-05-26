@@ -31,5 +31,7 @@ Primary services in `docker-compose.yml`:
 Operational defaults:
 
 - `ENABLE_SHADOW_WORKER=0` to keep the API role focused on request handling
+- `CODEX_ARBITER_ENABLED=0` so Codex never participates in classifier
+  decisions unless an operator explicitly enables it
 - `CLASSIFIER_API_WORKERS=4` so health and metadata endpoints can still respond
   while concurrent long classification requests are running

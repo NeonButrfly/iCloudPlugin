@@ -1308,6 +1308,7 @@ def main() -> int:
     parser.add_argument("--max-chars", type=int, default=16000)
     parser.add_argument("--attach-originals", action="store_true")
     parser.add_argument("--no-vision", action="store_true")
+    parser.add_argument("--enable-codex-arbiter", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--timing-output", default="", help="Optional JSON file path for per-run timing output.")
     parser.add_argument("--process-shadow-queue", action="store_true")
@@ -1409,6 +1410,7 @@ def main() -> int:
                 "mode": "image" if ext in IMAGE_EXTENSIONS and not args.no_vision else "document",
                 "attach_originals": args.attach_originals,
                 "vision_enabled": not args.no_vision,
+                "codex_arbiter_enabled": bool(args.enable_codex_arbiter),
             }
 
             try:

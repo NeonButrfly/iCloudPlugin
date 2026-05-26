@@ -162,6 +162,10 @@ it successfully.
 - `CLASSIFICATION_MAX_ATTEMPTS` controls retry budget
 - `CLASSIFICATION_RETRY_BACKOFF_SECONDS` controls when retriable failures can
   be claimed again; the current default is `0`
+- Codex arbitration is opt-in only. Keep `CODEX_ARBITER_ENABLED=0` unless an
+  operator intentionally enables the Codex final-arbiter path tracked in issue
+  #20. With the default value, classifier submissions do not pass the Codex
+  arbiter flag into the note-generation process.
 
 ### Reset state
 

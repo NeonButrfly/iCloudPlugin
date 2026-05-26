@@ -7,6 +7,7 @@ def test_classifier_runtime_paths_default_to_existing_locations(monkeypatch):
     monkeypatch.delenv("CLASSIFIER_OUTPUT_ROOT", raising=False)
     monkeypatch.delenv("CLASSIFIER_INPUT_ROOT", raising=False)
     monkeypatch.delenv("CLASSIFIER_VAULT_ROOT", raising=False)
+    monkeypatch.delenv("CODEX_ARBITER_ENABLED", raising=False)
 
     module = import_module("packages.runtime.classifier_settings")
     settings = module.load_classifier_runtime_settings()
@@ -17,6 +18,7 @@ def test_classifier_runtime_paths_default_to_existing_locations(monkeypatch):
     assert settings.vault_root == Path("/vault")
     assert settings.manifest_path == Path("/output/manifest.jsonl")
     assert settings.readiness_report_path == Path("/output/readiness-report.json")
+    assert settings.codex_arbiter_enabled is False
 
 
 def test_classifier_runtime_paths_allow_role_specific_overrides(monkeypatch):
@@ -33,3 +35,13 @@ def test_classifier_runtime_paths_allow_role_specific_overrides(monkeypatch):
     assert settings.input_root == Path("/srv/input")
     assert settings.vault_root == Path("/srv/vault")
     assert settings.shadow_queue_dir == Path("/srv/output/shadow-queue")
+
+
+def test_codex_arbiter_requires_explicit_enable_flag(monkeypatch):
+    module = import_module("packages.runtime.classifier_settings")
+
+    monkeypatch.setenv("CODEX_ARBITER_ENABLED", "0")
+    assert module.load_classifier_runtime_settings().codex_arbiter_enabled is False
+
+    monkeypatch.setenv("CODEX_ARBITER_ENABLED", "1")
+    assert module.load_classifier_runtime_settings().codex_arbiter_enabled is True

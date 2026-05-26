@@ -34,6 +34,7 @@ INDEX_PATH = VAULT_ROOT / "Classification Index.md"
 CLASSIFIER_SCRIPT = Path(__file__).resolve().with_name("classify-to-obsidian.py")
 SHADOW_WORKER_ENABLED = SETTINGS.shadow_worker_enabled
 SHADOW_WORKER_INTERVAL_SECONDS = SETTINGS.shadow_worker_interval_seconds
+CODEX_ARBITER_ENABLED = SETTINGS.codex_arbiter_enabled
 
 REQUEST_LOCK = threading.Lock()
 SHADOW_WORKER_STARTED = False
@@ -258,6 +259,9 @@ async def classify_upload(
 
     if no_vision:
         cmd.append("--no-vision")
+
+    if CODEX_ARBITER_ENABLED:
+        cmd.append("--enable-codex-arbiter")
 
     if categories:
         cmd.extend(["--categories", categories])

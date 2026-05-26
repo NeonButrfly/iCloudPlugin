@@ -23,6 +23,7 @@ class ClassifierRuntimeSettings:
     ollama_url: str
     shadow_worker_enabled: bool
     shadow_worker_interval_seconds: int
+    codex_arbiter_enabled: bool
 
     @property
     def categories_path(self) -> Path:
@@ -105,4 +106,5 @@ def load_classifier_runtime_settings() -> ClassifierRuntimeSettings:
         ollama_url=os.getenv("OLLAMA_URL", "http://ollama:11434").strip() or "http://ollama:11434",
         shadow_worker_enabled=_env_flag("ENABLE_SHADOW_WORKER", "1"),
         shadow_worker_interval_seconds=shadow_worker_interval_seconds,
+        codex_arbiter_enabled=_env_flag("CODEX_ARBITER_ENABLED", "0"),
     )
