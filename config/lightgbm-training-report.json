@@ -1,9 +1,10 @@
 {
   "ok": true,
   "kind": "hybrid-lightgbm-v1",
-  "trained_at": "2026-05-26T15:46:48Z",
+  "trained_at": "2026-05-26T16:08:23Z",
   "training_rows": 308,
   "class_count": 20,
-  "features": 7935,
-  "model_path": "C:\\Code\\iCloudPlugin\\config\\lightgbm-classifier.joblib"
+  "features": 8717,
+  "model_path": "C:\\Code\\iCloudPlugin\\config\\lightgbm-classifier.joblib",
+  "training_source": "C:\\Users\\Keifm\\AppData\\Local\\Temp\\lightgbm-training-set\\lightgbm-training-set.combined.manifest.json"
 }

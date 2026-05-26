@@ -38,6 +38,14 @@ class ClassifierRuntimeSettings:
         return self.config_root / "category-groups.json"
 
     @property
+    def taxonomy_sources_path(self) -> Path:
+        return self.config_root / "taxonomy-sources.json"
+
+    @property
+    def external_taxonomy_aliases_path(self) -> Path:
+        return self.config_root / "external-taxonomy-aliases.json"
+
+    @property
     def corrections_path(self) -> Path:
         return self.config_root / "corrections.jsonl"
 
@@ -64,6 +72,10 @@ class ClassifierRuntimeSettings:
     @property
     def taxonomy_router_model_path(self) -> Path:
         return self.config_root / "taxonomy-router.joblib"
+
+    @property
+    def taxonomy_router_report_path(self) -> Path:
+        return self.config_root / "taxonomy-router-report.json"
 
     @property
     def shadow_queue_dir(self) -> Path:

@@ -11,6 +11,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import LabelEncoder
 
 from packages.runtime import load_classifier_runtime_settings
+from .external_taxonomy import build_external_taxonomy_hint_text
 from .label_map import canonicalize_label, canonicalize_labels
 
 SETTINGS = load_classifier_runtime_settings()
@@ -268,6 +269,7 @@ def build_feature_text(payload: Dict[str, Any]) -> str:
     heuristic_primary = canonicalize_label(payload.get("heuristic_primary", ""))
     taxonomy_candidates = " ".join(canonicalize_labels(payload.get("taxonomy_candidates", []) or []))
     text_preview = str(payload.get("text_preview", ""))[:12000]
+    external_hint_text = build_external_taxonomy_hint_text(f"{filename}\n{text_preview}", limit=6)
     return " ".join(
         [
             filename,
@@ -275,6 +277,7 @@ def build_feature_text(payload: Dict[str, Any]) -> str:
             parser,
             f"heuristic {heuristic_primary}",
             f"taxonomy {taxonomy_candidates}",
+            f"external-taxonomy {external_hint_text}" if external_hint_text else "",
             text_preview,
         ]
     ).strip()

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from packages.runtime import load_classifier_runtime_settings
+from .external_taxonomy import match_external_taxonomy_candidates
 
 SETTINGS = load_classifier_runtime_settings()
 CONFIG_DIR = SETTINGS.config_root
@@ -260,6 +261,7 @@ def select_candidate_categories(all_categories: List[str], filename: str, extens
     all_set = set(all_categories)
     selected: List[str] = []
     groups = load_groups()
+    text_for_hints = f"{filename}\n{content[:12000]}".strip()
 
     def add(label: str):
         if label in all_set and label not in selected:
@@ -272,6 +274,9 @@ def select_candidate_categories(all_categories: List[str], filename: str, extens
     if is_image or extension.lower() in IMAGE_EXTENSIONS:
         add_group("visual_reference")
 
+        for match in match_external_taxonomy_candidates(text_for_hints, limit=12):
+            add(str(match["label"]))
+
         for label in [
             "reference-image", "concept-art", "environment-art", "game-reference",
             "architecture", "industrial", "sci-fi", "snow-ice", "frozen-environment",
@@ -283,7 +288,9 @@ def select_candidate_categories(all_categories: List[str], filename: str, extens
 
         return selected[:max_labels] or ["reference-image", "image-only", "unknown", "needs-review"]
 
-    text_for_router = f"{filename}\n{content[:12000]}"
+    text_for_router = text_for_hints
+    for match in match_external_taxonomy_candidates(text_for_router, limit=max_labels):
+        add(str(match["label"]))
     for label in predict_router_categories(text_for_router, top=max_labels):
         add(label)
 

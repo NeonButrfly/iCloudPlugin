@@ -2,11 +2,12 @@
 import argparse
 import json
 from collections import defaultdict
-from pathlib import Path
 
 import joblib
 
-MODEL_PATH = Path("/opt/local-doc-classifier/config/taxonomy-router.joblib")
+from packages.runtime import load_classifier_runtime_settings
+
+MODEL_PATH = load_classifier_runtime_settings().taxonomy_router_model_path
 
 def main():
     parser = argparse.ArgumentParser()

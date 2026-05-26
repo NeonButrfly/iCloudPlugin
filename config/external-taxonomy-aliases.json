@@ -1,0 +1,1799 @@
+{
+  "generated_at": "2026-05-26T16:07:48Z",
+  "source_count": 8,
+  "sources": [
+    {
+      "name": "openimages_boxable",
+      "kind": "vision",
+      "parsed_label_count": 601,
+      "mapped_label_count": 17
+    },
+    {
+      "name": "openimages_all_descriptions",
+      "kind": "vision",
+      "parsed_label_count": 19702,
+      "mapped_label_count": 267
+    },
+    {
+      "name": "google_product_taxonomy",
+      "kind": "product",
+      "parsed_label_count": 11169,
+      "mapped_label_count": 1181
+    },
+    {
+      "name": "iab_content_taxonomy_v3_1",
+      "kind": "content",
+      "parsed_label_count": 1371,
+      "mapped_label_count": 274
+    },
+    {
+      "name": "doclaynet_static",
+      "kind": "document",
+      "parsed_label_count": 17,
+      "mapped_label_count": 3
+    },
+    {
+      "name": "rvl_cdip_static",
+      "kind": "document",
+      "parsed_label_count": 16,
+      "mapped_label_count": 14
+    },
+    {
+      "name": "cord_receipt_static",
+      "kind": "document",
+      "parsed_label_count": 7,
+      "mapped_label_count": 4
+    },
+    {
+      "name": "sroie_receipt_static",
+      "kind": "document",
+      "parsed_label_count": 6,
+      "mapped_label_count": 2
+    }
+  ],
+  "label_aliases": {
+    "cosmetic-spf": [
+      "cosmetics",
+      "health and beauty personal care",
+      "health and beauty personal care back care",
+      "health and beauty personal care back care back and lumbar support cushions",
+      "health and beauty personal care cosmetics",
+      "health and beauty personal care cosmetics bath and body",
+      "health and beauty personal care cosmetics bath and body adult hygienic wipes",
+      "health and beauty personal care cosmetics bath and body bar soap",
+      "health and beauty personal care cosmetics bath and body bath additives",
+      "health and beauty personal care cosmetics bath and body bath brushes",
+      "health and beauty personal care cosmetics bath and body bath sponges and loofahs",
+      "health and beauty personal care cosmetics bath and body body wash",
+      "health and beauty personal care cosmetics bath and body gift sets",
+      "health and beauty personal care cosmetics bath and body hand sanitizers and wipes",
+      "health and beauty personal care cosmetics bath and body liquid hand soap",
+      "health and beauty personal care cosmetics bath and body powdered hand soap",
+      "health and beauty personal care cosmetics bath and body shower caps",
+      "health and beauty personal care cosmetics cosmetic sets",
+      "health and beauty personal care cosmetics cosmetic tool cleansers",
+      "health and beauty personal care cosmetics cosmetic tools",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools double eyelid glue and tape",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools eyebrow stencils",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools eyelash curler refills",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools eyelash curlers",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools face mirrors",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools facial blotting paper",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools false eyelash accessories",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools false eyelash accessories false eyelash adhesive",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools false eyelash accessories false eyelash applicators",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools false eyelash accessories false eyelash remover",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools makeup brushes",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools makeup sponges",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools refillable makeup palettes and cases",
+      "health and beauty personal care cosmetics cosmetic tools nail tools",
+      "health and beauty personal care cosmetics cosmetic tools nail tools cuticle pushers",
+      "health and beauty personal care cosmetics cosmetic tools nail tools cuticle scissors",
+      "health and beauty personal care cosmetics cosmetic tools nail tools manicure and pedicure spacers",
+      "health and beauty personal care cosmetics cosmetic tools nail tools manicure tool sets",
+      "health and beauty personal care cosmetics cosmetic tools nail tools nail buffers",
+      "health and beauty personal care cosmetics cosmetic tools nail tools nail clippers",
+      "health and beauty personal care cosmetics cosmetic tools nail tools nail drill accessories",
+      "health and beauty personal care cosmetics cosmetic tools nail tools nail drills",
+      "health and beauty personal care cosmetics cosmetic tools nail tools nail dryers",
+      "health and beauty personal care cosmetics cosmetic tools nail tools nail files and emery boards",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools facial saunas",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools foot files",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools lotion and sunscreen applicators",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools pumice stones",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools skin care extractors",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools skin care rollers",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools skin cleansing brush heads",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools skin cleansing brushes and systems",
+      "health and beauty personal care cosmetics makeup",
+      "health and beauty personal care cosmetics makeup body makeup",
+      "health and beauty personal care cosmetics makeup body makeup body and hair glitter",
+      "health and beauty personal care cosmetics makeup body makeup body paint and foundation",
+      "health and beauty personal care cosmetics makeup costume and stage makeup",
+      "health and beauty personal care cosmetics makeup eye makeup",
+      "health and beauty personal care cosmetics makeup eye makeup eye primer",
+      "health and beauty personal care cosmetics makeup eye makeup eye shadow",
+      "health and beauty personal care cosmetics makeup eye makeup eyebrow enhancers",
+      "health and beauty personal care cosmetics makeup eye makeup eyeliner",
+      "health and beauty personal care cosmetics makeup eye makeup false eyelashes",
+      "health and beauty personal care cosmetics makeup eye makeup lash and brow growth treatments",
+      "health and beauty personal care cosmetics makeup eye makeup mascara",
+      "health and beauty personal care cosmetics makeup eye makeup mascara primer",
+      "health and beauty personal care cosmetics makeup face makeup",
+      "health and beauty personal care cosmetics makeup face makeup blushes and bronzers",
+      "health and beauty personal care cosmetics makeup face makeup face powder",
+      "health and beauty personal care cosmetics makeup face makeup face primer",
+      "health and beauty personal care cosmetics makeup face makeup foundations and concealers",
+      "health and beauty personal care cosmetics makeup face makeup highlighters and luminizers",
+      "health and beauty personal care cosmetics makeup lip makeup",
+      "health and beauty personal care cosmetics makeup lip makeup lip and cheek stains",
+      "health and beauty personal care cosmetics makeup lip makeup lip gloss",
+      "health and beauty personal care cosmetics makeup lip makeup lip liner",
+      "health and beauty personal care cosmetics makeup lip makeup lip primer",
+      "health and beauty personal care cosmetics makeup lip makeup lipstick",
+      "health and beauty personal care cosmetics makeup makeup finishing sprays",
+      "health and beauty personal care cosmetics makeup temporary tattoos",
+      "health and beauty personal care cosmetics nail care",
+      "health and beauty personal care cosmetics nail care cuticle cream and oil",
+      "health and beauty personal care cosmetics nail care false nails",
+      "health and beauty personal care cosmetics nail care manicure glue",
+      "health and beauty personal care cosmetics nail care nail art kits and accessories",
+      "health and beauty personal care cosmetics nail care nail polish drying drops and sprays",
+      "health and beauty personal care cosmetics nail care nail polish removers",
+      "health and beauty personal care cosmetics nail care nail polish thinners",
+      "health and beauty personal care cosmetics nail care nail polishes",
+      "health and beauty personal care cosmetics perfume and cologne",
+      "health and beauty personal care cosmetics skin care",
+      "health and beauty personal care cosmetics skin care acne treatments and kits",
+      "health and beauty personal care cosmetics skin care anti aging skin care kits",
+      "health and beauty personal care cosmetics skin care body oil",
+      "health and beauty personal care cosmetics skin care body powder",
+      "health and beauty personal care cosmetics skin care compressed skin care mask sheets",
+      "health and beauty personal care cosmetics skin care facial cleansers",
+      "health and beauty personal care cosmetics skin care facial cleansing kits",
+      "health and beauty personal care cosmetics skin care facial pore strips",
+      "health and beauty personal care cosmetics skin care lip balms and treatments",
+      "health and beauty personal care cosmetics skin care lip balms and treatments lip balms",
+      "health and beauty personal care cosmetics skin care lip balms and treatments medicated lip treatments",
+      "health and beauty personal care cosmetics skin care lotion and moisturizer",
+      "health and beauty personal care cosmetics skin care makeup removers",
+      "health and beauty personal care cosmetics skin care petroleum jelly",
+      "health and beauty personal care cosmetics skin care skin care masks and peels",
+      "health and beauty personal care cosmetics skin care skin insect repellent",
+      "health and beauty personal care cosmetics skin care sunscreen",
+      "health and beauty personal care cosmetics skin care tanning products",
+      "health and beauty personal care cosmetics skin care tanning products self tanner",
+      "health and beauty personal care cosmetics skin care tanning products tanning oil and lotion",
+      "health and beauty personal care cosmetics skin care toners and astringents",
+      "health and beauty personal care cosmetics skin care toners and astringents astringents",
+      "health and beauty personal care cosmetics skin care toners and astringents toners",
+      "health and beauty personal care cosmetics skin care wart removers",
+      "health and beauty personal care cotton balls",
+      "lotion and moisturizer",
+      "personal care"
+    ],
+    "financial": [
+      "automotive auto type budget cars",
+      "bank",
+      "bank teller",
+      "budget cars",
+      "business accounting and finance",
+      "business and finance",
+      "business and finance business",
+      "business and finance business business accounting and finance",
+      "business and finance business business administration",
+      "business and finance business business banking and finance",
+      "business and finance business business banking and finance angel investment",
+      "business and finance business business banking and finance bankruptcy",
+      "business and finance business business banking and finance business loans",
+      "business and finance business business banking and finance debt factoring and invoice discounting",
+      "business and finance business business banking and finance mergers and acquisitions",
+      "business and finance business business banking and finance private equity",
+      "business and finance business business banking and finance sale and lease back",
+      "business and finance business business banking and finance venture capital",
+      "business and finance business business i t",
+      "business and finance business business operations",
+      "business and finance business business utilities",
+      "business and finance business consumer issues",
+      "business and finance business consumer issues recalls",
+      "business and finance business executive leadership and management",
+      "business and finance business government business",
+      "business and finance business green solutions",
+      "business and finance business human resources",
+      "business and finance business large business",
+      "business and finance business logistics",
+      "business and finance business marketing and advertising",
+      "business and finance business sales",
+      "business and finance business small and medium sized business",
+      "business and finance business startups",
+      "business and finance economy",
+      "business and finance economy commodities",
+      "business and finance economy currencies",
+      "business and finance economy financial crisis",
+      "business and finance economy financial reform",
+      "business and finance economy financial regulation",
+      "business and finance economy gasoline prices",
+      "business and finance economy housing market",
+      "business and finance economy interest rates",
+      "business and finance economy job market",
+      "business and finance industries",
+      "business and finance industries advertising industry",
+      "business and finance industries agriculture",
+      "business and finance industries apparel industry",
+      "business and finance industries automotive industry",
+      "business and finance industries aviation industry",
+      "business and finance industries biotech and biomedical industry",
+      "business and finance industries civil engineering industry",
+      "business and finance industries construction industry",
+      "business and finance industries defense industry",
+      "business and finance industries education industry",
+      "business and finance industries entertainment industry",
+      "business and finance industries environmental services industry",
+      "business and finance industries financial industry",
+      "business and finance industries food industry",
+      "business and finance industries healthcare industry",
+      "business and finance industries hospitality industry",
+      "business and finance industries information services industry",
+      "business and finance industries legal services industry",
+      "business and finance industries logistics and transportation industry",
+      "business and finance industries management consulting industry",
+      "business and finance industries manufacturing industry",
+      "business and finance industries mechanical and industrial engineering industry",
+      "business and finance industries media industry",
+      "business and finance industries metals industry",
+      "business and finance industries non profit organizations",
+      "business and finance industries pharmaceutical industry",
+      "business and finance industries power and energy industry",
+      "business and finance industries publishing industry",
+      "business and finance industries real estate industry",
+      "business and finance industries retail industry",
+      "business and finance industries technology industry",
+      "business and finance industries telecommunications industry",
+      "business and industrial finance and insurance",
+      "business and industrial finance and insurance bullion",
+      "business banking and finance",
+      "consumer banking",
+      "finance and insurance",
+      "financial adviser",
+      "financial assistance",
+      "financial calculators",
+      "financial crisis",
+      "financial industry",
+      "financial planning",
+      "financial reform",
+      "financial regulation",
+      "financial tax and accounting software",
+      "georges bank flounder",
+      "invoice",
+      "office supplies office equipment calculators financial calculators",
+      "payment card",
+      "personal finance",
+      "personal finance consumer banking",
+      "personal finance financial assistance",
+      "personal finance financial assistance government support and welfare",
+      "personal finance financial assistance student financial aid",
+      "personal finance financial planning",
+      "personal finance frugal living",
+      "personal finance home utilities",
+      "personal finance home utilities gas and electric",
+      "personal finance home utilities internet service providers",
+      "personal finance home utilities phone services",
+      "personal finance home utilities water services",
+      "personal finance insurance",
+      "personal finance insurance health insurance",
+      "personal finance insurance home insurance",
+      "personal finance insurance life insurance",
+      "personal finance insurance motor insurance",
+      "personal finance insurance pet insurance",
+      "personal finance insurance travel insurance",
+      "personal finance personal debt",
+      "personal finance personal debt credit cards",
+      "piggy bank",
+      "play money and banking",
+      "software computer software financial tax and accounting software",
+      "student financial aid",
+      "toys and games toys pretend play play money and banking"
+    ],
+    "form": [
+      "business forms and receipts",
+      "form",
+      "office application software",
+      "office supplies general office supplies paper products business forms and receipts",
+      "questionnaire",
+      "software computer software office application software"
+    ],
+    "identity-document": [
+      "algerian passport",
+      "argentine passport",
+      "australian passport",
+      "austrian passport",
+      "belarusian passport",
+      "belgian passport",
+      "brazilian passport",
+      "british passport",
+      "canadian passport",
+      "chilean passport",
+      "chinese passport",
+      "colombian passport",
+      "cuban passport",
+      "danish passport",
+      "driver s license",
+      "dutch passport",
+      "egyptian passport",
+      "finnish passport",
+      "french passport",
+      "german passport",
+      "honda passport",
+      "identity document",
+      "indian passport",
+      "indonesian passport",
+      "iraqi passport",
+      "israeli passport",
+      "italian passport",
+      "japanese passport",
+      "kuwaiti passport",
+      "malaysian passport",
+      "mexican passport",
+      "new zealand passport",
+      "norwegian passport",
+      "pakistani passport",
+      "palestinian authority passport",
+      "passport",
+      "passport canada",
+      "peruvian passport",
+      "philippine passport",
+      "polish passport",
+      "portuguese passport",
+      "resume",
+      "romanian passport",
+      "russian passport",
+      "saudi arabian passport",
+      "singapore passport",
+      "south african passport",
+      "spanish passport",
+      "swedish passport",
+      "swiss passport",
+      "syrian passport",
+      "taiwan passport",
+      "thai passport",
+      "turkish passport",
+      "ukrainian passport",
+      "united states passport",
+      "venezuelan passport"
+    ],
+    "insurance": [
+      "auto insurance",
+      "automotive auto insurance",
+      "burger king premium burgers",
+      "business and industrial finance and insurance",
+      "business and industrial finance and insurance bullion",
+      "finance and insurance",
+      "health insurance",
+      "home insurance",
+      "insurance",
+      "life insurance",
+      "motor insurance",
+      "personal finance insurance",
+      "personal finance insurance health insurance",
+      "personal finance insurance home insurance",
+      "personal finance insurance life insurance",
+      "personal finance insurance motor insurance",
+      "personal finance insurance pet insurance",
+      "personal finance insurance travel insurance",
+      "pet insurance",
+      "travel insurance"
+    ],
+    "invoice": [
+      "business and finance business business banking and finance debt factoring and invoice discounting",
+      "debt factoring and invoice discounting",
+      "invoice"
+    ],
+    "legal": [
+      "benz patent motorwagen",
+      "business and finance economy financial regulation",
+      "business and finance industries legal services industry",
+      "business and industrial law enforcement",
+      "business and industrial law enforcement cuffs",
+      "business and industrial law enforcement metal detectors",
+      "contract mobile phones",
+      "electronics communications telephony mobile phones contract mobile phones",
+      "financial regulation",
+      "law",
+      "law enforcement",
+      "laws and regulations",
+      "legal services industry"
+    ],
+    "letter": [
+      "email"
+    ],
+    "manual": [
+      "hardware tools hammers manual hammers",
+      "health and beauty personal care massage and relaxation massagers manual massage tools",
+      "manual hammers",
+      "manual massage tools",
+      "mountain guide",
+      "raft guide",
+      "specification",
+      "tour guide",
+      "user guide",
+      "vehicle service manual"
+    ],
+    "marketing": [
+      "advertisement",
+      "advertising",
+      "advertising and marketing",
+      "advertising industry",
+      "attractions malls and shopping centers",
+      "baby and toddler baby transport accessories shopping cart and high chair covers",
+      "brand",
+      "business and finance business marketing and advertising",
+      "business and finance industries advertising industry",
+      "business and industrial advertising and marketing",
+      "business and industrial advertising and marketing brochures",
+      "business and industrial advertising and marketing trade show counters",
+      "business and industrial advertising and marketing trade show displays",
+      "business and industrial retail paper and plastic shopping bags",
+      "display advertising",
+      "flower shopping",
+      "grocery shopping",
+      "holiday shopping",
+      "luggage and bags shopping totes",
+      "malls and shopping centers",
+      "marketing and advertising",
+      "online advertising",
+      "paper and plastic shopping bags",
+      "pretend shopping and grocery",
+      "shopping",
+      "shopping bag",
+      "shopping cart",
+      "shopping cart and high chair covers",
+      "shopping children s games and toys",
+      "shopping coupons and discounts",
+      "shopping flower shopping",
+      "shopping gifts and greetings cards",
+      "shopping grocery shopping",
+      "shopping holiday shopping",
+      "shopping household supplies",
+      "shopping list",
+      "shopping lotteries and scratchcards",
+      "shopping mall",
+      "shopping party supplies and decorations",
+      "shopping sales and promotions",
+      "shopping totes",
+      "toys and games toys pretend play pretend shopping and grocery",
+      "vintage advertisement"
+    ],
+    "medical": [
+      "ambulance",
+      "animals and pet supplies pet supplies pet medical collars",
+      "animals and pet supplies pet supplies pet medical tape and bandages",
+      "baby and toddler baby health",
+      "baby and toddler baby health baby health and grooming kits",
+      "baby and toddler baby health nasal aspirators",
+      "baby and toddler baby health pacifier clips and holders",
+      "baby and toddler baby health pacifier wipes",
+      "baby and toddler baby health pacifiers and teethers",
+      "baby health",
+      "baby health and grooming kits",
+      "business and industrial medical",
+      "business and industrial medical hospital curtains",
+      "business and industrial medical hospital gowns",
+      "business and industrial medical medical bedding",
+      "business and industrial medical medical equipment",
+      "business and industrial medical medical equipment automated external defibrillators",
+      "business and industrial medical medical equipment gait belts",
+      "business and industrial medical medical equipment medical reflex hammers and tuning forks",
+      "business and industrial medical medical equipment medical stretchers and gurneys",
+      "business and industrial medical medical equipment otoscopes and ophthalmoscopes",
+      "business and industrial medical medical equipment patient lifts",
+      "business and industrial medical medical equipment stethoscopes",
+      "business and industrial medical medical equipment vital signs monitor accessories",
+      "business and industrial medical medical equipment vital signs monitors",
+      "business and industrial medical medical furniture",
+      "business and industrial medical medical furniture chiropractic tables",
+      "business and industrial medical medical furniture examination chairs and tables",
+      "business and industrial medical medical furniture homecare and hospital beds",
+      "business and industrial medical medical furniture medical cabinets",
+      "business and industrial medical medical furniture medical carts",
+      "business and industrial medical medical furniture medical carts crash carts",
+      "business and industrial medical medical furniture medical carts iv poles and carts",
+      "business and industrial medical medical furniture surgical tables",
+      "business and industrial medical medical instruments",
+      "business and industrial medical medical instruments medical forceps",
+      "business and industrial medical medical instruments scalpel blades",
+      "business and industrial medical medical instruments scalpels",
+      "business and industrial medical medical instruments surgical needles and sutures",
+      "business and industrial medical medical supplies",
+      "business and industrial medical medical supplies disposable gloves",
+      "business and industrial medical medical supplies finger cots",
+      "business and industrial medical medical supplies medical needles and syringes",
+      "business and industrial medical medical supplies medical needles and syringes medical needle and syringe sets",
+      "business and industrial medical medical supplies medical needles and syringes medical needles",
+      "business and industrial medical medical supplies medical needles and syringes medical syringes",
+      "business and industrial medical medical supplies ostomy supplies",
+      "business and industrial medical medical supplies tongue depressors",
+      "business and industrial medical medical teaching equipment",
+      "business and industrial medical medical teaching equipment medical and emergency response training mannequins",
+      "business and industrial medical scrub caps",
+      "business and industrial medical scrubs",
+      "business and industrial medical surgical gowns",
+      "business and industrial work safety protective gear protective masks medical masks",
+      "clinic",
+      "cottage hospital",
+      "doctor doom",
+      "doctor octopus",
+      "flaming doctor pepper",
+      "health and beauty",
+      "health and beauty health care",
+      "health and beauty health care acupuncture",
+      "health and beauty health care acupuncture acupuncture models",
+      "health and beauty health care acupuncture acupuncture needles",
+      "health and beauty health care bed pans",
+      "health and beauty health care biometric monitor accessories",
+      "health and beauty health care biometric monitor accessories activity monitor accessories",
+      "health and beauty health care biometric monitor accessories blood glucose meter accessories",
+      "health and beauty health care biometric monitor accessories blood glucose meter accessories blood glucose control solution",
+      "health and beauty health care biometric monitor accessories blood glucose meter accessories blood glucose test strips",
+      "health and beauty health care biometric monitor accessories blood glucose meter accessories lancing devices",
+      "health and beauty health care biometric monitor accessories blood pressure monitor accessories",
+      "health and beauty health care biometric monitor accessories blood pressure monitor accessories blood pressure monitor cuffs",
+      "health and beauty health care biometric monitor accessories body weight scale accessories",
+      "health and beauty health care biometric monitors",
+      "health and beauty health care biometric monitors activity monitors",
+      "health and beauty health care biometric monitors blood glucose meters",
+      "health and beauty health care biometric monitors blood pressure monitors",
+      "health care",
+      "health care provider",
+      "health shake",
+      "homecare and hospital beds",
+      "hospital",
+      "hospital curtains",
+      "hospital gown",
+      "hospital gowns",
+      "hospital ship",
+      "medical",
+      "medical and emergency response training mannequins",
+      "medical assistant",
+      "medical bag",
+      "medical bedding",
+      "medical cabinets",
+      "medical carts",
+      "medical equipment",
+      "medical forceps",
+      "medical furniture",
+      "medical glove",
+      "medical imaging",
+      "medical instruments",
+      "medical masks",
+      "medical needle and syringe sets",
+      "medical needles",
+      "medical needles and syringes",
+      "medical procedure",
+      "medical radiography",
+      "medical reflex hammers and tuning forks",
+      "medical stretchers and gurneys",
+      "medical supplies",
+      "medical syringes",
+      "medical teaching equipment",
+      "medical technologist",
+      "medical thermometer",
+      "patient",
+      "patient lifts",
+      "pet medical collars",
+      "pet medical tape and bandages",
+      "psychiatric hospital",
+      "syringe",
+      "teaching hospital"
+    ],
+    "pharmacy": [
+      "pharmacy",
+      "pharmacy technician"
+    ],
+    "prescription": [
+      "animals and pet supplies pet supplies cat supplies cat food non prescription cat food",
+      "animals and pet supplies pet supplies cat supplies cat food prescription cat food",
+      "animals and pet supplies pet supplies dog supplies dog food non prescription dog food",
+      "animals and pet supplies pet supplies dog supplies dog food prescription dog food",
+      "lexus rx",
+      "lexus rx hybrid",
+      "mazda rx 01",
+      "mazda rx 2",
+      "mazda rx 3",
+      "mazda rx 4",
+      "mazda rx 7",
+      "mazda rx 792p",
+      "mazda rx 8",
+      "mazda rx 8 hydrogen re",
+      "non prescription cat food",
+      "non prescription dog food",
+      "prescription cat food",
+      "prescription dog food",
+      "prescription drug"
+    ],
+    "presentation": [
+      "arts and entertainment hobbies and creative arts musical instrument and orchestra accessories string instrument accessories guitar accessories guitar slides",
+      "business and industrial science and laboratory laboratory equipment microscope accessories microscope slides",
+      "cassette deck",
+      "deck",
+      "deck and fence cleaners",
+      "deck shuffleboard",
+      "deck shuffleboard cues",
+      "deck shuffleboard pucks",
+      "drawer slides",
+      "guitar slides",
+      "hardware building consumables chemicals deck and fence cleaners",
+      "hardware hardware accessories drawer slides",
+      "home and garden pool and spa pool and spa accessories pool deck kits",
+      "home and garden pool and spa pool and spa accessories pool water slides",
+      "microscope slides",
+      "office supplies presentation supplies",
+      "office supplies presentation supplies chalkboards",
+      "office supplies presentation supplies display boards",
+      "office supplies presentation supplies display boards bulletin board accessories",
+      "office supplies presentation supplies display boards bulletin board accessories bulletin board trim",
+      "office supplies presentation supplies display boards bulletin board accessories bulletin board trim sets",
+      "office supplies presentation supplies display boards bulletin boards",
+      "office supplies presentation supplies display boards foam boards",
+      "office supplies presentation supplies display boards mounting boards",
+      "office supplies presentation supplies display boards poster boards",
+      "office supplies presentation supplies document cameras",
+      "office supplies presentation supplies dry erase boards",
+      "office supplies presentation supplies easel pads",
+      "office supplies presentation supplies easels",
+      "office supplies presentation supplies laser pointers",
+      "office supplies presentation supplies lecterns",
+      "office supplies presentation supplies transparencies",
+      "office supplies presentation supplies wireless presenters",
+      "pool deck kits",
+      "pool water slides",
+      "presentation",
+      "presentation supplies",
+      "skateboard deck",
+      "slides",
+      "sporting goods outdoor recreation outdoor games deck shuffleboard",
+      "sporting goods outdoor recreation outdoor games deck shuffleboard deck shuffleboard cues",
+      "sporting goods outdoor recreation outdoor games deck shuffleboard deck shuffleboard pucks",
+      "toys and games outdoor play equipment slides",
+      "toys and games outdoor play equipment water play equipment water parks and slides",
+      "water parks and slides"
+    ],
+    "product-photo": [
+      "ammunition box",
+      "animal product",
+      "animals and pet supplies pet supplies cat supplies cat litter box liners",
+      "animals and pet supplies pet supplies cat supplies cat litter box mats",
+      "baby and toddler nursing and feeding baby bottle nipples and liners",
+      "baby and toddler nursing and feeding baby bottle nipples and liners baby bottle liners",
+      "baby and toddler nursing and feeding baby bottle nipples and liners baby bottle nipples",
+      "baby and toddler nursing and feeding bottle warmers and sterilizers",
+      "baby bottle",
+      "baby bottle liners",
+      "baby bottle nipples",
+      "baby bottle nipples and liners",
+      "beer bottle",
+      "bottle",
+      "bottle cap",
+      "bottle opener",
+      "bottle stopper and saver",
+      "bottle warmers and sterilizers",
+      "box",
+      "box girder bridge",
+      "box jellyfish",
+      "box lacrosse",
+      "box sealing tape",
+      "box spring",
+      "box turtle",
+      "buchla 200 series electric music box",
+      "cable converter box",
+      "cat litter box liners",
+      "cat litter box mats",
+      "cattlianthe jewel box",
+      "cosmetics",
+      "eastern box turtle",
+      "glass bottle",
+      "hairstyling product",
+      "health and beauty personal care cosmetics",
+      "health and beauty personal care cosmetics bath and body",
+      "health and beauty personal care cosmetics bath and body adult hygienic wipes",
+      "health and beauty personal care cosmetics bath and body bar soap",
+      "health and beauty personal care cosmetics bath and body bath additives",
+      "health and beauty personal care cosmetics bath and body bath brushes",
+      "health and beauty personal care cosmetics bath and body bath sponges and loofahs",
+      "health and beauty personal care cosmetics bath and body body wash",
+      "health and beauty personal care cosmetics bath and body gift sets",
+      "health and beauty personal care cosmetics bath and body hand sanitizers and wipes",
+      "health and beauty personal care cosmetics bath and body liquid hand soap",
+      "health and beauty personal care cosmetics bath and body powdered hand soap",
+      "health and beauty personal care cosmetics bath and body shower caps",
+      "health and beauty personal care cosmetics cosmetic sets",
+      "health and beauty personal care cosmetics cosmetic tool cleansers",
+      "health and beauty personal care cosmetics cosmetic tools",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools double eyelid glue and tape",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools eyebrow stencils",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools eyelash curler refills",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools eyelash curlers",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools face mirrors",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools facial blotting paper",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools false eyelash accessories",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools false eyelash accessories false eyelash adhesive",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools false eyelash accessories false eyelash applicators",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools false eyelash accessories false eyelash remover",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools makeup brushes",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools makeup sponges",
+      "health and beauty personal care cosmetics cosmetic tools makeup tools refillable makeup palettes and cases",
+      "health and beauty personal care cosmetics cosmetic tools nail tools",
+      "health and beauty personal care cosmetics cosmetic tools nail tools cuticle pushers",
+      "health and beauty personal care cosmetics cosmetic tools nail tools cuticle scissors",
+      "health and beauty personal care cosmetics cosmetic tools nail tools manicure and pedicure spacers",
+      "health and beauty personal care cosmetics cosmetic tools nail tools manicure tool sets",
+      "health and beauty personal care cosmetics cosmetic tools nail tools nail buffers",
+      "health and beauty personal care cosmetics cosmetic tools nail tools nail clippers",
+      "health and beauty personal care cosmetics cosmetic tools nail tools nail drill accessories",
+      "health and beauty personal care cosmetics cosmetic tools nail tools nail drills",
+      "health and beauty personal care cosmetics cosmetic tools nail tools nail dryers",
+      "health and beauty personal care cosmetics cosmetic tools nail tools nail files and emery boards",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools facial saunas",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools foot files",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools lotion and sunscreen applicators",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools pumice stones",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools skin care extractors",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools skin care rollers",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools skin cleansing brush heads",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools skin cleansing brushes and systems",
+      "health and beauty personal care cosmetics makeup",
+      "health and beauty personal care cosmetics makeup body makeup",
+      "health and beauty personal care cosmetics makeup body makeup body and hair glitter",
+      "health and beauty personal care cosmetics makeup body makeup body paint and foundation",
+      "health and beauty personal care cosmetics makeup costume and stage makeup",
+      "health and beauty personal care cosmetics makeup eye makeup",
+      "health and beauty personal care cosmetics makeup eye makeup eye primer",
+      "health and beauty personal care cosmetics makeup eye makeup eye shadow",
+      "health and beauty personal care cosmetics makeup eye makeup eyebrow enhancers",
+      "health and beauty personal care cosmetics makeup eye makeup eyeliner",
+      "health and beauty personal care cosmetics makeup eye makeup false eyelashes",
+      "health and beauty personal care cosmetics makeup eye makeup lash and brow growth treatments",
+      "health and beauty personal care cosmetics makeup eye makeup mascara",
+      "health and beauty personal care cosmetics makeup eye makeup mascara primer",
+      "household paper product",
+      "litter box",
+      "mitre box",
+      "musical box",
+      "ornate box turtle",
+      "packaging and labeling",
+      "paper product",
+      "plastic bottle",
+      "post box",
+      "product",
+      "shipping box",
+      "shruti box",
+      "sound box",
+      "tackle box",
+      "tanning product",
+      "toothbrush",
+      "toothbrush holder",
+      "toothbrush replacement head",
+      "two liter bottle",
+      "wash bottle",
+      "water bottle",
+      "wine bottle"
+    ],
+    "receipt": [
+      "line total",
+      "office supplies general office supplies paper products receipt and adding machine paper rolls",
+      "receipt",
+      "receipt and adding machine paper rolls",
+      "store receipt",
+      "subtotal",
+      "vendor receipt"
+    ],
+    "reference-image": [
+      "ancient roman architecture",
+      "architecture",
+      "brutalist architecture",
+      "building",
+      "building insulation",
+      "building material",
+      "building sand castles",
+      "business and industrial",
+      "business and industrial advertising and marketing",
+      "business and industrial advertising and marketing brochures",
+      "business and industrial advertising and marketing trade show counters",
+      "business and industrial advertising and marketing trade show displays",
+      "business and industrial agriculture",
+      "business and industrial agriculture animal husbandry",
+      "business and industrial agriculture animal husbandry egg incubators",
+      "business and industrial agriculture animal husbandry livestock feed",
+      "business and industrial agriculture animal husbandry livestock feed cattle feed",
+      "business and industrial agriculture animal husbandry livestock feed chicken feed",
+      "business and industrial agriculture animal husbandry livestock feed goat and sheep feed",
+      "business and industrial agriculture animal husbandry livestock feed mixed herd feed",
+      "business and industrial agriculture animal husbandry livestock feed pig feed",
+      "business and industrial agriculture animal husbandry livestock feeders and waterers",
+      "business and industrial agriculture animal husbandry livestock halters",
+      "business and industrial automation control components",
+      "business and industrial automation control components programmable logic controllers",
+      "business and industrial automation control components variable frequency and adjustable speed drives",
+      "business and industrial construction",
+      "business and industrial construction surveying",
+      "business and industrial construction traffic cones and barrels",
+      "business and industrial dentistry",
+      "business and industrial dentistry dental cement",
+      "business and industrial dentistry dental tools",
+      "business and industrial dentistry dental tools dappen dishes",
+      "business and industrial dentistry dental tools dental mirrors",
+      "business and industrial dentistry dental tools dental tool sets",
+      "business and industrial dentistry dental tools prophy cups",
+      "business and industrial dentistry dental tools prophy heads",
+      "business and industrial dentistry prophy paste",
+      "business and industrial film and television",
+      "business and industrial finance and insurance",
+      "business and industrial finance and insurance bullion",
+      "business and industrial food service",
+      "business and industrial food service bakery boxes",
+      "business and industrial food service bus tubs",
+      "business and industrial food service check presenters",
+      "business and industrial food service concession food containers",
+      "business and industrial food service disposable lids",
+      "business and industrial food service disposable serveware",
+      "business and industrial food service disposable serveware disposable serving trays",
+      "business and industrial food service disposable tableware",
+      "business and industrial food service disposable tableware disposable bowls",
+      "business and industrial food service disposable tableware disposable cups",
+      "business and industrial food service disposable tableware disposable cutlery",
+      "business and industrial food service disposable tableware disposable plates",
+      "business and industrial food service food service baskets",
+      "business and industrial food service food service carts",
+      "business and industrial food service food washers and dryers",
+      "business and industrial food service hot dog rollers",
+      "business and industrial food service ice bins",
+      "business and industrial food service plate and dish warmers",
+      "business and industrial food service sneeze guards",
+      "business and industrial food service take out containers",
+      "business and industrial food service tilt skillets",
+      "business and industrial food service vending machines",
+      "business and industrial forestry and logging",
+      "business and industrial hairdressing and cosmetology",
+      "business and industrial hairdressing and cosmetology hairdressing capes and neck covers",
+      "business and industrial hairdressing and cosmetology pedicure chairs",
+      "business and industrial hairdressing and cosmetology salon chairs",
+      "business and industrial heavy machinery",
+      "business and industrial heavy machinery chippers",
+      "business and industrial hotel and hospitality",
+      "business and industrial industrial storage",
+      "business and industrial industrial storage accessories",
+      "business and industrial industrial storage industrial cabinets",
+      "business and industrial industrial storage industrial shelving",
+      "business and industrial industrial storage shipping containers",
+      "business and industrial industrial storage wire partitions enclosures and doors",
+      "business and industrial janitorial carts and caddies",
+      "business and industrial law enforcement",
+      "business and industrial law enforcement cuffs",
+      "business and industrial law enforcement metal detectors",
+      "business and industrial manufacturing",
+      "business and industrial material handling",
+      "business and industrial material handling conveyors",
+      "business and industrial material handling lifts and hoists",
+      "business and industrial material handling lifts and hoists hoists cranes and trolleys",
+      "business and industrial material handling lifts and hoists jacks and lift trucks",
+      "business and industrial material handling lifts and hoists personnel lifts",
+      "business and industrial material handling lifts and hoists pulleys blocks and sheaves",
+      "business and industrial material handling lifts and hoists winches",
+      "business and industrial material handling pallets and loading platforms",
+      "business and industrial medical",
+      "business and industrial medical hospital curtains",
+      "business and industrial medical hospital gowns",
+      "business and industrial medical medical bedding",
+      "business and industrial medical medical equipment",
+      "business and industrial medical medical equipment automated external defibrillators",
+      "business and industrial medical medical equipment gait belts",
+      "byzantine architecture",
+      "chinese architecture",
+      "classical architecture",
+      "commercial building",
+      "eastern orthodox church architecture",
+      "gothic architecture",
+      "industrial cabinets",
+      "industrial shelving",
+      "industrial storage",
+      "industrial storage accessories",
+      "japanese architecture",
+      "landscape",
+      "landscape architect",
+      "landscape lighting",
+      "listed building",
+      "marine architecture",
+      "medieval architecture",
+      "mound building termites",
+      "natural landscape",
+      "naval architecture",
+      "office building"
+    ],
+    "report": [
+      "folders and report covers",
+      "memo",
+      "news article",
+      "office supplies filing and organization folders and report covers",
+      "office supplies filing and organization folders and report covers pocket folders",
+      "office supplies filing and organization folders and report covers report covers",
+      "publication",
+      "report covers",
+      "scientific publication",
+      "scientific report"
+    ],
+    "school": [
+      "adult education",
+      "apparel and accessories clothing uniforms school uniforms",
+      "business and finance industries education industry",
+      "business school",
+      "college education",
+      "daycare and pre school",
+      "early childhood education",
+      "education",
+      "education adult education",
+      "education college education",
+      "education college education college planning",
+      "education college education postgraduate education",
+      "education college education postgraduate education professional school",
+      "education college education undergraduate education",
+      "education early childhood education",
+      "education educational assessment",
+      "education educational assessment standardized testing",
+      "education homeschooling",
+      "education homework and study",
+      "education industry",
+      "education language learning",
+      "education online education",
+      "education primary education",
+      "education private school",
+      "education secondary education",
+      "education special education",
+      "family and relationships parenting daycare and pre school",
+      "first day of school",
+      "high school",
+      "international student",
+      "military high school",
+      "office supplies office equipment calculators scientific calculators",
+      "online education",
+      "personal finance financial assistance student financial aid",
+      "personal finance personal debt student loans",
+      "postgraduate education",
+      "primary education",
+      "private school",
+      "professional school",
+      "public school",
+      "rosenwald school",
+      "school",
+      "school bus",
+      "school uniform",
+      "school uniforms",
+      "scientific articles",
+      "scientific calculators",
+      "scientific instrument",
+      "scientific publication",
+      "scientific report",
+      "secondary education",
+      "secondary modern school",
+      "secondary school",
+      "special education",
+      "state school",
+      "student",
+      "student financial aid",
+      "student loans",
+      "undergraduate education"
+    ],
+    "sunscreen": [
+      "animals and pet supplies pet supplies pet sunscreen",
+      "health and beauty personal care cosmetics cosmetic tools skin care tools lotion and sunscreen applicators",
+      "health and beauty personal care cosmetics skin care sunscreen",
+      "lotion and sunscreen applicators",
+      "pet sunscreen",
+      "sunscreen"
+    ],
+    "tax": [
+      "financial tax and accounting software",
+      "software computer software financial tax and accounting software",
+      "tax software",
+      "vector w2"
+    ],
+    "technical": [
+      "antivirus software",
+      "barebone computer",
+      "computer",
+      "computer accessories",
+      "computer accessory sets",
+      "computer backplates and i o shields",
+      "computer case",
+      "computer circuit boards",
+      "computer cluster",
+      "computer component",
+      "computer components",
+      "computer cooling",
+      "computer covers and skins",
+      "computer data storage",
+      "computer desk",
+      "computer hardware",
+      "computer icon",
+      "computer interface cards and adapters",
+      "computer inverter boards",
+      "computer keyboard",
+      "computer monitor",
+      "computer mouse",
+      "computer network",
+      "computer networking",
+      "computer power supplies",
+      "computer processors",
+      "computer program",
+      "computer racks and mounts",
+      "computer risers and stands",
+      "computer scientist",
+      "computer servers",
+      "computer speaker",
+      "computer starter kits",
+      "computer system cooling parts",
+      "computer terminal",
+      "computer wallpaper",
+      "desktop computer",
+      "desktop computer and server cases",
+      "dive computer",
+      "educational software",
+      "electronics circuit boards and components printed circuit boards computer circuit boards",
+      "electronics circuit boards and components printed circuit boards computer circuit boards computer inverter boards",
+      "electronics circuit boards and components printed circuit boards computer circuit boards hard drive circuit boards",
+      "electronics circuit boards and components printed circuit boards computer circuit boards motherboards",
+      "electronics computers computer servers",
+      "electronics electronics accessories computer accessories",
+      "electronics electronics accessories computer accessories computer accessory sets",
+      "electronics electronics accessories computer accessories computer covers and skins",
+      "electronics electronics accessories computer accessories computer risers and stands",
+      "electronics electronics accessories computer accessories handheld device accessories",
+      "electronics electronics accessories computer accessories handheld device accessories e book reader accessories",
+      "electronics electronics accessories computer accessories handheld device accessories e book reader accessories e book reader cases",
+      "electronics electronics accessories computer accessories handheld device accessories pda accessories",
+      "electronics electronics accessories computer accessories handheld device accessories pda accessories pda cases",
+      "electronics electronics accessories computer accessories keyboard and mouse wrist rests",
+      "electronics electronics accessories computer accessories keyboard trays and platforms",
+      "electronics electronics accessories computer accessories laptop docking stations",
+      "electronics electronics accessories computer accessories mouse pads",
+      "electronics electronics accessories computer accessories stylus pen nibs and refills",
+      "electronics electronics accessories computer accessories stylus pens",
+      "electronics electronics accessories computer accessories tablet computer docks and stands",
+      "electronics electronics accessories computer components",
+      "electronics electronics accessories computer components blade server enclosures",
+      "electronics electronics accessories computer components computer backplates and i o shields",
+      "electronics electronics accessories computer components computer power supplies",
+      "electronics electronics accessories computer components computer processors",
+      "electronics electronics accessories computer components computer racks and mounts",
+      "electronics electronics accessories computer components computer starter kits",
+      "electronics electronics accessories computer components computer system cooling parts",
+      "electronics electronics accessories computer components desktop computer and server cases",
+      "electronics electronics accessories computer components e book reader parts",
+      "electronics electronics accessories computer components e book reader parts e book reader screens and screen digitizers",
+      "electronics electronics accessories computer components i o cards and adapters",
+      "electronics electronics accessories computer components i o cards and adapters audio cards and adapters",
+      "electronics electronics accessories computer components i o cards and adapters computer interface cards and adapters",
+      "electronics electronics accessories computer components i o cards and adapters riser cards",
+      "electronics electronics accessories computer components i o cards and adapters tv tuner cards and adapters",
+      "electronics electronics accessories computer components i o cards and adapters video cards and adapters",
+      "electronics electronics accessories computer components input device accessories",
+      "electronics electronics accessories computer components input device accessories barcode scanner stands",
+      "electronics electronics accessories computer components input device accessories game controller accessories",
+      "electronics electronics accessories computer components input device accessories keyboard keys and caps",
+      "electronics electronics accessories computer components input device accessories mice and trackball accessories",
+      "electronics electronics accessories computer components input devices",
+      "electronics electronics accessories computer components input devices barcode scanners",
+      "electronics electronics accessories computer components input devices digital note taking pens",
+      "electronics electronics accessories computer components input devices electronic card readers",
+      "electronics electronics accessories computer components input devices fingerprint readers",
+      "electronics electronics accessories computer components input devices game controllers",
+      "electronics electronics accessories computer components input devices game controllers game racing wheels",
+      "electronics electronics accessories computer components input devices game controllers game remotes",
+      "electronics electronics accessories computer components input devices game controllers gaming pads",
+      "electronics electronics accessories computer components input devices game controllers joystick controllers",
+      "electronics electronics accessories computer components input devices game controllers musical instrument game controllers",
+      "electronics electronics accessories computer components input devices gesture control input devices",
+      "electronics electronics accessories computer components input devices graphics tablets",
+      "electronics electronics accessories computer components input devices keyboards",
+      "electronics electronics accessories computer components input devices kvm switches",
+      "electronics electronics accessories computer components input devices memory card readers",
+      "electronics electronics accessories computer components input devices mice and trackballs",
+      "enterprise software",
+      "graphics software",
+      "hand held computer",
+      "multimedia software",
+      "network software",
+      "office application software",
+      "personal computer",
+      "personal computer hardware",
+      "software",
+      "software engineering",
+      "tablet computer",
+      "tablet computer charger",
+      "tablet computer docks and stands",
+      "tablet computer stand",
+      "tax software",
+      "technical drawing",
+      "trip computer",
+      "utility software",
+      "video editing software",
+      "video game software"
+    ],
+    "work": [
+      "arts and entertainment hobbies and creative arts arts and crafts art and crafting materials crafting adhesives and magnets craft and office glue",
+      "arts and entertainment hobbies and creative arts arts and crafts art and crafting tools craft cutting and embossing tools craft and office scissors",
+      "craft and office glue",
+      "craft and office scissors",
+      "furniture office furniture",
+      "furniture office furniture accessories",
+      "furniture office furniture accessories desk parts and accessories",
+      "furniture office furniture accessories office chair accessories",
+      "furniture office furniture accessories workstation and cubicle accessories",
+      "furniture office furniture desks",
+      "furniture office furniture office chairs",
+      "furniture office furniture office furniture sets",
+      "furniture office furniture workspace tables",
+      "furniture office furniture workspace tables art and drafting tables",
+      "furniture office furniture workspace tables conference room tables",
+      "furniture office furniture workstations and cubicles",
+      "general office supplies",
+      "media product manuals office supply manuals",
+      "memo",
+      "office and chair mats",
+      "office application software",
+      "office building",
+      "office carts",
+      "office chair",
+      "office chair accessories",
+      "office chairs",
+      "office equipment",
+      "office furniture",
+      "office furniture accessories",
+      "office furniture sets",
+      "office instrument",
+      "office mats",
+      "office rubber stamp",
+      "office ruler",
+      "office supplies",
+      "office supplies book accessories",
+      "office supplies book accessories book covers",
+      "office supplies book accessories book lights",
+      "office supplies book accessories book stands and rests",
+      "office supplies book accessories bookmarks",
+      "office supplies desk pads and blotters",
+      "office supplies filing and organization",
+      "office supplies filing and organization address books",
+      "office supplies filing and organization binding supplies",
+      "office supplies filing and organization binding supplies binder accessories",
+      "office supplies filing and organization binding supplies binder accessories binder rings",
+      "office supplies filing and organization binding supplies binder accessories index dividers",
+      "office supplies filing and organization binding supplies binder accessories sheet protectors",
+      "office supplies filing and organization binding supplies binders",
+      "office supplies filing and organization binding supplies binding combs and spines",
+      "office supplies filing and organization binding supplies binding machines",
+      "office supplies filing and organization business card books",
+      "office supplies filing and organization business card stands",
+      "office supplies filing and organization calendars organizers and planners",
+      "office supplies filing and organization card files",
+      "office supplies filing and organization card sleeves",
+      "office supplies filing and organization cash boxes",
+      "office supplies filing and organization cd dvd cases and organizers",
+      "office supplies filing and organization desk organizers",
+      "office supplies filing and organization file boxes",
+      "office supplies filing and organization file folders",
+      "office supplies filing and organization folders and report covers",
+      "office supplies filing and organization folders and report covers pocket folders",
+      "office supplies filing and organization folders and report covers report covers",
+      "office supplies filing and organization greeting card organizers",
+      "office supplies filing and organization mail sorters",
+      "office supplies filing and organization pen and pencil cases",
+      "office supplies filing and organization portfolios and padfolios",
+      "office supplies filing and organization portfolios and padfolios padfolios",
+      "office supplies filing and organization portfolios and padfolios portfolios",
+      "office supplies filing and organization recipe card boxes",
+      "office supplies general office supplies",
+      "office supplies general office supplies brass fasteners",
+      "office supplies general office supplies correction fluids pens and tapes",
+      "office supplies general office supplies correction fluids pens and tapes correction fluids",
+      "office supplies general office supplies correction fluids pens and tapes correction pens",
+      "office supplies general office supplies correction fluids pens and tapes correction tapes",
+      "office supplies general office supplies erasers",
+      "office supplies general office supplies labels and tags",
+      "office supplies general office supplies labels and tags address labels",
+      "office supplies general office supplies labels and tags folder tabs",
+      "office supplies general office supplies labels and tags label clips",
+      "office supplies general office supplies labels and tags label tapes and refill rolls",
+      "office supplies general office supplies labels and tags shipping labels",
+      "office supplies general office supplies labels and tags shipping tags",
+      "office supplies general office supplies laminating film pouches and sheets",
+      "office supplies general office supplies mounting putty",
+      "office supplies general office supplies office tape",
+      "office supplies general office supplies paper clips and clamps",
+      "office supplies general office supplies paper clips and clamps binder clips",
+      "office supplies general office supplies paper clips and clamps paper clips",
+      "office supplies general office supplies paper products",
+      "office supplies general office supplies paper products binder paper",
+      "office supplies general office supplies paper products blank id cards",
+      "office supplies general office supplies paper products business cards",
+      "office supplies general office supplies paper products business forms and receipts",
+      "office supplies general office supplies paper products checks",
+      "office supplies general office supplies paper products cover paper",
+      "office supplies general office supplies paper products envelopes",
+      "office supplies general office supplies paper products index cards",
+      "office supplies general office supplies paper products notebooks and notepads",
+      "office supplies general office supplies paper products post cards",
+      "office supplies general office supplies paper products printer and copier paper",
+      "office supplies general office supplies paper products receipt and adding machine paper rolls",
+      "office supplies general office supplies paper products stationery",
+      "office supplies general office supplies paper products sticky notes",
+      "office supplies general office supplies rubber bands",
+      "office supplies general office supplies staples",
+      "office supplies general office supplies tacks and pushpins",
+      "office supplies impulse sealers",
+      "office supplies lap desks",
+      "office supplies name plates",
+      "office supplies office and chair mats",
+      "office supplies office and chair mats anti fatigue mats",
+      "office supplies office and chair mats chair mats",
+      "office supplies office and chair mats office mats",
+      "office supplies office carts",
+      "office supply manuals",
+      "office tape",
+      "post office"
+    ]
+  },
+  "source_examples": {
+    "medical": [
+      {
+        "source": "openimages_boxable",
+        "label": "ambulance"
+      },
+      {
+        "source": "openimages_boxable",
+        "label": "syringe"
+      },
+      {
+        "source": "openimages_boxable",
+        "label": "medical equipment"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "ambulance"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "hospital ship"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "syringe"
+      }
+    ],
+    "product-photo": [
+      {
+        "source": "openimages_boxable",
+        "label": "toothbrush"
+      },
+      {
+        "source": "openimages_boxable",
+        "label": "cosmetics"
+      },
+      {
+        "source": "openimages_boxable",
+        "label": "box"
+      },
+      {
+        "source": "openimages_boxable",
+        "label": "bottle"
+      },
+      {
+        "source": "openimages_boxable",
+        "label": "bottle opener"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "water bottle"
+      }
+    ],
+    "presentation": [
+      {
+        "source": "openimages_boxable",
+        "label": "cassette deck"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "cassette deck"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "presentation"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "deck"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "skateboard deck"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "arts and entertainment > hobbies and creative arts > musical instrument and orchestra accessories > string instrument accessories > guitar accessories > guitar slides"
+      }
+    ],
+    "cosmetic-spf": [
+      {
+        "source": "openimages_boxable",
+        "label": "cosmetics"
+      },
+      {
+        "source": "openimages_boxable",
+        "label": "personal care"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "cosmetics"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "personal care"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "health and beauty > personal care"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "personal care"
+      }
+    ],
+    "technical": [
+      {
+        "source": "openimages_boxable",
+        "label": "computer keyboard"
+      },
+      {
+        "source": "openimages_boxable",
+        "label": "computer mouse"
+      },
+      {
+        "source": "openimages_boxable",
+        "label": "computer monitor"
+      },
+      {
+        "source": "openimages_boxable",
+        "label": "tablet computer"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "computer terminal"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "computer keyboard"
+      }
+    ],
+    "work": [
+      {
+        "source": "openimages_boxable",
+        "label": "office building"
+      },
+      {
+        "source": "openimages_boxable",
+        "label": "office supplies"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "office building"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "office supplies"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "office equipment"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "memo"
+      }
+    ],
+    "reference-image": [
+      {
+        "source": "openimages_boxable",
+        "label": "office building"
+      },
+      {
+        "source": "openimages_boxable",
+        "label": "building"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "landscape architect"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "listed building"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "building sand castles"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "medieval architecture"
+      }
+    ],
+    "marketing": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "advertising"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "shopping cart"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "brand"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "shopping mall"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "display advertising"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "shopping bag"
+      }
+    ],
+    "school": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "student"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "international student"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "private school"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "secondary school"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "military high school"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "state school"
+      }
+    ],
+    "financial": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "bank"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "piggy bank"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "invoice"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "financial adviser"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "payment card"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "bank teller"
+      }
+    ],
+    "prescription": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "prescription drug"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "mazda rx 7"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "mazda rx 8"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "lexus rx hybrid"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "mazda rx 792p"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "mazda rx 2"
+      }
+    ],
+    "report": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "publication"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "memo"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "office supplies > filing and organization > folders and report covers"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "folders and report covers"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "office supplies > filing and organization > folders and report covers > pocket folders"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "office supplies > filing and organization > folders and report covers > report covers"
+      }
+    ],
+    "sunscreen": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "sunscreen"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "animals and pet supplies > pet supplies > pet sunscreen"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "pet sunscreen"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "health and beauty > personal care > cosmetics > cosmetic tools > skin care tools > lotion and sunscreen applicators"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "lotion and sunscreen applicators"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "health and beauty > personal care > cosmetics > skin care > sunscreen"
+      }
+    ],
+    "pharmacy": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "pharmacy"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "pharmacy technician"
+      }
+    ],
+    "identity-document": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "identity document"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "french passport"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "singapore passport"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "portuguese passport"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "chinese passport"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "russian passport"
+      }
+    ],
+    "manual": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "mountain guide"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "raft guide"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "user guide"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "tour guide"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "vehicle service manual"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "hardware > tools > hammers > manual hammers"
+      }
+    ],
+    "insurance": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "burger king premium burgers"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "business and industrial > finance and insurance"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "finance and insurance"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "business and industrial > finance and insurance > bullion"
+      },
+      {
+        "source": "iab_content_taxonomy_v3_1",
+        "label": "auto insurance"
+      },
+      {
+        "source": "iab_content_taxonomy_v3_1",
+        "label": "automotive > auto insurance"
+      }
+    ],
+    "invoice": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "invoice"
+      },
+      {
+        "source": "iab_content_taxonomy_v3_1",
+        "label": "debt factoring and invoice discounting"
+      },
+      {
+        "source": "iab_content_taxonomy_v3_1",
+        "label": "business and finance > business > business banking and finance > debt factoring and invoice discounting"
+      },
+      {
+        "source": "rvl_cdip_static",
+        "label": "invoice"
+      }
+    ],
+    "receipt": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "receipt"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "office supplies > general office supplies > paper products > receipt and adding machine paper rolls"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "receipt and adding machine paper rolls"
+      },
+      {
+        "source": "cord_receipt_static",
+        "label": "receipt"
+      },
+      {
+        "source": "cord_receipt_static",
+        "label": "subtotal"
+      },
+      {
+        "source": "cord_receipt_static",
+        "label": "vendor receipt"
+      }
+    ],
+    "tax": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "vector w2"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "tax software"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "software > computer software > financial tax and accounting software"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "financial tax and accounting software"
+      }
+    ],
+    "legal": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "benz patent motorwagen"
+      },
+      {
+        "source": "openimages_all_descriptions",
+        "label": "law enforcement"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "business and industrial > law enforcement"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "law enforcement"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "business and industrial > law enforcement > cuffs"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "business and industrial > law enforcement > metal detectors"
+      }
+    ],
+    "form": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "office application software"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "office supplies > general office supplies > paper products > business forms and receipts"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "business forms and receipts"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "software > computer software > office application software"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "office application software"
+      },
+      {
+        "source": "rvl_cdip_static",
+        "label": "form"
+      }
+    ],
+    "letter": [
+      {
+        "source": "iab_content_taxonomy_v3_1",
+        "label": "email"
+      },
+      {
+        "source": "rvl_cdip_static",
+        "label": "email"
+      }
+    ]
+  }
+}

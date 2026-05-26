@@ -12,6 +12,7 @@ from typing import Any, Iterable
 import psycopg
 from psycopg.rows import dict_row
 
+from .external_taxonomy import match_external_taxonomy_candidates
 from .label_map import canonicalize_label, canonicalize_labels
 
 LIVE_INDEX_DEFAULTS = {
@@ -338,6 +339,28 @@ def _rank_labels(text: str, extension: str, mime_type: str) -> list[ScoredLabel]
     return scored
 
 
+def _boost_ranked_labels_with_external_matches(
+    ranked: list[ScoredLabel],
+    external_matches: list[dict[str, Any]],
+) -> list[ScoredLabel]:
+    if not external_matches:
+        return ranked
+
+    by_label = {item.label: item for item in ranked}
+    for match in external_matches:
+        label = str(match.get("label", "") or "")
+        if not label:
+            continue
+        base = by_label.get(label, ScoredLabel(label=label, score=0, evidence=()))
+        extra_score = max(2, int(match.get("score", 0) or 0))
+        evidence = tuple(dict.fromkeys([*base.evidence, *[str(item) for item in match.get("evidence", [])]]))
+        by_label[label] = ScoredLabel(label=label, score=base.score + extra_score, evidence=evidence)
+
+    boosted = list(by_label.values())
+    boosted.sort(key=lambda item: (item.score, len(item.evidence), item.label), reverse=True)
+    return boosted
+
+
 def _heuristic_label_from_provider(record: dict[str, Any]) -> str:
     provider = _provider_from_path(str(record.get("path") or ""))
     extension = _extension_from_record(record)
@@ -368,6 +391,10 @@ def _teacher_label_from_record(record: dict[str, Any]) -> dict[str, Any]:
 
     surface_ranked = _rank_labels(text_surface, extension, mime_type)
     full_ranked = _rank_labels(text_full, extension, mime_type)
+    full_ranked = _boost_ranked_labels_with_external_matches(
+        full_ranked,
+        match_external_taxonomy_candidates(text_full, limit=6),
+    )
 
     surface_primary = next((item for item in surface_ranked if item.score > 0), surface_ranked[0])
     full_primary = next((item for item in full_ranked if item.score > 0), full_ranked[0])

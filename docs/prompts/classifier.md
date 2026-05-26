@@ -9,3 +9,11 @@
 - Follow-up prompt: tighten the label map so the heuristic and LightGBM layers agree more often by training on canonical coarse labels instead of the raw fine-grained split.
 - Tracking: [#22](https://github.com/NeonButrfly/iCloudPlugin/issues/22)
 - Affected systems: live iCloud index DB, classifier retraining path, LightGBM model artifact/report, operator docs.
+
+## 2026-05-26 - External taxonomy ingestion for heuristics and training
+
+- Issue: [#23](https://github.com/NeonButrfly/iCloudPlugin/issues/23)
+- Source prompt: "yes pull classification training from any external sources that might have enhancements for training the heuristics and lightbgm. I want the heuristics and lightbgm to be as well trained as possible"
+- Interpreted requirement: turn the configured public taxonomy sources into a reusable local alias artifact, feed that artifact into runtime candidate generation and LightGBM feature text, and rebuild the taxonomy router so external document-class labels improve local classification coverage without adding live network dependence to the classifier path.
+- External source set: Open Images class descriptions, Google Product Taxonomy, IAB Content Taxonomy 3.1, DocLayNet classes, RVL-CDIP document classes, and receipt-focused static labels derived from CORD and SROIE.
+- Affected systems: classifier external taxonomy ingestion, taxonomy router training, runtime candidate selection, LightGBM feature enrichment, operator docs.

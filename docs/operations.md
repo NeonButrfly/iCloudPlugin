@@ -223,6 +223,26 @@ python -m apps.classifier.retrain_hybrid_model
 If the runtime row cache is empty, the helper falls back to the live index DB
 configured through `INDEX_DATABASE_URL` or the `INDEX_POSTGRES_*` env vars.
 
+## External taxonomy refresh and router rebuild
+
+The classifier now keeps a local alias artifact derived from enabled public
+taxonomy sources such as Open Images, Google Product Taxonomy, IAB Content
+Taxonomy, DocLayNet, RVL-CDIP, CORD, and SROIE so both the runtime heuristics
+and training paths can reuse the same mapped evidence phrases (#23).
+
+Refresh the alias artifact from the configured public sources:
+
+```bash
+python -c "from apps.classifier.external_taxonomy import refresh_external_taxonomy_aliases; print(refresh_external_taxonomy_aliases())"
+```
+
+Then rebuild the taxonomy router so those aliases become part of candidate
+selection:
+
+```bash
+python -m apps.classifier.taxonomy_router.train_taxonomy_router
+```
+
 ## Local plugin
 
 1. Run `python -m pip install -e .` from the repo root.

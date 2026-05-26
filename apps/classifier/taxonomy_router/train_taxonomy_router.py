@@ -7,14 +7,18 @@ import joblib
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-APP_DIR = Path("/opt/local-doc-classifier")
-CONFIG_DIR = APP_DIR / "config"
+from apps.classifier.external_taxonomy import load_external_taxonomy_aliases, refresh_external_taxonomy_aliases
+from packages.runtime import load_classifier_runtime_settings
+
+SETTINGS = load_classifier_runtime_settings()
+CONFIG_DIR = SETTINGS.config_root
 FULL_CATEGORIES = CONFIG_DIR / "categories.full.txt"
-LOCAL_CATEGORIES = CONFIG_DIR / "categories.local.txt"
-GROUPS_FILE = CONFIG_DIR / "category-groups.json"
-CORRECTIONS_FILE = CONFIG_DIR / "corrections.jsonl"
-MODEL_PATH = CONFIG_DIR / "taxonomy-router.joblib"
-REPORT_PATH = CONFIG_DIR / "taxonomy-router-report.json"
+LOCAL_CATEGORIES = SETTINGS.local_categories_path
+GROUPS_FILE = SETTINGS.category_groups_path
+CORRECTIONS_FILE = SETTINGS.corrections_path
+MODEL_PATH = SETTINGS.taxonomy_router_model_path
+REPORT_PATH = SETTINGS.taxonomy_router_report_path
+EXTERNAL_TAXONOMY_ALIASES_PATH = SETTINGS.external_taxonomy_aliases_path
 
 def clean_label(value: str) -> str:
     value = value.strip().lower()
@@ -106,6 +110,9 @@ def main():
     categories = load_lines(FULL_CATEGORIES) or load_lines(LOCAL_CATEGORIES)
     groups = load_groups()
     corrections = load_corrections()
+    if not EXTERNAL_TAXONOMY_ALIASES_PATH.exists():
+        refresh_external_taxonomy_aliases()
+    external_aliases = load_external_taxonomy_aliases()
 
     if not categories:
         raise SystemExit("No categories found. Run taxonomy sync first.")
@@ -139,6 +146,15 @@ def main():
         texts.append(sample)
         labels.append(correct)
 
+    external_rows = 0
+    for label, aliases in external_aliases.items():
+        if label not in categories:
+            continue
+        for alias in aliases[:40]:
+            texts.append(f"external taxonomy alias {alias}")
+            labels.append(label)
+            external_rows += 1
+
     vectorizer = TfidfVectorizer(
         lowercase=True,
         analyzer="word",
@@ -168,6 +184,8 @@ def main():
         "training_rows": len(texts),
         "features": len(vectorizer.vocabulary_),
         "corrections_used": len(corrections),
+        "external_alias_rows": external_rows,
+        "external_alias_labels": len(external_aliases),
         "model_path": str(MODEL_PATH),
     }
 

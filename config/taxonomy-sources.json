@@ -55,5 +55,58 @@
       "text",
       "title"
     ]
+  },
+  {
+    "name": "rvl_cdip_static",
+    "enabled": true,
+    "kind": "document",
+    "parser": "static",
+    "labels": [
+      "letter",
+      "form",
+      "email",
+      "handwritten",
+      "advertisement",
+      "scientific report",
+      "scientific publication",
+      "specification",
+      "file folder",
+      "news article",
+      "budget",
+      "invoice",
+      "presentation",
+      "questionnaire",
+      "resume",
+      "memo"
+    ]
+  },
+  {
+    "name": "cord_receipt_static",
+    "enabled": true,
+    "kind": "document",
+    "parser": "static",
+    "labels": [
+      "receipt",
+      "menu item",
+      "subtotal",
+      "total",
+      "vendor receipt",
+      "store receipt",
+      "line item total"
+    ]
+  },
+  {
+    "name": "sroie_receipt_static",
+    "enabled": true,
+    "kind": "document",
+    "parser": "static",
+    "labels": [
+      "receipt",
+      "company",
+      "address",
+      "date",
+      "line total",
+      "total amount"
+    ]
   }
 ]
