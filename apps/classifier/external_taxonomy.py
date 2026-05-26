@@ -16,6 +16,7 @@ from packages.runtime import load_classifier_runtime_settings
 SETTINGS = load_classifier_runtime_settings()
 TAXONOMY_SOURCES_PATH = SETTINGS.taxonomy_sources_path
 EXTERNAL_TAXONOMY_ALIASES_PATH = SETTINGS.external_taxonomy_aliases_path
+EXTERNAL_TAXONOMY_PRUNE_PATH = SETTINGS.external_taxonomy_prune_path
 
 FetchText = Callable[[str], str]
 
@@ -94,6 +95,63 @@ def _contains_phrase(text: str, phrase: str) -> bool:
 def _fetch_url_text(url: str) -> str:
     with urllib.request.urlopen(url, timeout=30) as response:
         return response.read().decode("utf-8", errors="replace")
+
+
+def load_external_taxonomy_prune_rules(path: Path | None = None) -> dict[str, Any]:
+    prune_path = path or EXTERNAL_TAXONOMY_PRUNE_PATH
+    if not prune_path.exists():
+        return {"blocked_aliases_by_label": {}, "blocked_aliases_global": []}
+    try:
+        payload = json.loads(prune_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"blocked_aliases_by_label": {}, "blocked_aliases_global": []}
+    if not isinstance(payload, dict):
+        return {"blocked_aliases_by_label": {}, "blocked_aliases_global": []}
+    blocked_by_label = payload.get("blocked_aliases_by_label", {})
+    blocked_global = payload.get("blocked_aliases_global", [])
+    return {
+        "blocked_aliases_by_label": {
+            _clean_label_token(str(label)): [
+                _normalize_phrase(str(alias))
+                for alias in values
+                if _normalize_phrase(str(alias))
+            ]
+            for label, values in blocked_by_label.items()
+            if isinstance(values, list)
+        },
+        "blocked_aliases_global": [
+            _normalize_phrase(str(alias))
+            for alias in blocked_global
+            if _normalize_phrase(str(alias))
+        ],
+    }
+
+
+def _alias_allowed(label: str, alias: str, prune_rules: dict[str, Any] | None) -> bool:
+    if not alias:
+        return False
+    normalized_alias = _normalize_phrase(alias)
+    if not normalized_alias:
+        return False
+    rules = prune_rules or {}
+    blocked_global = {
+        _normalize_phrase(str(item))
+        for item in rules.get("blocked_aliases_global", []) or []
+    }
+    blocked_by_label = {
+        _clean_label_token(str(key)): {
+            _normalize_phrase(str(item))
+            for item in value
+        }
+        for key, value in (rules.get("blocked_aliases_by_label", {}) or {}).items()
+        if isinstance(value, list)
+    }
+    normalized_label = _clean_label_token(label)
+    if normalized_alias in blocked_global:
+        return False
+    if normalized_alias in blocked_by_label.get(normalized_label, set()):
+        return False
+    return True
 
 
 def load_taxonomy_sources(path: Path | None = None) -> list[dict[str, Any]]:
@@ -232,6 +290,7 @@ def build_external_taxonomy_aliases(
     sources: list[dict[str, Any]],
     fetch_text: FetchText | None = None,
     max_aliases_per_label: int = 120,
+    prune_rules: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     label_aliases: dict[str, set[str]] = defaultdict(set)
     source_examples: dict[str, list[dict[str, str]]] = defaultdict(list)
@@ -248,7 +307,7 @@ def build_external_taxonomy_aliases(
             variants = _alias_variants(parsed_label)
             for local_label in mapped_labels:
                 for variant in variants:
-                    if len(label_aliases[local_label]) < max_aliases_per_label:
+                    if _alias_allowed(local_label, variant, prune_rules) and len(label_aliases[local_label]) < max_aliases_per_label:
                         label_aliases[local_label].add(variant)
                 if len(source_examples[local_label]) < 6:
                     source_examples[local_label].append(
@@ -285,7 +344,11 @@ def refresh_external_taxonomy_aliases(
     fetch_text: FetchText | None = None,
 ) -> dict[str, Any]:
     sources = load_taxonomy_sources(sources_path)
-    payload = build_external_taxonomy_aliases(sources, fetch_text=fetch_text)
+    payload = build_external_taxonomy_aliases(
+        sources,
+        fetch_text=fetch_text,
+        prune_rules=load_external_taxonomy_prune_rules(),
+    )
     output_path = aliases_path or EXTERNAL_TAXONOMY_ALIASES_PATH
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -326,11 +389,13 @@ def _load_external_taxonomy_aliases_cached(path_str: str, _mtime_ns: int) -> dic
 def match_external_taxonomy_candidates(
     text: str,
     aliases: dict[str, list[str]] | None = None,
+    prune_rules: dict[str, Any] | None = None,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
     alias_map = aliases or load_external_taxonomy_aliases()
     if not alias_map:
         return []
+    active_prune_rules = prune_rules or load_external_taxonomy_prune_rules()
 
     normalized_text = _normalize_phrase(text)
     matches: list[dict[str, Any]] = []
@@ -338,7 +403,7 @@ def match_external_taxonomy_candidates(
         score = 0
         evidence: list[str] = []
         for alias in label_aliases:
-            if not alias or len(alias) < 3:
+            if not _alias_allowed(label, alias, active_prune_rules) or len(alias) < 3:
                 continue
             if _contains_phrase(normalized_text, alias):
                 score += 2 + min(len(alias.split()), 3)

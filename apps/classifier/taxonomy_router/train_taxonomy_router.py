@@ -16,6 +16,7 @@ FULL_CATEGORIES = CONFIG_DIR / "categories.full.txt"
 LOCAL_CATEGORIES = SETTINGS.local_categories_path
 GROUPS_FILE = SETTINGS.category_groups_path
 CORRECTIONS_FILE = SETTINGS.corrections_path
+EXAMPLES_FILE = SETTINGS.examples_path
 MODEL_PATH = SETTINGS.taxonomy_router_model_path
 REPORT_PATH = SETTINGS.taxonomy_router_report_path
 EXTERNAL_TAXONOMY_ALIASES_PATH = SETTINGS.external_taxonomy_aliases_path
@@ -52,6 +53,20 @@ def load_corrections():
         return []
     rows = []
     for line in CORRECTIONS_FILE.read_text(encoding="utf-8", errors="replace").splitlines():
+        try:
+            item = json.loads(line)
+            if isinstance(item, dict):
+                rows.append(item)
+        except Exception:
+            pass
+    return rows
+
+
+def load_examples():
+    if not EXAMPLES_FILE.exists():
+        return []
+    rows = []
+    for line in EXAMPLES_FILE.read_text(encoding="utf-8", errors="replace").splitlines():
         try:
             item = json.loads(line)
             if isinstance(item, dict):
@@ -110,6 +125,7 @@ def main():
     categories = load_lines(FULL_CATEGORIES) or load_lines(LOCAL_CATEGORIES)
     groups = load_groups()
     corrections = load_corrections()
+    examples = load_examples()
     if not EXTERNAL_TAXONOMY_ALIASES_PATH.exists():
         refresh_external_taxonomy_aliases()
     external_aliases = load_external_taxonomy_aliases()
@@ -145,6 +161,21 @@ def main():
         sample = f"{filename} {note} {summary} secondary {secondary} old {old_label}"
         texts.append(sample)
         labels.append(correct)
+
+    example_rows = 0
+    for example in examples:
+        correct = clean_label(str(example.get("correct_label") or example.get("primary_label") or ""))
+        if not correct:
+            continue
+        filename = str(example.get("filename", ""))
+        note = str(example.get("note", ""))
+        summary = str(example.get("summary", ""))
+        secondary = " ".join(map(str, example.get("secondary_labels", [])))
+        old_label = str(example.get("old_label", ""))
+        sample = f"{filename} {note} {summary} secondary {secondary} old {old_label}"
+        texts.append(sample)
+        labels.append(correct)
+        example_rows += 1
 
     external_rows = 0
     for label, aliases in external_aliases.items():
@@ -184,6 +215,7 @@ def main():
         "training_rows": len(texts),
         "features": len(vectorizer.vocabulary_),
         "corrections_used": len(corrections),
+        "examples_used": example_rows,
         "external_alias_rows": external_rows,
         "external_alias_labels": len(external_aliases),
         "model_path": str(MODEL_PATH),

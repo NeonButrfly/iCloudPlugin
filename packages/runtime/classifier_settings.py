@@ -46,12 +46,20 @@ class ClassifierRuntimeSettings:
         return self.config_root / "external-taxonomy-aliases.json"
 
     @property
+    def external_taxonomy_prune_path(self) -> Path:
+        return self.config_root / "external-taxonomy-prune.json"
+
+    @property
     def corrections_path(self) -> Path:
         return self.config_root / "corrections.jsonl"
 
     @property
     def examples_path(self) -> Path:
         return self.config_root / "examples.jsonl"
+
+    @property
+    def reviewed_examples_report_path(self) -> Path:
+        return self.config_root / "reviewed-examples-report.json"
 
     @property
     def hybrid_gating_path(self) -> Path:

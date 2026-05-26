@@ -1,0 +1,279 @@
+{
+  "ok": true,
+  "manifest_path": "C:\\Users\\Keifm\\AppData\\Local\\Temp\\lightgbm-training-set\\lightgbm-training-set.combined.manifest.json",
+  "examples_path": "C:\\Code\\iCloudPlugin\\config\\examples.jsonl",
+  "imported_rows": 52,
+  "label_counts": {
+    "appeal": 21,
+    "benefits": 11,
+    "claim": 2,
+    "contract": 1,
+    "invoice": 4,
+    "medical-receipt": 3,
+    "product-photo": 3,
+    "receipt": 6,
+    "reimbursement-packet": 1
+  },
+  "target_labels": {
+    "appeal": 25,
+    "benefits": 15,
+    "claim": 10,
+    "invoice": 12,
+    "receipt": 12,
+    "medical-receipt": 10,
+    "reimbursement-packet": 8,
+    "contract": 8,
+    "product-photo": 8
+  },
+  "noisy_alias_summary": {
+    "top_noisy_aliases": [
+      {
+        "label": "insurance",
+        "evidence": [
+          "insurance"
+        ],
+        "count": 10
+      },
+      {
+        "label": "pharmacy",
+        "evidence": [
+          "pharmacy"
+        ],
+        "count": 5
+      },
+      {
+        "label": "letter",
+        "evidence": [
+          "email"
+        ],
+        "count": 4
+      },
+      {
+        "label": "insurance",
+        "evidence": [
+          "insurance",
+          "life insurance"
+        ],
+        "count": 2
+      },
+      {
+        "label": "school",
+        "evidence": [
+          "education"
+        ],
+        "count": 2
+      },
+      {
+        "label": "reference-image",
+        "evidence": [
+          "architecture"
+        ],
+        "count": 2
+      },
+      {
+        "label": "marketing",
+        "evidence": [
+          "brand"
+        ],
+        "count": 2
+      },
+      {
+        "label": "medical",
+        "evidence": [
+          "hospital"
+        ],
+        "count": 1
+      },
+      {
+        "label": "school",
+        "evidence": [
+          "student"
+        ],
+        "count": 1
+      },
+      {
+        "label": "school",
+        "evidence": [
+          "high school"
+        ],
+        "count": 1
+      },
+      {
+        "label": "technical",
+        "evidence": [
+          "computer"
+        ],
+        "count": 1
+      },
+      {
+        "label": "insurance",
+        "evidence": [
+          "health insurance",
+          "insurance",
+          "life insurance"
+        ],
+        "count": 1
+      },
+      {
+        "label": "marketing",
+        "evidence": [
+          "shopping"
+        ],
+        "count": 1
+      },
+      {
+        "label": "legal",
+        "evidence": [
+          "law"
+        ],
+        "count": 1
+      },
+      {
+        "label": "receipt",
+        "evidence": [
+          "receipt"
+        ],
+        "count": 1
+      },
+      {
+        "label": "financial",
+        "evidence": [
+          "payment card"
+        ],
+        "count": 1
+      }
+    ],
+    "top_helpful_aliases": [
+      {
+        "label": "insurance",
+        "evidence": [
+          "insurance"
+        ],
+        "count": 15
+      },
+      {
+        "label": "insurance",
+        "evidence": [
+          "insurance",
+          "life insurance"
+        ],
+        "count": 11
+      },
+      {
+        "label": "receipt",
+        "evidence": [
+          "receipt"
+        ],
+        "count": 9
+      },
+      {
+        "label": "medical",
+        "evidence": [
+          "clinic"
+        ],
+        "count": 7
+      },
+      {
+        "label": "presentation",
+        "evidence": [
+          "presentation"
+        ],
+        "count": 7
+      },
+      {
+        "label": "insurance",
+        "evidence": [
+          "health insurance",
+          "insurance"
+        ],
+        "count": 4
+      },
+      {
+        "label": "financial",
+        "evidence": [
+          "invoice"
+        ],
+        "count": 4
+      },
+      {
+        "label": "invoice",
+        "evidence": [
+          "invoice"
+        ],
+        "count": 4
+      },
+      {
+        "label": "legal",
+        "evidence": [
+          "law"
+        ],
+        "count": 2
+      },
+      {
+        "label": "medical",
+        "evidence": [
+          "hospital"
+        ],
+        "count": 2
+      },
+      {
+        "label": "letter",
+        "evidence": [
+          "email"
+        ],
+        "count": 1
+      },
+      {
+        "label": "medical",
+        "evidence": [
+          "health care",
+          "health care provider"
+        ],
+        "count": 1
+      }
+    ],
+    "per_label_mismatch_targets": {
+      "insurance": {
+        "legal": 5,
+        "letter": 5,
+        "medical": 2,
+        "image-only": 1
+      },
+      "pharmacy": {
+        "insurance": 3,
+        "spreadsheet": 2
+      },
+      "letter": {
+        "insurance": 3,
+        "form": 1
+      },
+      "school": {
+        "legal": 2,
+        "financial": 1,
+        "form": 1
+      },
+      "marketing": {
+        "spreadsheet": 2,
+        "financial": 1
+      },
+      "reference-image": {
+        "markdown-note": 2
+      },
+      "medical": {
+        "insurance": 1
+      },
+      "technical": {
+        "form": 1
+      },
+      "legal": {
+        "school": 1
+      },
+      "receipt": {
+        "spreadsheet": 1
+      },
+      "financial": {
+        "tax": 1
+      }
+    }
+  }
+}

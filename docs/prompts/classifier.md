@@ -17,3 +17,11 @@
 - Interpreted requirement: turn the configured public taxonomy sources into a reusable local alias artifact, feed that artifact into runtime candidate generation and LightGBM feature text, and rebuild the taxonomy router so external document-class labels improve local classification coverage without adding live network dependence to the classifier path.
 - External source set: Open Images class descriptions, Google Product Taxonomy, IAB Content Taxonomy 3.1, DocLayNet classes, RVL-CDIP document classes, and receipt-focused static labels derived from CORD and SROIE.
 - Affected systems: classifier external taxonomy ingestion, taxonomy router training, runtime candidate selection, LightGBM feature enrichment, operator docs.
+
+## 2026-05-26 - Weak-bucket reviewed examples and alias pruning
+
+- Issue: [#24](https://github.com/NeonButrfly/iCloudPlugin/issues/24)
+- Source prompt: "The alias layer is much stronger now, but it is still text-phrase driven. The next accuracy jump will come from adding more reviewed rows for the weaker buckets and pruning any noisy aliases that show up in real disagreement logs. Do this"
+- Interpreted requirement: import a checked-in reviewed example corpus for weak raw buckets from the combined reviewed manifest, add an explicit external-taxonomy prune config based on disagreement evidence, rebuild the taxonomy router with those examples, and keep a machine-readable report of noisy vs helpful alias hits.
+- Imported weak buckets: `appeal`, `benefits`, `claim`, `contract`, `invoice`, `medical-receipt`, `product-photo`, `receipt`, and `reimbursement-packet`
+- Affected systems: external taxonomy prune config, reviewed examples corpus, taxonomy router training, LightGBM retraining inputs, operator docs.

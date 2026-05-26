@@ -1,0 +1,25 @@
+{
+  "blocked_aliases_global": [],
+  "blocked_aliases_by_label": {
+    "product-photo": [
+      "box",
+      "product"
+    ],
+    "form": [
+      "form"
+    ],
+    "school": [
+      "school"
+    ],
+    "medical": [
+      "medical",
+      "patient"
+    ],
+    "financial": [
+      "bank"
+    ],
+    "identity-document": [
+      "identity document"
+    ]
+  }
+}

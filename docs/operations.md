@@ -243,6 +243,22 @@ selection:
 python -m apps.classifier.taxonomy_router.train_taxonomy_router
 ```
 
+If disagreement analysis shows generic alias noise or weak raw buckets that need
+more reviewed examples, update the checked-in prune config and regenerate the
+reviewed examples file from the current combined reviewed manifest:
+
+```bash
+python -m apps.classifier.reviewed_training
+```
+
+That command refreshes:
+
+- `config/examples.jsonl`
+- `config/reviewed-examples-report.json`
+
+The report includes imported weak-bucket counts plus the current top noisy and
+helpful alias hits derived from the reviewed manifest (#24).
+
 ## Local plugin
 
 1. Run `python -m pip install -e .` from the repo root.
