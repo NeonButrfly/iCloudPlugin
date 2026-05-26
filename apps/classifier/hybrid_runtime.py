@@ -149,14 +149,14 @@ def choose_live_decision(
             "disagreement_risk": disagreement_risk,
         }
 
-        return {
-            "use_inline_llm": True,
-            "live_source": "inline-llm",
-            "selected_primary_hint": canonical_model_primary,
-            "decision_reason": "model-required",
-            "candidate_count": len(candidate_categories),
-            "heuristic_confidence": heuristic_confidence,
-            "lightgbm_confidence": model_confidence,
+    return {
+        "use_inline_llm": True,
+        "live_source": "inline-llm",
+        "selected_primary_hint": canonical_model_primary,
+        "decision_reason": "model-required",
+        "candidate_count": len(candidate_categories),
+        "heuristic_confidence": heuristic_confidence,
+        "lightgbm_confidence": model_confidence,
         "needs_llm_probability": needs_llm_probability,
         "disagreement_risk": disagreement_risk,
     }
