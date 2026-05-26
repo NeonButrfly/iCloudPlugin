@@ -4,6 +4,7 @@ from pathlib import Path
 
 from apps.classifier import hybrid_runtime
 from apps.classifier.index_training import build_stratified_training_rows, resolve_index_database_url
+from apps.classifier.label_map import canonicalize_label
 
 
 def _make_record(
@@ -113,3 +114,25 @@ def test_ensure_lightgbm_model_falls_back_to_index_training(tmp_path, monkeypatc
 def test_resolve_index_database_url_prefers_index_database_url(monkeypatch):
     monkeypatch.setenv("INDEX_DATABASE_URL", "postgresql://example/index")
     assert resolve_index_database_url() == "postgresql://example/index"
+
+
+def test_canonical_label_map_collapses_related_classes():
+    assert canonicalize_label("appeal") == "insurance"
+    assert canonicalize_label("claim") == "insurance"
+    assert canonicalize_label("medical-receipt") == "financial"
+    assert canonicalize_label("ui-screenshot") == "screenshot"
+    assert canonicalize_label("unknown") == "unknown"
+
+
+def test_choose_live_decision_aligns_on_canonical_labels():
+    gating = hybrid_runtime.load_hybrid_gating_config()
+    decision = hybrid_runtime.choose_live_decision(
+        {"primary_label": "appeal", "confidence": 0.97},
+        {"top_label": "claim", "top_probability": 0.98, "needs_llm_probability": 0.1, "disagreement_risk": 0.1},
+        gating,
+        ["appeal", "claim", "insurance"],
+    )
+
+    assert decision["use_inline_llm"] is False
+    assert decision["live_source"] == "heuristic-fast-path"
+    assert decision["selected_primary_hint"] == "insurance"

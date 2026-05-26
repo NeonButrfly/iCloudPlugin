@@ -11,6 +11,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import LabelEncoder
 
 from packages.runtime import load_classifier_runtime_settings
+from .label_map import canonicalize_label, canonicalize_labels
 
 SETTINGS = load_classifier_runtime_settings()
 CONFIG_DIR = SETTINGS.config_root
@@ -123,7 +124,10 @@ def choose_live_decision(
     needs_llm_probability = float(lightgbm_result.get("needs_llm_probability", 1.0) or 0.0)
     disagreement_risk = float(lightgbm_result.get("disagreement_risk", 1.0) or 0.0)
 
-    aligned = heuristic_primary == model_primary
+    canonical_heuristic_primary = canonicalize_label(heuristic_primary)
+    canonical_model_primary = canonicalize_label(model_primary)
+
+    aligned = canonical_heuristic_primary == canonical_model_primary
     heuristic_ready = heuristic_confidence >= float(gating_config["heuristic_fast_confidence"])
     model_ready = model_confidence >= float(gating_config["lightgbm_fast_confidence"])
     aligned_soft_ready = aligned and model_confidence >= float(gating_config.get("aligned_soft_confidence", 0.60))
@@ -136,7 +140,7 @@ def choose_live_decision(
         return {
             "use_inline_llm": False,
             "live_source": "heuristic-fast-path",
-            "selected_primary_hint": heuristic_primary,
+            "selected_primary_hint": canonical_heuristic_primary,
             "decision_reason": "fast-path-aligned",
             "candidate_count": len(candidate_categories),
             "heuristic_confidence": heuristic_confidence,
@@ -145,14 +149,14 @@ def choose_live_decision(
             "disagreement_risk": disagreement_risk,
         }
 
-    return {
-        "use_inline_llm": True,
-        "live_source": "inline-llm",
-        "selected_primary_hint": model_primary,
-        "decision_reason": "model-required",
-        "candidate_count": len(candidate_categories),
-        "heuristic_confidence": heuristic_confidence,
-        "lightgbm_confidence": model_confidence,
+        return {
+            "use_inline_llm": True,
+            "live_source": "inline-llm",
+            "selected_primary_hint": canonical_model_primary,
+            "decision_reason": "model-required",
+            "candidate_count": len(candidate_categories),
+            "heuristic_confidence": heuristic_confidence,
+            "lightgbm_confidence": model_confidence,
         "needs_llm_probability": needs_llm_probability,
         "disagreement_risk": disagreement_risk,
     }
@@ -261,8 +265,8 @@ def build_feature_text(payload: Dict[str, Any]) -> str:
     filename = str(payload.get("filename", ""))
     extension = str(payload.get("extension", ""))
     parser = str(payload.get("parser", ""))
-    heuristic_primary = str(payload.get("heuristic_primary", ""))
-    taxonomy_candidates = " ".join(map(str, payload.get("taxonomy_candidates", []) or []))
+    heuristic_primary = canonicalize_label(payload.get("heuristic_primary", ""))
+    taxonomy_candidates = " ".join(canonicalize_labels(payload.get("taxonomy_candidates", []) or []))
     text_preview = str(payload.get("text_preview", ""))[:12000]
     return " ".join(
         [
@@ -312,10 +316,18 @@ def train_lightgbm_model(
     if not rows:
         raise ValueError("No training rows with accepted_primary available.")
 
-    texts = [build_feature_text(row) for row in rows]
-    labels = [str(row["accepted_primary"]) for row in rows]
-    needs_llm_targets = [1 if row.get("used_inline_llm") else 0 for row in rows]
-    disagreement_targets = [1 if row.get("disagreement") else 0 for row in rows]
+    normalized_rows = []
+    for row in rows:
+        normalized = dict(row)
+        normalized["heuristic_primary"] = canonicalize_label(normalized.get("heuristic_primary"))
+        normalized["accepted_primary"] = canonicalize_label(normalized.get("accepted_primary"))
+        normalized["taxonomy_candidates"] = canonicalize_labels(normalized.get("taxonomy_candidates", []))
+        normalized_rows.append(normalized)
+
+    texts = [build_feature_text(row) for row in normalized_rows]
+    labels = [str(row["accepted_primary"]) for row in normalized_rows]
+    needs_llm_targets = [1 if row.get("used_inline_llm") else 0 for row in normalized_rows]
+    disagreement_targets = [1 if row.get("disagreement") else 0 for row in normalized_rows]
 
     vectorizer = TfidfVectorizer(
         lowercase=True,
@@ -352,7 +364,7 @@ def train_lightgbm_model(
         "needs_llm_model": _train_binary_model(matrix, needs_llm_targets),
         "disagreement_model": _train_binary_model(matrix, disagreement_targets),
         "trained_at": utc_now(),
-        "training_rows": len(rows),
+        "training_rows": len(normalized_rows),
     }
     model_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model_artifact, model_path, compress=3)
@@ -361,7 +373,7 @@ def train_lightgbm_model(
         "ok": True,
         "kind": model_artifact["kind"],
         "trained_at": model_artifact["trained_at"],
-        "training_rows": len(rows),
+        "training_rows": len(normalized_rows),
         "class_count": len(label_encoder.classes_),
         "features": len(vectorizer.vocabulary_),
         "model_path": str(model_path),

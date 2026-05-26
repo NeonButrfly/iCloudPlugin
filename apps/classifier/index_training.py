@@ -12,6 +12,8 @@ from typing import Any, Iterable
 import psycopg
 from psycopg.rows import dict_row
 
+from .label_map import canonicalize_label, canonicalize_labels
+
 LIVE_INDEX_DEFAULTS = {
     "host": "192.168.50.232",
     "port": 5432,
@@ -570,11 +572,11 @@ def build_stratified_training_rows(
             row_copy = dict(row)
             row_copy["sample_bucket"] = bucket_name
             row_copy["sample_rank"] = len(selected_rows) + 1
-            row_copy["heuristic_primary"] = row_copy["naive_label"]
-            row_copy["accepted_primary"] = row_copy["teacher_label"]
+            row_copy["heuristic_primary"] = canonicalize_label(row_copy["naive_label"])
+            row_copy["accepted_primary"] = canonicalize_label(row_copy["teacher_label"])
             row_copy["used_inline_llm"] = bucket_name in {"low_confidence", "ambiguous"} or row_copy["teacher_confidence"] < 0.45
             row_copy["disagreement"] = row_copy["heuristic_primary"] != row_copy["accepted_primary"]
-            row_copy["taxonomy_candidates"] = row_copy["teacher_ranked_labels"]
+            row_copy["taxonomy_candidates"] = canonicalize_labels(row_copy["teacher_ranked_labels"])
             row_copy["text_preview"] = row_copy["query_text"][:4000]
             row_copy["parser"] = row_copy["file_type_group"]
             selected_rows.append(row_copy)
