@@ -47,6 +47,10 @@ class FakeClassifierClient:
                 "confidence": 0.93,
                 "reasoning": "Contains budget planning details.",
                 "note_path": "01 Classified/finance/Budget.md",
+                "entity_summary": "organizations: Finance Team",
+                "topic_summary": "financial, budget",
+                "retrieval_terms": ["budget", "finance", "forecast"],
+                "retrieval_text": "Finance Team budget forecast draft",
             },
         }
         self._error = error
@@ -302,6 +306,10 @@ def test_run_next_classification_job_submits_file_and_persists_completed_state(
     assert state.primary_label == "Finance"
     assert state.summary == "Quarterly budget draft"
     assert state.classifier_note_path == "01 Classified/finance/Budget.md"
+    assert state.entity_summary == "organizations: Finance Team"
+    assert state.topic_summary == "financial, budget"
+    assert state.retrieval_terms_json == '["budget", "finance", "forecast"]'
+    assert state.retrieval_text == "Finance Team budget forecast draft"
 
 
 def test_run_next_classification_job_supports_nested_provider_root(

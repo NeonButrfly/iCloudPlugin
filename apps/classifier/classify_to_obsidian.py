@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 import zipfile
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
@@ -18,6 +19,7 @@ from xml.etree import ElementTree as ET
 from zoneinfo import ZoneInfo
 
 import requests
+from packages.classification.retrieval_metadata import build_retrieval_metadata
 from packages.vault.naming import (
     build_attachment_filename,
     build_extracted_markdown_filename,
@@ -34,15 +36,14 @@ from .category_manager import (
 )
 from .hybrid_runtime import (
     LIGHTGBM_MODEL_PATH,
-    apply_disagreement_updates,
     choose_live_decision,
     enqueue_shadow_job,
     ensure_lightgbm_model,
     load_hybrid_gating_config,
     load_heuristic_rules,
     maybe_retrain_from_shadow_data,
-    process_shadow_queue_once,
     predict_lightgbm_result,
+    run_autonomous_shadow_cycle,
     write_readiness_report,
 )
 
@@ -648,6 +649,11 @@ def resolve_hybrid_document_decision(
     gating_config: Optional[Dict[str, Any]] = None,
     timing: Optional[Dict[str, Any]] = None,
 ) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    retrieval_metadata = build_retrieval_metadata(
+        source_path=source_path,
+        text=markdown,
+        classification=heuristic_result,
+    )
     taxonomy_candidates = select_candidate_categories(
         all_categories=categories,
         filename=source_path.name,
@@ -667,6 +673,7 @@ def resolve_hybrid_document_decision(
                 "text_preview": markdown,
                 "heuristic_primary": (heuristic_result or {}).get("primary_label", "unknown"),
                 "taxonomy_candidates": taxonomy_candidates,
+                **retrieval_metadata,
             },
             model_path=model_path,
         )
@@ -742,6 +749,7 @@ def resolve_hybrid_document_decision(
         "taxonomy_candidates": taxonomy_candidates,
         "lightgbm": lightgbm_result,
         "decision": decision,
+        "retrieval": retrieval_metadata,
     }
     return classification, hybrid_meta
 
@@ -787,26 +795,10 @@ def process_shadow_queue_command(
             heuristic_hints=job.get("heuristic_result") or {},
         )
 
-    result = {"ok": True}
-    processed = process_shadow_queue_once(shadow_classifier=shadow_classifier)
-    result["processed"] = processed
-
-    from .hybrid_runtime import SHADOW_COMPARISONS_PATH
-
-    comparisons = []
-    if SHADOW_COMPARISONS_PATH.exists():
-        for line in SHADOW_COMPARISONS_PATH.read_text(encoding="utf-8", errors="replace").splitlines()[-200:]:
-            try:
-                item = json.loads(line)
-            except Exception:
-                continue
-            if isinstance(item, dict):
-                comparisons.append(item)
-
-    result["updates"] = apply_disagreement_updates(comparisons=comparisons)
-    result["retrain"] = maybe_retrain_from_shadow_data(min_rows=3)
-    result["readiness"] = write_readiness_report(gating_config=gating_config)
-    return result
+    return run_autonomous_shadow_cycle(
+        shadow_classifier=shadow_classifier,
+        gating_config=gating_config,
+    )
 
 def parse_document(path: Path, work_dir: Path) -> tuple[str, str]:
     ext = path.suffix.lower()
@@ -1096,6 +1088,10 @@ def write_obsidian_note(
     recommended_action = classification.get("recommended_action", "unknown")
     file_date_guess = classification.get("file_date_guess", "unknown")
     language = classification.get("language", "unknown")
+    entity_summary = str(classification.get("entity_summary", "") or "")
+    topic_summary = str(classification.get("topic_summary", "") or "")
+    retrieval_topics = list(classification.get("retrieval_topics", []) or [])
+    retrieval_terms = list(classification.get("retrieval_terms", []) or [])
 
     try:
         confidence = float(confidence_raw)
@@ -1206,6 +1202,10 @@ source_link: {json.dumps(note_contract["source_link"], ensure_ascii=False)}
 classified_at: {json.dumps(now_ak())}
 file_date_guess: {json.dumps(file_date_guess, ensure_ascii=False)}
 language: {json.dumps(language, ensure_ascii=False)}
+entity_summary: {json.dumps(entity_summary, ensure_ascii=False)}
+topic_summary: {json.dumps(topic_summary, ensure_ascii=False)}
+retrieval_topics: {yaml_list(retrieval_topics)}
+retrieval_terms: {yaml_list(retrieval_terms)}
 sensitive_flags: {yaml_list(sensitive_flags)}
 recommended_action: {json.dumps(recommended_action, ensure_ascii=False)}
 attachment: {json.dumps(attachment_link, ensure_ascii=False)}
@@ -1237,6 +1237,14 @@ tags:
 
 {reason}
 
+## Retrieval
+
+| Field | Value |
+|---|---|
+| Topics | `{", ".join(map(str, retrieval_topics)) or topic_summary or "none"}` |
+| Entities | `{entity_summary or "none"}` |
+| Retrieval terms | `{", ".join(map(str, retrieval_terms)) or "none"}` |
+
 ## Original File
 
 {attachment_link if attachment_link else "Original file was not copied into the vault. Re-run with `--attach-originals` if desired."}
@@ -1253,8 +1261,23 @@ tags:
     note_path.write_text(note_body, encoding="utf-8")
     return note_path
 
-def write_index(vault: Path, notes: List[Path]) -> None:
+def write_index(
+    vault: Path,
+    notes: List[Path],
+    note_records: Optional[List[Dict[str, Any]]] = None,
+) -> None:
     index = vault / "Classification Index.md"
+    topic_counts: Counter[str] = Counter()
+    entity_counts: Counter[str] = Counter()
+
+    for record in note_records or []:
+        for topic in record.get("retrieval_topics", []) or []:
+            normalized = str(topic or "").strip()
+            if normalized:
+                topic_counts[normalized] += 1
+        entity_summary = str(record.get("entity_summary", "") or "")
+        for fragment in [part.strip() for part in entity_summary.split(";") if part.strip()]:
+            entity_counts[fragment] += 1
 
     lines = [
         "---",
@@ -1266,9 +1289,37 @@ def write_index(vault: Path, notes: List[Path]) -> None:
         "",
         f"Last updated: {now_ak()}",
         "",
-        "## Recent notes",
+        "## Discovery topics",
         "",
     ]
+
+    if topic_counts:
+        for topic, count in topic_counts.most_common(20):
+            lines.append(f"- `{topic}` ({count})")
+    else:
+        lines.append("- No retrieval topics recorded yet.")
+
+    lines.extend(
+        [
+            "",
+            "## Discovery entities",
+            "",
+        ]
+    )
+
+    if entity_counts:
+        for entity, count in entity_counts.most_common(20):
+            lines.append(f"- {entity} ({count})")
+    else:
+        lines.append("- No retrieval entities recorded yet.")
+
+    lines.extend(
+        [
+            "",
+            "## Recent notes",
+            "",
+        ]
+    )
 
     for note in notes[-100:]:
         rel = note.relative_to(vault).as_posix()
@@ -1388,6 +1439,7 @@ def main() -> int:
 
     manifest = output / "manifest.jsonl"
     notes: List[Path] = []
+    note_records: List[Dict[str, Any]] = []
     successes = 0
     failures = 0
     timing_records: List[Dict[str, Any]] = []
@@ -1500,6 +1552,22 @@ def main() -> int:
                         timing["model_ms"] = 0.0
 
                 classification = normalize_vault_classification(classification)
+                retrieval_text_source = "\n".join(
+                    filter(
+                        None,
+                        [
+                            markdown or "",
+                            str(classification.get("summary", "") or ""),
+                            str(classification.get("reason", "") or ""),
+                        ],
+                    )
+                )
+                retrieval_metadata = build_retrieval_metadata(
+                    source_path=source_path,
+                    text=retrieval_text_source,
+                    classification=classification,
+                )
+                classification.update(retrieval_metadata)
                 note_started_at = time.perf_counter()
                 note_path = write_obsidian_note(
                     vault=vault,
@@ -1559,6 +1627,10 @@ def main() -> int:
                         canonical_source_hash=args.canonical_source_hash or None,
                         last_seen_filename=args.last_seen_filename or None,
                     ),
+                    "entity_summary": retrieval_metadata["entity_summary"],
+                    "topic_summary": retrieval_metadata["topic_summary"],
+                    "retrieval_terms": retrieval_metadata["retrieval_terms"],
+                    "retrieval_text": retrieval_metadata["retrieval_text"],
                     "classification": classification,
                     "hybrid": hybrid_meta if ext not in IMAGE_EXTENSIONS or args.no_vision else None,
                     "timing": timing,
@@ -1583,12 +1655,22 @@ def main() -> int:
                         "live_result": classification,
                         "live_source": (hybrid_meta or {}).get("decision", {}).get("live_source", ""),
                         "taxonomy_candidates": (hybrid_meta or {}).get("taxonomy_candidates", []),
+                        "entity_summary": retrieval_metadata["entity_summary"],
+                        "topic_summary": retrieval_metadata["topic_summary"],
+                        "retrieval_terms": retrieval_metadata["retrieval_terms"],
+                        "retrieval_text": retrieval_metadata["retrieval_text"],
                         "text_preview": ((markdown or classification.get("summary", ""))[:12000]),
                     }
                     enqueue_shadow_job(shadow_payload)
                     timing["shadow_enqueued"] = True
 
                 notes.append(note_path)
+                note_records.append(
+                    {
+                        "note_path": str(note_path),
+                        **retrieval_metadata,
+                    }
+                )
                 timing_records.append(dict(timing))
                 successes += 1
 
@@ -1615,7 +1697,7 @@ def main() -> int:
 
                 print(f"[FAIL] {source_path}: {e}", file=sys.stderr)
 
-    write_index(vault, notes)
+    write_index(vault, notes, note_records)
     write_readiness_report(gating_config=gating_config)
 
     if args.timing_output:

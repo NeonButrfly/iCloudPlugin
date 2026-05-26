@@ -6,7 +6,7 @@ from packages.vault.naming import (
     build_extracted_markdown_filename,
     build_note_filename,
 )
-from apps.classifier.classify_to_obsidian import ensure_vault, write_obsidian_note
+from apps.classifier.classify_to_obsidian import ensure_vault, write_index, write_obsidian_note
 
 
 def test_default_note_name_omits_visible_hash():
@@ -115,6 +115,37 @@ def test_write_obsidian_note_prefers_canonical_filename_over_staged_upload_name(
         assert "326d39e1bebd4d9aaac79a91206320ec" not in note_path.name
         assert "326d39e1bebd4d9aaac79a91206320ec" not in note_text
         assert 'attachment_mode: "canonical-source-link"' in note_text
+        assert "entity_summary:" in note_text
+        assert "retrieval_terms:" in note_text
         assert "file://192.168.50.86/cloud-vault/mirrors/google1/Aetna%20Life%20Insurance%20Company%20-%20APPEAL%201%20FFS.docx" in note_text
         assert not attachment.exists()
         assert extracted.exists()
+
+
+def test_write_index_surfaces_discovery_topics_and_entities():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        vault = root / "vault"
+        ensure_vault(vault)
+
+        note_path = vault / "01 Classified" / "financial" / "Budget Draft - financial.md"
+        note_path.parent.mkdir(parents=True, exist_ok=True)
+        note_path.write_text("# Budget Draft\n", encoding="utf-8")
+
+        write_index(
+            vault,
+            [note_path],
+            [
+                {
+                    "entity_summary": "organizations: Aetna; identifiers: claim id: EDPDK70ZX00",
+                    "retrieval_topics": ["medical", "insurance", "appeal"],
+                }
+            ],
+        )
+
+        index_text = (vault / "Classification Index.md").read_text(encoding="utf-8")
+
+        assert "## Discovery topics" in index_text
+        assert "`medical` (1)" in index_text
+        assert "organizations: Aetna (1)" in index_text
+        assert "[[01 Classified/financial/Budget Draft - financial.md]]" in index_text

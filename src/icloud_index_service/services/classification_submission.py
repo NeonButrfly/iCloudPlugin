@@ -561,6 +561,31 @@ def _extract_record_field(response_payload: dict[str, object], field_name: str) 
     return None
 
 
+def _extract_record_text(response_payload: dict[str, object], field_name: str) -> str | None:
+    value = _extract_record_field(response_payload, field_name)
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _extract_record_string_list(response_payload: dict[str, object], field_name: str) -> list[str]:
+    value = _extract_record_field(response_payload, field_name)
+    if not isinstance(value, list):
+        return []
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        normalized = item.strip()
+        if not normalized:
+            continue
+        key = normalized.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(normalized)
+    return cleaned
+
+
 def _persist_completed_classification(
     session: Session,
     *,
@@ -577,21 +602,20 @@ def _persist_completed_classification(
     )
     state.last_submitted_at = job.claimed_at or now
     state.last_completed_at = now
-    state.classifier_note_path = (
-        _extract_record_field(response_payload, "note_path")
-        if isinstance(_extract_record_field(response_payload, "note_path"), str)
-        else None
-    )
+    state.classifier_note_path = _extract_record_text(response_payload, "note_path")
     record = response_payload.get("record")
     state.classifier_manifest_record = json.dumps(record) if isinstance(record, dict) else None
     primary_label = _extract_record_field(response_payload, "primary_label")
     state.primary_label = primary_label if isinstance(primary_label, str) else None
-    summary = _extract_record_field(response_payload, "summary")
-    state.summary = summary if isinstance(summary, str) else None
+    state.summary = _extract_record_text(response_payload, "summary")
     confidence = _extract_record_field(response_payload, "confidence")
     state.confidence = float(confidence) if isinstance(confidence, (int, float)) else None
-    reasoning = _extract_record_field(response_payload, "reasoning")
-    state.reasoning = reasoning if isinstance(reasoning, str) else None
+    state.reasoning = _extract_record_text(response_payload, "reasoning")
+    state.entity_summary = _extract_record_text(response_payload, "entity_summary")
+    state.topic_summary = _extract_record_text(response_payload, "topic_summary")
+    retrieval_terms = _extract_record_string_list(response_payload, "retrieval_terms")
+    state.retrieval_terms_json = json.dumps(retrieval_terms, ensure_ascii=False) if retrieval_terms else None
+    state.retrieval_text = _extract_record_text(response_payload, "retrieval_text")
     state.response_payload_json = json.dumps(response_payload)
     state.last_error = None
 

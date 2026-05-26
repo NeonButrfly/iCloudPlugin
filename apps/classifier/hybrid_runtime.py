@@ -42,6 +42,9 @@ DEFAULT_HYBRID_GATING = {
     "shadow_sample_rate": 1.0,
     "auto_retrain_enabled": True,
     "auto_threshold_update_enabled": True,
+    "shadow_batch_size": 25,
+    "auto_retrain_min_rows": 25,
+    "auto_retrain_min_new_rows": 10,
     "auto_inline_disagreement_threshold": 3,
     "readiness_min_teacher_samples": 10,
     "readiness_min_unique_teacher_files": 10,
@@ -174,6 +177,10 @@ def build_shadow_record(
     taxonomy_candidates: list[str],
     text_preview: str,
     live_source: str = "",
+    entity_summary: str = "",
+    topic_summary: str = "",
+    retrieval_terms: Optional[list[str]] = None,
+    retrieval_text: str = "",
 ) -> Dict[str, Any]:
     heuristic_result = heuristic_result or {}
     lightgbm_result = lightgbm_result or {}
@@ -213,6 +220,10 @@ def build_shadow_record(
         "teacher_approved_for_training": teacher_review["teacher_approved_for_training"],
         "teacher_supports_live_result": teacher_review["teacher_supports_live_result"],
         "teacher_suggests_correction": teacher_review["teacher_suggests_correction"],
+        "entity_summary": entity_summary,
+        "topic_summary": topic_summary,
+        "retrieval_terms": retrieval_terms or [],
+        "retrieval_text": retrieval_text[:4000],
         "text_preview": text_preview[:4000],
     }
 
@@ -268,8 +279,19 @@ def build_feature_text(payload: Dict[str, Any]) -> str:
     parser = str(payload.get("parser", ""))
     heuristic_primary = canonicalize_label(payload.get("heuristic_primary", ""))
     taxonomy_candidates = " ".join(canonicalize_labels(payload.get("taxonomy_candidates", []) or []))
+    entity_summary = str(payload.get("entity_summary", ""))
+    topic_summary = str(payload.get("topic_summary", ""))
+    retrieval_text = str(payload.get("retrieval_text", ""))
+    retrieval_terms = " ".join(
+        str(item)
+        for item in (payload.get("retrieval_terms", []) or [])
+        if str(item).strip()
+    )
     text_preview = str(payload.get("text_preview", ""))[:12000]
-    external_hint_text = build_external_taxonomy_hint_text(f"{filename}\n{text_preview}", limit=6)
+    external_hint_text = build_external_taxonomy_hint_text(
+        f"{filename}\n{topic_summary}\n{entity_summary}\n{retrieval_text}\n{text_preview}",
+        limit=6,
+    )
     return " ".join(
         [
             filename,
@@ -277,6 +299,10 @@ def build_feature_text(payload: Dict[str, Any]) -> str:
             parser,
             f"heuristic {heuristic_primary}",
             f"taxonomy {taxonomy_candidates}",
+            f"topics {topic_summary}" if topic_summary else "",
+            f"entities {entity_summary}" if entity_summary else "",
+            f"retrieval-terms {retrieval_terms}" if retrieval_terms else "",
+            f"retrieval-text {retrieval_text}" if retrieval_text else "",
             f"external-taxonomy {external_hint_text}" if external_hint_text else "",
             text_preview,
         ]
@@ -443,12 +469,15 @@ def process_shadow_queue_once(
     queue_dir: Path = SHADOW_QUEUE_DIR,
     comparisons_path: Path = SHADOW_COMPARISONS_PATH,
     shadow_classifier=None,
+    max_jobs: int | None = None,
 ) -> int:
     if shadow_classifier is None:
         return 0
 
     processed = 0
     for job_path in sorted(queue_dir.glob("*.json")):
+        if max_jobs is not None and processed >= max_jobs:
+            break
         job = load_json(job_path, default={}) or {}
         llm_result = shadow_classifier(job)
         comparison = build_shadow_record(
@@ -462,6 +491,10 @@ def process_shadow_queue_once(
             taxonomy_candidates=job.get("taxonomy_candidates", []) or [],
             text_preview=str(job.get("text_preview", "")),
             live_source=str(job.get("live_source", "")),
+            entity_summary=str(job.get("entity_summary", "")),
+            topic_summary=str(job.get("topic_summary", "")),
+            retrieval_terms=job.get("retrieval_terms", []) or [],
+            retrieval_text=str(job.get("retrieval_text", "")),
         )
         append_jsonl(comparisons_path, comparison)
         try:
@@ -517,6 +550,7 @@ def maybe_retrain_from_shadow_data(
     model_path: Path = LIGHTGBM_MODEL_PATH,
     report_path: Path = LIGHTGBM_REPORT_PATH,
     min_rows: int = 25,
+    min_new_rows_since_last_train: int = 0,
 ) -> Dict[str, Any]:
     comparisons = []
     if comparisons_path.exists():
@@ -532,8 +566,28 @@ def maybe_retrain_from_shadow_data(
     if len(approved) < min_rows:
         return {
             "retrained": False,
+            "reason": "insufficient-approved-rows",
             "training_rows": len(approved),
             "teacher_approved_rows": len(approved),
+        }
+
+    previous_training_rows = 0
+    prior_report = load_json(report_path, default={}) or {}
+    if isinstance(prior_report, dict):
+        try:
+            previous_training_rows = int(prior_report.get("training_rows", 0) or 0)
+        except Exception:
+            previous_training_rows = 0
+
+    new_rows = max(len(approved) - previous_training_rows, 0)
+    if previous_training_rows > 0 and new_rows < min_new_rows_since_last_train:
+        return {
+            "retrained": False,
+            "reason": "insufficient-new-approved-rows",
+            "training_rows": len(approved),
+            "teacher_approved_rows": len(approved),
+            "new_teacher_rows": new_rows,
+            "previous_training_rows": previous_training_rows,
         }
 
     training_rows = []
@@ -546,6 +600,10 @@ def maybe_retrain_from_shadow_data(
                 "text_preview": row.get("text_preview", ""),
                 "heuristic_primary": row.get("heuristic_primary", "unknown"),
                 "taxonomy_candidates": row.get("taxonomy_candidates", []),
+                "entity_summary": row.get("entity_summary", ""),
+                "topic_summary": row.get("topic_summary", ""),
+                "retrieval_terms": row.get("retrieval_terms", []),
+                "retrieval_text": row.get("retrieval_text", ""),
                 "accepted_primary": row.get("shadow_primary") or row.get("live_primary") or row.get("heuristic_primary") or "unknown",
                 "used_inline_llm": True,
                 "disagreement": bool(row.get("disagreement")),
@@ -561,7 +619,64 @@ def maybe_retrain_from_shadow_data(
         "retrained": True,
         "training_rows": len(training_rows),
         "teacher_approved_rows": len(approved),
+        "new_teacher_rows": new_rows,
+        "previous_training_rows": previous_training_rows,
         "report": report,
+    }
+
+
+def run_autonomous_shadow_cycle(
+    *,
+    shadow_classifier,
+    gating_config: Optional[Dict[str, Any]] = None,
+    queue_dir: Path = SHADOW_QUEUE_DIR,
+    comparisons_path: Path = SHADOW_COMPARISONS_PATH,
+    model_path: Path = LIGHTGBM_MODEL_PATH,
+    report_path: Path = LIGHTGBM_REPORT_PATH,
+) -> Dict[str, Any]:
+    gating = gating_config or load_hybrid_gating_config()
+    batch_size = max(int(gating.get("shadow_batch_size", 25) or 25), 1)
+    processed = process_shadow_queue_once(
+        queue_dir=queue_dir,
+        comparisons_path=comparisons_path,
+        shadow_classifier=shadow_classifier,
+        max_jobs=batch_size,
+    )
+    comparisons = read_jsonl(comparisons_path, limit=max(batch_size * 8, 200))
+
+    if bool(gating.get("auto_threshold_update_enabled", True)):
+        updates = apply_disagreement_updates(comparisons=comparisons)
+    else:
+        updates = {
+            "updated": False,
+            "skipped": True,
+            "reason": "auto-threshold-update-disabled",
+        }
+
+    if bool(gating.get("auto_retrain_enabled", True)):
+        retrain = maybe_retrain_from_shadow_data(
+            comparisons_path=comparisons_path,
+            model_path=model_path,
+            report_path=report_path,
+            min_rows=max(int(gating.get("auto_retrain_min_rows", 25) or 25), 1),
+            min_new_rows_since_last_train=max(
+                int(gating.get("auto_retrain_min_new_rows", 10) or 0),
+                0,
+            ),
+        )
+    else:
+        retrain = {
+            "retrained": False,
+            "skipped": True,
+            "reason": "auto-retrain-disabled",
+        }
+
+    return {
+        "ok": True,
+        "processed": processed,
+        "updates": updates,
+        "retrain": retrain,
+        "readiness": write_readiness_report(gating_config=gating),
     }
 
 
@@ -588,12 +703,20 @@ def build_training_rows_from_runtime(
                         [
                             str(classification.get("summary", "")),
                             str(classification.get("reason", "")),
+                            str(classification.get("entity_summary", "")),
+                            str(classification.get("topic_summary", "")),
+                            str(classification.get("retrieval_text", "")),
                             " ".join(map(str, classification.get("secondary_labels", []) or [])),
+                            " ".join(map(str, classification.get("retrieval_terms", []) or [])),
                         ],
                     )
                 ),
                 "heuristic_primary": ((item.get("hybrid") or {}).get("decision") or {}).get("selected_primary_hint", classification.get("primary_label", "unknown")),
                 "taxonomy_candidates": (item.get("hybrid") or {}).get("taxonomy_candidates", []) or classification.get("candidate_categories_used", []),
+                "entity_summary": str(classification.get("entity_summary", "")),
+                "topic_summary": str(classification.get("topic_summary", "")),
+                "retrieval_terms": classification.get("retrieval_terms", []) or [],
+                "retrieval_text": str(classification.get("retrieval_text", "")),
                 "accepted_primary": classification.get("primary_label"),
                 "used_inline_llm": ((item.get("hybrid") or {}).get("decision") or {}).get("live_source") == "inline-llm",
                 "disagreement": False,
@@ -619,12 +742,17 @@ def build_training_rows_from_runtime(
                             str(item.get("old_label", "")),
                             str(item.get("teacher_primary", "")),
                             " ".join(map(str, item.get("teacher_evidence", []) or [])),
+                            " ".join(map(str, item.get("retrieval_terms", []) or [])),
                             json.dumps(item.get("matched_terms", {}), ensure_ascii=False) if item.get("matched_terms") else "",
                         ],
                     )
                 ),
                 "heuristic_primary": str(item.get("old_label") or accepted),
                 "taxonomy_candidates": item.get("secondary_labels", []) or [],
+                "entity_summary": str(item.get("entity_summary", "")),
+                "topic_summary": str(item.get("topic_summary", "")),
+                "retrieval_terms": item.get("retrieval_terms", []) or [],
+                "retrieval_text": str(item.get("retrieval_text", "")),
                 "accepted_primary": str(accepted),
                 "used_inline_llm": True,
                 "disagreement": bool(item.get("old_label") and item.get("old_label") != accepted),
@@ -640,6 +768,10 @@ def build_training_rows_from_runtime(
                 "text_preview": str(item.get("text_preview", "")),
                 "heuristic_primary": str(item.get("heuristic_primary", "unknown")),
                 "taxonomy_candidates": item.get("taxonomy_candidates", []) or [],
+                "entity_summary": str(item.get("entity_summary", "")),
+                "topic_summary": str(item.get("topic_summary", "")),
+                "retrieval_terms": item.get("retrieval_terms", []) or [],
+                "retrieval_text": str(item.get("retrieval_text", "")),
                 "accepted_primary": str(item.get("shadow_primary") or item.get("live_primary") or item.get("heuristic_primary") or "unknown"),
                 "used_inline_llm": True,
                 "disagreement": bool(item.get("disagreement")),

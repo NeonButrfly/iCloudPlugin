@@ -36,3 +36,12 @@
 - Evidence note: mined examples now keep matched query terms, teacher evidence, source path, extension, and MIME type so the taxonomy router and LightGBM feature text can reuse the same provenance-rich rows.
 - Runtime note: local desktop runs now default classifier config and output paths back into the repo instead of the container-style `/config` and `/output` roots, which avoids writing training artifacts outside the workspace during Codex runs.
 - Affected systems: classifier runtime settings, live-index example miner, reviewed example import, taxonomy router training, LightGBM runtime training rows, config artifacts, operator docs.
+
+## 2026-05-26 - Retrieval-first index and autonomous shadow loop
+
+- Issue: [#26](https://github.com/NeonButrfly/iCloudPlugin/issues/26)
+- Source prompt: "iterate use the classifier as ranking/context only, build stronger entity/topic extraction into the index and Obsidian vault, then improve the live heuristic/shadow loop so the model learns continuously from real usage."
+- Interpreted requirement: keep the classifier as a retrieval aid rather than the source of truth, persist entity/topic/retrieval evidence for each classified file, expose that evidence through the index and Obsidian vault, and make the existing shadow worker learn continuously in bounded batches from approved live comparisons.
+- Retrieval note: search now needs to find files by semantic clues even when their folder is wrong, so entity summaries, topic summaries, and retrieval terms must survive from classification into both the database index and the vault note layer.
+- Self-learning note: the live shadow loop should respect runtime gating, update heuristic disagreement rules only when enabled, and retrain LightGBM only after enough new teacher-approved rows have accumulated.
+- Affected systems: classifier note generation, LightGBM feature text, shadow queue processing, index search ranking, classification state persistence, operator docs.

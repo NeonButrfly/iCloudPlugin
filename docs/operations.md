@@ -301,6 +301,45 @@ The example corpus and report now include:
 Those fields are consumed by the taxonomy router and LightGBM runtime training
 rows so both layers train on the same evidence-rich examples.
 
+## Retrieval-first vault intelligence
+
+Issue [#26](https://github.com/NeonButrfly/iCloudPlugin/issues/26) shifts the
+classifier into a support role for retrieval instead of treating it as the
+single source of truth.
+
+Current retrieval flow:
+
+- classifier submissions now persist `entity_summary`, `topic_summary`,
+  `retrieval_terms`, and `retrieval_text` on `classification_states`
+- `/search` and `/files/{id}` surface those fields so the index can find
+  misfiled documents by entity, topic, or semantic hints instead of only
+  filename/path text
+- generated Obsidian notes and `Classification Index.md` now expose discovery
+  topics and entities for the same files
+
+Current self-learning flow:
+
+- live classifications keep the richer retrieval evidence in manifest rows and
+  shadow-queue payloads
+- the classifier's existing shadow worker now processes queued teacher checks
+  in bounded batches
+- `auto_threshold_update_enabled` controls whether disagreement-driven heuristic
+  gating updates are applied automatically
+- `auto_retrain_enabled` controls whether approved shadow comparisons can
+  retrain LightGBM automatically
+- `shadow_batch_size`, `auto_retrain_min_rows`, and
+  `auto_retrain_min_new_rows` bound how much the autonomous loop does per cycle
+
+Useful checks:
+
+```bash
+python -m apps.classifier.classify_to_obsidian --write-readiness-report
+```
+
+```bash
+python -m apps.classifier.classify_to_obsidian --process-shadow-queue
+```
+
 ## Local plugin
 
 1. Run `python -m pip install -e .` from the repo root.
