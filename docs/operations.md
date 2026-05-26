@@ -206,6 +206,23 @@ Useful endpoints:
 - `GET /refresh/status` reports the latest known job status and progress
 - `GET /auth/status` reports whether the current Apple session is usable
 
+## LightGBM retrain from live index
+
+When the classifier model is missing after a reset, rebuild it from the live
+iCloud index rather than from ad hoc runtime rows. The retrain helper now uses
+a stratified 300-row sample that is split across provider-balanced docs,
+sensitive-keyword files, low-confidence and ambiguous rows, and file-type
+coverage before fitting LightGBM (#21).
+
+Use:
+
+```bash
+python -m apps.classifier.retrain_hybrid_model
+```
+
+If the runtime row cache is empty, the helper falls back to the live index DB
+configured through `INDEX_DATABASE_URL` or the `INDEX_POSTGRES_*` env vars.
+
 ## Local plugin
 
 1. Run `python -m pip install -e .` from the repo root.

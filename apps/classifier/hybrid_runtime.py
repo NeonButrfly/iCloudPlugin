@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -633,20 +634,39 @@ def ensure_lightgbm_model(
     model_path: Path = LIGHTGBM_MODEL_PATH,
     report_path: Path = LIGHTGBM_REPORT_PATH,
     min_rows: int = 3,
+    training_source: str | None = None,
+    index_database_url: str | None = None,
 ) -> Dict[str, Any]:
     if model_path.exists():
         return {"ok": True, "created": False, "model_path": str(model_path)}
 
+    source_mode = (training_source or os.getenv("LIGHTGBM_TRAINING_SOURCE", "auto")).strip().lower()
     training_rows = build_training_rows_from_runtime()
-    if len(training_rows) < min_rows:
-        return {"ok": False, "created": False, "reason": "insufficient-training-rows", "training_rows": len(training_rows)}
+    if source_mode in {"runtime", "auto"} and len(training_rows) >= min_rows:
+        report = train_lightgbm_model(
+            training_rows=training_rows,
+            model_path=model_path,
+            report_path=report_path,
+        )
+        return {"ok": True, "created": True, "report": report, "training_source": "runtime"}
 
-    report = train_lightgbm_model(
-        training_rows=training_rows,
-        model_path=model_path,
-        report_path=report_path,
-    )
-    return {"ok": True, "created": True, "report": report}
+    if source_mode in {"index", "auto"}:
+        from .index_training import resolve_index_database_url, train_lightgbm_from_index
+
+        report = train_lightgbm_from_index(
+            database_url=index_database_url or os.getenv("INDEX_DATABASE_URL") or resolve_index_database_url(),
+            model_path=model_path,
+            report_path=report_path,
+        )
+        return {"ok": True, "created": True, "report": report, "training_source": "index"}
+
+    return {
+        "ok": False,
+        "created": False,
+        "reason": "insufficient-training-rows",
+        "training_rows": len(training_rows),
+        "training_source": source_mode or "runtime",
+    }
 
 
 def build_readiness_report(
