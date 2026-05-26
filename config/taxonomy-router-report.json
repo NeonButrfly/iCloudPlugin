@@ -1,12 +1,12 @@
 {
   "ok": true,
   "kind": "tfidf_label_index",
-  "category_count": 66,
-  "training_rows": 1023,
-  "features": 3784,
+  "category_count": 81,
+  "training_rows": 1551,
+  "features": 49201,
   "corrections_used": 0,
-  "examples_used": 52,
-  "external_alias_rows": 541,
+  "examples_used": 500,
+  "external_alias_rows": 540,
   "external_alias_labels": 23,
   "model_path": "C:\\Code\\iCloudPlugin\\config\\taxonomy-router.joblib"
 }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-26T16:24:45Z",
+  "generated_at": "2026-05-26T18:32:23Z",
   "source_count": 8,
   "sources": [
     {
@@ -12,13 +12,13 @@
       "name": "openimages_all_descriptions",
       "kind": "vision",
       "parsed_label_count": 19702,
-      "mapped_label_count": 267
+      "mapped_label_count": 268
     },
     {
       "name": "google_product_taxonomy",
       "kind": "product",
       "parsed_label_count": 11169,
-      "mapped_label_count": 1181
+      "mapped_label_count": 1182
     },
     {
       "name": "iab_content_taxonomy_v3_1",
@@ -52,6 +52,11 @@
     }
   ],
   "label_aliases": {
+    "check": [
+      "business and industrial food service check presenters",
+      "check in",
+      "check presenters"
+    ],
     "cosmetic-spf": [
       "cosmetics",
       "health and beauty personal care",
@@ -996,6 +1001,9 @@
       "tax software",
       "vector w2"
     ],
+    "tax-form": [
+      "vector w2"
+    ],
     "technical": [
       "antivirus software",
       "barebone computer",
@@ -1728,6 +1736,26 @@
       {
         "source": "google_product_taxonomy",
         "label": "financial tax and accounting software"
+      }
+    ],
+    "tax-form": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "vector w2"
+      }
+    ],
+    "check": [
+      {
+        "source": "openimages_all_descriptions",
+        "label": "check in"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "business and industrial > food service > check presenters"
+      },
+      {
+        "source": "google_product_taxonomy",
+        "label": "check presenters"
       }
     ],
     "legal": [

@@ -72,6 +72,9 @@ def test_import_reviewed_examples_from_manifest_writes_weak_bucket_rows(tmp_path
                         "evidence_excerpt": "appeal claim coverage denial patient",
                         "heuristic_label": "appeal",
                         "review_status": "confirmed",
+                        "confidence": 0.92,
+                        "extension": ".docx",
+                        "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     },
                     {
                         "file_name": "invoice.pdf",
@@ -83,6 +86,9 @@ def test_import_reviewed_examples_from_manifest_writes_weak_bucket_rows(tmp_path
                         "evidence_excerpt": "invoice vendor billing statement amount due",
                         "heuristic_label": "invoice",
                         "review_status": "needs_review",
+                        "confidence": 0.81,
+                        "extension": ".pdf",
+                        "mime_type": "application/pdf",
                     },
                     {
                         "file_name": "manual.pdf",

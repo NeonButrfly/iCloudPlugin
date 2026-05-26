@@ -613,9 +613,13 @@ def build_training_rows_from_runtime(
                     filter(
                         None,
                         [
+                            str(item.get("source_path", "")),
                             str(item.get("summary", "")),
                             str(item.get("note", "")),
                             str(item.get("old_label", "")),
+                            str(item.get("teacher_primary", "")),
+                            " ".join(map(str, item.get("teacher_evidence", []) or [])),
+                            json.dumps(item.get("matched_terms", {}), ensure_ascii=False) if item.get("matched_terms") else "",
                         ],
                     )
                 ),

@@ -127,6 +127,21 @@ SENSITIVE_KEYWORDS = {
 }
 
 LABEL_RULES: list[tuple[str, tuple[str, ...]]] = [
+    ("explanation-of-benefits", ("explanation of benefits", "eob", "benefit details", "member responsibility")),
+    ("denial-letter", ("denial", "denied claim", "not covered", "adverse benefit determination", "coverage denial")),
+    ("appeal-template", ("appeal template", "appeal form", "complaint and appeal form", "instructions for using")),
+    ("claim-form", ("claim form", "member complaint", "submit a claim", "claim number", "claim submission")),
+    ("billing-statement", ("billing statement", "balance due", "account summary", "statement date", "due date")),
+    ("bank-statement", ("bank statement", "ending balance", "account ending", "checking account", "savings account")),
+    ("tax-form", ("tax form", "1099", "w-2", "w2", "1040", "withholding statement")),
+    ("check", ("check number", "routing number", "pay to the order of", "check no", "payable to")),
+    ("medical-estimate", ("estimate", "procedures & services cost", "procedures and services cost", "treatment plan estimate", "surgical quote")),
+    ("eligibility-notice", ("eligibility results notice", "eligibility notice", "eligibility verification", "coverage eligibility")),
+    ("payment-history", ("payment history", "payment methods", "transactions", "paid to", "payment appeared on")),
+    ("return-summary", ("return summary card", "rma id", "the ups store", "no box no label", "send by return ship method")),
+    ("consumer-report", ("consumer report", "checkr", "lexisnexis", "disclosure report", "consumer disclosure")),
+    ("utility-bill", ("service address", "meter number", "bill number", "electric", "utility")),
+    ("hotel-folio", ("folio no", "room no", "arrival", "departure", "hotel")),
     ("receipt", ("receipt", "receipts", "cash receipt", "proof of purchase")),
     ("invoice", ("invoice", "billing", "bill ", "bill_", "billed", "charge", "charges")),
     ("reimbursement-packet", ("reimbursement", "reimburse", "packet", "submission packet", "expense packet")),

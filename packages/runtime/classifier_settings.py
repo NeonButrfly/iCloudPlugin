@@ -5,8 +5,28 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+LOCAL_DEFAULTS = {
+    "CLASSIFIER_CONFIG_ROOT": REPO_ROOT / "config",
+    "CLASSIFIER_OUTPUT_ROOT": REPO_ROOT / ".runtime" / "classifier",
+    "CLASSIFIER_INPUT_ROOT": REPO_ROOT / ".runtime" / "input" / "api",
+    "CLASSIFIER_VAULT_ROOT": REPO_ROOT / ".runtime" / "vault",
+}
+
+
 def _env_path(name: str, default: str) -> Path:
     return Path(os.getenv(name, default))
+
+
+def _default_path(name: str, container_default: str) -> Path:
+    if name in os.environ:
+        return Path(os.environ[name])
+    if os.name == "nt":
+        return LOCAL_DEFAULTS[name]
+    container_path = Path(container_default)
+    if container_path.exists():
+        return container_path
+    return LOCAL_DEFAULTS[name]
 
 
 def _env_flag(name: str, default: str = "0") -> bool:
@@ -60,6 +80,10 @@ class ClassifierRuntimeSettings:
     @property
     def reviewed_examples_report_path(self) -> Path:
         return self.config_root / "reviewed-examples-report.json"
+
+    @property
+    def example_mining_report_path(self) -> Path:
+        return self.config_root / "example-mining-report.json"
 
     @property
     def hybrid_gating_path(self) -> Path:
@@ -118,10 +142,10 @@ def load_classifier_runtime_settings() -> ClassifierRuntimeSettings:
         shadow_worker_interval_seconds = 15
 
     return ClassifierRuntimeSettings(
-        config_root=_env_path("CLASSIFIER_CONFIG_ROOT", "/config"),
-        output_root=_env_path("CLASSIFIER_OUTPUT_ROOT", "/output"),
-        input_root=_env_path("CLASSIFIER_INPUT_ROOT", "/input/api"),
-        vault_root=_env_path("CLASSIFIER_VAULT_ROOT", "/vault"),
+        config_root=_default_path("CLASSIFIER_CONFIG_ROOT", "/config"),
+        output_root=_default_path("CLASSIFIER_OUTPUT_ROOT", "/output"),
+        input_root=_default_path("CLASSIFIER_INPUT_ROOT", "/input/api"),
+        vault_root=_default_path("CLASSIFIER_VAULT_ROOT", "/vault"),
         api_token=os.getenv("CLASSIFIER_API_TOKEN", ""),
         ollama_url=os.getenv("OLLAMA_URL", "http://ollama:11434").strip() or "http://ollama:11434",
         shadow_worker_enabled=_env_flag("ENABLE_SHADOW_WORKER", "1"),

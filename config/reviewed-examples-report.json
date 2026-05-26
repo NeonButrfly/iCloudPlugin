@@ -2,17 +2,10 @@
   "ok": true,
   "manifest_path": "C:\\Users\\Keifm\\AppData\\Local\\Temp\\lightgbm-training-set\\lightgbm-training-set.combined.manifest.json",
   "examples_path": "C:\\Code\\iCloudPlugin\\config\\examples.jsonl",
-  "imported_rows": 52,
+  "imported_rows": 3,
   "label_counts": {
-    "appeal": 21,
-    "benefits": 11,
-    "claim": 2,
-    "contract": 1,
-    "invoice": 4,
-    "medical-receipt": 3,
-    "product-photo": 3,
-    "receipt": 6,
-    "reimbursement-packet": 1
+    "appeal": 2,
+    "medical-receipt": 1
   },
   "target_labels": {
     "appeal": 25,

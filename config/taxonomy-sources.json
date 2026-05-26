@@ -59,6 +59,8 @@
   {
     "name": "rvl_cdip_static",
     "enabled": true,
+    "priority": 1,
+    "role": "primary_document_dataset",
     "kind": "document",
     "parser": "static",
     "labels": [

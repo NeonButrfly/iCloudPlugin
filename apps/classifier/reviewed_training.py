@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+from .example_mining import is_sane_example_candidate
 from .external_taxonomy import load_external_taxonomy_aliases, load_external_taxonomy_prune_rules, match_external_taxonomy_candidates
 from .label_map import canonicalize_label
 from packages.runtime import load_classifier_runtime_settings
@@ -67,6 +68,33 @@ def _row_to_example(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _reviewed_row_is_sane(row: dict[str, Any]) -> bool:
+    label = str(row.get("final_label") or "")
+    record = {
+        "name": str(row.get("file_name") or row.get("source_path") or "unknown"),
+        "path": str(row.get("source_path") or row.get("queue_path") or ""),
+        "content_text": " ".join(
+            part
+            for part in [
+                str(row.get("reason") or ""),
+                str(row.get("evidence_excerpt") or ""),
+                str(row.get("evidence_terms") or ""),
+            ]
+            if part
+        ),
+        "mime_type": str(row.get("mime_type") or ""),
+        "extension": str(row.get("extension") or "").lstrip("."),
+    }
+    annotation = {
+        "teacher_confidence": float(row.get("confidence") or 0.0),
+        "teacher_primary": label,
+        "naive_label": str(row.get("queue_label") or ""),
+        "teacher_evidence": _split_csv_labels(row.get("secondary_labels")),
+    }
+    ok, _reason = is_sane_example_candidate(label, record, annotation)
+    return ok
+
+
 def import_reviewed_examples_from_manifest(
     *,
     manifest_path: Path = DEFAULT_MANIFEST_PATH,
@@ -86,6 +114,7 @@ def import_reviewed_examples_from_manifest(
         candidates = [
             row for row in rows
             if str(row.get("final_label") or "") == label
+            and _reviewed_row_is_sane(row)
         ]
         candidates.sort(
             key=lambda row: (

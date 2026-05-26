@@ -259,6 +259,48 @@ That command refreshes:
 The report includes imported weak-bucket counts plus the current top noisy and
 helpful alias hits derived from the reviewed manifest (#24).
 
+## Taxonomy expansion and example mining
+
+Issue [#25](https://github.com/NeonButrfly/iCloudPlugin/issues/25) expands the
+raw label set using recurring live-vault directory and filename patterns, then
+rebuilds a 500-row source-backed example corpus with explicit evidence fields.
+
+For local desktop runs on Windows, classifier runtime defaults now resolve back
+into the repo:
+
+- `config/` for config artifacts
+- `.runtime/classifier/` for runtime output
+- `.runtime/input/api/` for local input
+- `.runtime/vault/` for local vault mirrors
+
+That keeps Codex retraining work inside the workspace instead of falling back
+to container-style roots such as `/config` and `/output`.
+
+Refresh the reviewed seed rows first:
+
+```bash
+python -m apps.classifier.reviewed_training
+```
+
+Then rebuild the live-index sanity-checked example corpus:
+
+```bash
+python -c "from apps.classifier.example_mining import mine_example_corpus; import json; print(json.dumps(mine_example_corpus(), ensure_ascii=True))"
+```
+
+The example corpus and report now include:
+
+- `source_path`
+- `summary`
+- `teacher_evidence`
+- `teacher_ranked_labels`
+- `matched_terms`
+- `source_extension`
+- `source_mime_type`
+
+Those fields are consumed by the taxonomy router and LightGBM runtime training
+rows so both layers train on the same evidence-rich examples.
+
 ## Local plugin
 
 1. Run `python -m pip install -e .` from the repo root.

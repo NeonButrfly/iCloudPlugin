@@ -1,3 +1,4 @@
+import os
 from importlib import import_module
 from pathlib import Path
 
@@ -12,12 +13,23 @@ def test_classifier_runtime_paths_default_to_existing_locations(monkeypatch):
     module = import_module("packages.runtime.classifier_settings")
     settings = module.load_classifier_runtime_settings()
 
-    assert settings.config_root == Path("/config")
-    assert settings.output_root == Path("/output")
-    assert settings.input_root == Path("/input/api")
-    assert settings.vault_root == Path("/vault")
-    assert settings.manifest_path == Path("/output/manifest.jsonl")
-    assert settings.readiness_report_path == Path("/output/readiness-report.json")
+    if os.name == "nt":
+        expected_config = module.REPO_ROOT / "config"
+        expected_output = module.REPO_ROOT / ".runtime" / "classifier"
+        expected_input = module.REPO_ROOT / ".runtime" / "input" / "api"
+        expected_vault = module.REPO_ROOT / ".runtime" / "vault"
+    else:
+        expected_config = Path("/config") if Path("/config").exists() else module.REPO_ROOT / "config"
+        expected_output = Path("/output") if Path("/output").exists() else module.REPO_ROOT / ".runtime" / "classifier"
+        expected_input = Path("/input/api") if Path("/input/api").exists() else module.REPO_ROOT / ".runtime" / "input" / "api"
+        expected_vault = Path("/vault") if Path("/vault").exists() else module.REPO_ROOT / ".runtime" / "vault"
+
+    assert settings.config_root == expected_config
+    assert settings.output_root == expected_output
+    assert settings.input_root == expected_input
+    assert settings.vault_root == expected_vault
+    assert settings.manifest_path == expected_output / "manifest.jsonl"
+    assert settings.readiness_report_path == expected_output / "readiness-report.json"
     assert settings.codex_arbiter_enabled is False
 
 

@@ -1,12 +1,9 @@
 {
   "ok": true,
   "kind": "hybrid-lightgbm-v1",
-  "trained_at": "2026-05-26T16:24:57Z",
-  "training_rows": 360,
-  "class_count": 20,
-  "features": 8790,
-  "model_path": "C:\\Code\\iCloudPlugin\\config\\lightgbm-classifier.joblib",
-  "training_source": "C:\\Users\\Keifm\\AppData\\Local\\Temp\\lightgbm-training-set\\lightgbm-training-set.combined.manifest.json",
-  "reviewed_examples_path": "C:\\Code\\iCloudPlugin\\config\\examples.jsonl",
-  "augmented_training_rows": 360
+  "trained_at": "2026-05-26T18:33:08Z",
+  "training_rows": 500,
+  "class_count": 14,
+  "features": 12000,
+  "model_path": "C:\\Code\\iCloudPlugin\\config\\lightgbm-classifier.joblib"
 }

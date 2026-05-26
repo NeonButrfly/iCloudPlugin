@@ -25,3 +25,14 @@
 - Interpreted requirement: import a checked-in reviewed example corpus for weak raw buckets from the combined reviewed manifest, add an explicit external-taxonomy prune config based on disagreement evidence, rebuild the taxonomy router with those examples, and keep a machine-readable report of noisy vs helpful alias hits.
 - Imported weak buckets: `appeal`, `benefits`, `claim`, `contract`, `invoice`, `medical-receipt`, `product-photo`, `receipt`, and `reimbursement-packet`
 - Affected systems: external taxonomy prune config, reviewed examples corpus, taxonomy router training, LightGBM retraining inputs, operator docs.
+
+## 2026-05-26 - Taxonomy expansion and 500 sanity-checked examples
+
+- Issue: [#25](https://github.com/NeonButrfly/iCloudPlugin/issues/25)
+- Source prompt: "1. pick highest value dataset to wire in 2. expand label set based on taxonomy derived from files and file directories, 3..add 500 more examples having codex do final check on the results to make sure they are sane."
+- Interpreted requirement: pick the highest-value public document dataset for the current corpus, expand the raw label set using recurring file and directory patterns from the live mirror corpus, rebuild the example miner so it writes source-backed evidence fields, and regenerate a 500-row sanity-checked example corpus before retraining.
+- Primary dataset choice: `rvl_cdip_static` remains the main broad document-training source because it aligns with the vault's mix of forms, invoices, letters, statements, manuals, and generic office documents.
+- Taxonomy expansion added directory-driven raw labels such as `return-summary`, `consumer-report`, `utility-bill`, and `hotel-folio` alongside finer finance and insurance labels.
+- Evidence note: mined examples now keep matched query terms, teacher evidence, source path, extension, and MIME type so the taxonomy router and LightGBM feature text can reuse the same provenance-rich rows.
+- Runtime note: local desktop runs now default classifier config and output paths back into the repo instead of the container-style `/config` and `/output` roots, which avoids writing training artifacts outside the workspace during Codex runs.
+- Affected systems: classifier runtime settings, live-index example miner, reviewed example import, taxonomy router training, LightGBM runtime training rows, config artifacts, operator docs.

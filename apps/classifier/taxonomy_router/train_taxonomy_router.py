@@ -168,11 +168,19 @@ def main():
         if not correct:
             continue
         filename = str(example.get("filename", ""))
+        source_path = str(example.get("source_path", ""))
         note = str(example.get("note", ""))
         summary = str(example.get("summary", ""))
         secondary = " ".join(map(str, example.get("secondary_labels", [])))
         old_label = str(example.get("old_label", ""))
-        sample = f"{filename} {note} {summary} secondary {secondary} old {old_label}"
+        teacher_primary = str(example.get("teacher_primary", ""))
+        teacher_evidence = " ".join(map(str, example.get("teacher_evidence", [])))
+        matched_terms = json.dumps(example.get("matched_terms", {}), ensure_ascii=False)
+        sample = (
+            f"{filename} {source_path} {note} {summary} secondary {secondary} "
+            f"old {old_label} teacher {teacher_primary} evidence {teacher_evidence} "
+            f"matched {matched_terms}"
+        )
         texts.append(sample)
         labels.append(correct)
         example_rows += 1
