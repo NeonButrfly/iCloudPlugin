@@ -184,6 +184,33 @@ it successfully.
   - `CLASSIFIER_SOURCE_ROOT` is the in-container mount path, default `/source`
   - on `tichuml1`, this host mount should usually point at the shared mirror
     path under `/mnt/cloud-vault/mirrors`
+- on `kayraspi`, ad hoc `docker compose` runs for the `cloudsync` role should
+  use the live project name explicitly:
+  - use `-p icloudplugin`
+  - otherwise Docker Compose derives `cloudsync` from the role directory and
+    tries to start a second `postgres` container on host port `5432`
+- for a bounded live backfill pass, prefer a one-shot worker run instead of
+  enabling the long-running service immediately:
+
+```powershell
+Set-Location /opt/iCloudPlugin
+sudo docker compose -p icloudplugin --env-file .env `
+  -f deploy/roles/cloudsync/docker-compose.yml run --rm --no-deps `
+  -e CLASSIFICATION_SUBMISSION_CONCURRENCY=2 `
+  classification-worker `
+  uv run python -c "from icloud_index_service.classification_worker import run_classification_worker_loop; print(run_classification_worker_loop(max_polls=3, poll_interval_seconds=0.1))"
+```
+
+- if a bounded run is interrupted, or a long file is intentionally stopped
+  mid-pass, recover stale `running` jobs before the next batch:
+
+```powershell
+Set-Location /opt/iCloudPlugin
+sudo docker compose -p icloudplugin --env-file .env `
+  -f deploy/roles/cloudsync/docker-compose.yml run --rm --no-deps `
+  classification-worker `
+  uv run python -c "from icloud_index_service.db import get_session_factory; from icloud_index_service.services.classification_submission import recover_stale_running_classification_jobs; session = get_session_factory()(); print(recover_stale_running_classification_jobs(session, stale_after_seconds=0)); session.close()"
+```
 
 Ad hoc uploads still use the upload endpoint, but the temporary staged copy is
 deleted immediately after classification finishes, even on failures.
