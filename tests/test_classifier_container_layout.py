@@ -24,4 +24,5 @@ def test_classifier_runtime_installs_paddleocr_cpu_dependencies():
     dockerfile = (repo_root / "apps" / "classifier" / "Dockerfile").read_text(encoding="utf-8")
 
     assert "paddleocr" in requirements
+    assert "pytesseract" in requirements
     assert "paddlepaddle" in dockerfile

@@ -4,6 +4,7 @@ pandas
 openpyxl
 python-magic
 pillow
+pytesseract
 fastapi
 uvicorn[standard]
 python-multipart
