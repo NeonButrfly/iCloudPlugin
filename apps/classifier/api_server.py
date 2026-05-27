@@ -34,6 +34,7 @@ API_TOKEN = SETTINGS.api_token
 OLLAMA_URL = SETTINGS.ollama_url
 INPUT_ROOT = SETTINGS.input_root
 OUTPUT_ROOT = SETTINGS.output_root
+SOURCE_ROOT = SETTINGS.source_root
 VAULT_ROOT = SETTINGS.vault_root
 MANIFEST_PATH = OUTPUT_ROOT / "manifest.jsonl"
 INDEX_PATH = VAULT_ROOT / "Classification Index.md"
@@ -65,6 +66,27 @@ def ensure_inside(path: Path, root: Path) -> Path:
     if resolved != root and root not in resolved.parents:
         raise HTTPException(status_code=400, detail="Path outside allowed root")
     return resolved
+
+
+def normalize_source_relative_path(source_relative_path: str) -> str:
+    normalized = str(source_relative_path or "").strip().replace("\\", "/").lstrip("/")
+    if not normalized or normalized in {".", ".."}:
+        raise HTTPException(status_code=400, detail="Source relative path is required.")
+    if any(part in {"", ".", ".."} for part in normalized.split("/")):
+        raise HTTPException(status_code=400, detail="Source relative path must stay inside the shared source root.")
+    return normalized
+
+
+def resolve_source_file_path(source_relative_path: str) -> Path:
+    normalized = normalize_source_relative_path(source_relative_path)
+    if not SOURCE_ROOT.exists() or not SOURCE_ROOT.is_dir():
+        raise HTTPException(status_code=503, detail="Shared classifier source root is not mounted.")
+    candidate = ensure_inside(SOURCE_ROOT / normalized, SOURCE_ROOT)
+    if not candidate.exists() or not candidate.is_file():
+        raise HTTPException(status_code=404, detail=f"Source file not found under shared source root: {normalized}")
+    if candidate.suffix.lower() not in SUPPORTED_EXTENSIONS:
+        raise HTTPException(status_code=415, detail=f"Unsupported extension: {candidate.suffix.lower()}")
+    return candidate
 
 def read_manifest_for_source(source_path: str):
     if not MANIFEST_PATH.exists():
@@ -107,6 +129,66 @@ def load_worker_timing(path: Path) -> Optional[dict]:
             path.unlink()
         except Exception:
             pass
+
+
+def build_classifier_command(
+    *,
+    input_path: Path,
+    categories: Optional[str],
+    attach_originals: bool,
+    no_vision: bool,
+    canonical_source_path: Optional[str],
+    canonical_source_hash: Optional[str],
+    last_seen_filename: Optional[str],
+    timing_output: Path,
+) -> list[str]:
+    cmd = [
+        sys.executable,
+        str(CLASSIFIER_SCRIPT),
+        str(input_path),
+        "--vault",
+        str(VAULT_ROOT),
+        "--output",
+        str(OUTPUT_ROOT),
+        "--timing-output",
+        str(timing_output),
+    ]
+
+    if attach_originals:
+        cmd.append("--attach-originals")
+
+    if no_vision:
+        cmd.append("--no-vision")
+
+    if CODEX_ARBITER_ENABLED:
+        cmd.append("--enable-codex-arbiter")
+
+    if categories:
+        cmd.extend(["--categories", categories])
+    if canonical_source_path:
+        cmd.extend(["--canonical-source-path", canonical_source_path])
+    if canonical_source_hash:
+        cmd.extend(["--canonical-source-hash", canonical_source_hash])
+    if last_seen_filename:
+        cmd.extend(["--last-seen-filename", last_seen_filename])
+    return cmd
+
+
+def run_classifier_command(cmd: list[str]) -> tuple[object, float, Optional[dict]]:
+    classify_started_at = time.perf_counter()
+    with REQUEST_LOCK:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(Path(__file__).resolve().parent),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=1800,
+        )
+    classify_ms = elapsed_ms(classify_started_at)
+    timing_output_index = cmd.index("--timing-output") + 1
+    worker_timing = load_worker_timing(Path(cmd[timing_output_index]))
+    return proc, classify_ms, worker_timing
 
 
 def run_shadow_worker_cycle() -> None:
@@ -213,6 +295,7 @@ def health(x_api_key: Optional[str] = Header(default=None)):
         "ollama_error": ollama_error,
         "ollama_url": OLLAMA_URL,
         "input_root": str(INPUT_ROOT),
+        "source_root": str(SOURCE_ROOT),
         "output_root": str(OUTPUT_ROOT),
         "vault_root": str(VAULT_ROOT),
         "classification_index": str(INDEX_PATH),
@@ -248,60 +331,94 @@ async def classify_upload(
     staged_path = staged["staged_path"]
     timing_output = ensure_inside(OUTPUT_ROOT / "_timing" / f"{uuid.uuid4().hex}.json", OUTPUT_ROOT)
     timing_output.parent.mkdir(parents=True, exist_ok=True)
-
-    cmd = [
-        sys.executable,
-        str(CLASSIFIER_SCRIPT),
-        str(staged_path),
-        "--vault",
-        str(VAULT_ROOT),
-        "--output",
-        str(OUTPUT_ROOT),
-        "--timing-output",
-        str(timing_output),
-    ]
-
-    if attach_originals:
-        cmd.append("--attach-originals")
-
-    if no_vision:
-        cmd.append("--no-vision")
-
-    if CODEX_ARBITER_ENABLED:
-        cmd.append("--enable-codex-arbiter")
-
-    if categories:
-        cmd.extend(["--categories", categories])
-    if canonical_source_path:
-        cmd.extend(["--canonical-source-path", canonical_source_path])
-    if canonical_source_hash:
-        cmd.extend(["--canonical-source-hash", canonical_source_hash])
-    if last_seen_filename:
-        cmd.extend(["--last-seen-filename", last_seen_filename])
-
-    classify_started_at = time.perf_counter()
-    with REQUEST_LOCK:
-        proc = subprocess.run(
-            cmd,
-            cwd=str(Path(__file__).resolve().parent),
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=1800,
-        )
-    classify_ms = elapsed_ms(classify_started_at)
-    worker_timing = load_worker_timing(timing_output)
-
+    cmd = build_classifier_command(
+        input_path=staged_path,
+        categories=categories,
+        attach_originals=attach_originals,
+        no_vision=no_vision,
+        canonical_source_path=canonical_source_path,
+        canonical_source_hash=canonical_source_hash,
+        last_seen_filename=last_seen_filename,
+        timing_output=timing_output,
+    )
+    proc, classify_ms, worker_timing = run_classifier_command(cmd)
     record = read_manifest_for_source(str(staged_path))
+    try:
+        staged_path.unlink(missing_ok=True)
+    except Exception:
+        pass
 
     return {
         "ok": proc.returncode == 0,
         "returncode": proc.returncode,
         "filename": staged["filename"],
         "staged_path": str(staged_path),
+        "staged_file_exists_after_response": staged_path.exists(),
         "bytes_received": staged["bytes_received"],
         "upload_ms": staged["upload_ms"],
         "upload_bytes_per_sec": staged["upload_bytes_per_sec"],
+        "classify_ms": classify_ms,
+        "total_ms": elapsed_ms(total_started_at),
+        "worker_timing": worker_timing,
+        "manifest": str(MANIFEST_PATH),
+        "classification_index": str(INDEX_PATH),
+        "ingestion_mode": ingestion_mode,
+        "record": record,
+        "stdout_tail": tail_text(proc.stdout),
+        "stderr_tail": tail_text(proc.stderr),
+    }
+
+
+@APP.post("/classify/source")
+def classify_source(
+    source_relative_path: str = Form(...),
+    categories: Optional[str] = Form(default=None),
+    attach_originals: bool = Form(default=True),
+    no_vision: bool = Form(default=False),
+    ingestion_mode: str = Form(default="real-folder"),
+    canonical_source_path: Optional[str] = Form(default=None),
+    canonical_source_hash: Optional[str] = Form(default=None),
+    last_seen_filename: Optional[str] = Form(default=None),
+    x_api_key: Optional[str] = Header(default=None),
+):
+    check_token(x_api_key)
+    maybe_start_shadow_worker()
+    if ingestion_mode == "real-folder":
+        readiness = load_json(READINESS_REPORT_PATH, default={}) or {}
+        if not readiness.get("real_ingestion_allowed"):
+            reason = ", ".join(readiness.get("warnings", []) or ["readiness-report-missing-or-blocked"])
+            raise HTTPException(
+                status_code=409,
+                detail=f"Real-folder ingestion is blocked until readiness thresholds pass and allow_real_ingestion is enabled: {reason}",
+            )
+
+    total_started_at = time.perf_counter()
+    source_path = resolve_source_file_path(source_relative_path)
+    timing_output = ensure_inside(OUTPUT_ROOT / "_timing" / f"{uuid.uuid4().hex}.json", OUTPUT_ROOT)
+    timing_output.parent.mkdir(parents=True, exist_ok=True)
+    cmd = build_classifier_command(
+        input_path=source_path,
+        categories=categories,
+        attach_originals=attach_originals,
+        no_vision=no_vision,
+        canonical_source_path=canonical_source_path,
+        canonical_source_hash=canonical_source_hash,
+        last_seen_filename=last_seen_filename,
+        timing_output=timing_output,
+    )
+    proc, classify_ms, worker_timing = run_classifier_command(cmd)
+    record = read_manifest_for_source(str(source_path))
+
+    return {
+        "ok": proc.returncode == 0,
+        "returncode": proc.returncode,
+        "filename": source_path.name,
+        "source_relative_path": normalize_source_relative_path(source_relative_path),
+        "source_path": str(source_path),
+        "staged_path": None,
+        "bytes_received": 0,
+        "upload_ms": 0.0,
+        "upload_bytes_per_sec": None,
         "classify_ms": classify_ms,
         "total_ms": elapsed_ms(total_started_at),
         "worker_timing": worker_timing,

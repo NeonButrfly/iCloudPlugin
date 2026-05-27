@@ -73,3 +73,12 @@
 - Readiness note: reviewed bootstrap rows from `examples.jsonl` and `corrections.jsonl` now count toward teacher-approved coverage alongside Qwen shadow comparisons, so `/readiness` can turn green before the first large real-folder submission wave.
 - Feedback-loop note: heuristics should keep learning from disagreement rules, LightGBM should retrain from the merged approved corpus, and Qwen should stay the shadow teacher through a dedicated single-runner `shadow-worker` service rather than an in-process API thread. If Qwen returns malformed non-JSON output during a shadow review, record a `shadow-error` row and drain that queue item instead of wedging the loop.
 - Affected systems: classifier runtime path resolution, readiness gating, LightGBM bootstrap/retrain path, shadow-worker deployment shape, operator docs.
+
+## 2026-05-27 - Direct source-path ingestion instead of staged real-folder uploads
+
+- Issue: [#29](https://github.com/NeonButrfly/iCloudPlugin/issues/29)
+- Source prompt: "yeah I dont think we can keep failures, staged files should be deleted immediately or maybe we should just save massive amounts of disk space, just feed the source file location into the classifier and have it read/process the file right from the source"
+- Interpreted requirement: stop duplicating mirrored files into the classifier host's upload staging area during normal real-folder ingestion, add a safe source-path API that reads shared mirror files directly from a read-only mount, and delete temporary staged uploads immediately after ad hoc classifications complete.
+- Runtime note: the classification worker should now send mirror-relative source paths to the classifier API, while the classifier API resolves those paths against a dedicated read-only shared-source mount such as `/source`.
+- Cleanup note: one-off upload requests still stage a temp file, but that temp copy should be removed right after classification returns instead of accumulating under `/input/api`.
+- Affected systems: classification submission client, classifier API endpoints, classifier role compose mounts, operator docs.

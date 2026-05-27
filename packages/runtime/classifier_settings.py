@@ -10,6 +10,7 @@ LOCAL_DEFAULTS = {
     "CLASSIFIER_CONFIG_ROOT": REPO_ROOT / "config",
     "CLASSIFIER_OUTPUT_ROOT": REPO_ROOT / ".runtime" / "classifier",
     "CLASSIFIER_INPUT_ROOT": REPO_ROOT / ".runtime" / "input" / "api",
+    "CLASSIFIER_SOURCE_ROOT": REPO_ROOT / ".runtime" / "source",
     "CLASSIFIER_VAULT_ROOT": REPO_ROOT / ".runtime" / "vault",
 }
 
@@ -59,6 +60,7 @@ class ClassifierRuntimeSettings:
     artifact_root: Path
     output_root: Path
     input_root: Path
+    source_root: Path
     vault_root: Path
     api_token: str
     ollama_url: str
@@ -196,6 +198,7 @@ def load_classifier_runtime_settings() -> ClassifierRuntimeSettings:
         artifact_root=_default_artifact_root(config_root, output_root),
         output_root=output_root,
         input_root=_default_path("CLASSIFIER_INPUT_ROOT", "/input/api"),
+        source_root=_default_path("CLASSIFIER_SOURCE_ROOT", "/source"),
         vault_root=_default_path("CLASSIFIER_VAULT_ROOT", "/vault"),
         api_token=os.getenv("CLASSIFIER_API_TOKEN", ""),
         ollama_url=os.getenv("OLLAMA_URL", "http://ollama:11434").strip() or "http://ollama:11434",

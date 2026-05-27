@@ -152,7 +152,9 @@ it successfully.
 - `classification-worker` runs in parallel with the refresh worker
 - it backfills the already indexed mirrored corpus and keeps up with new or
   changed files while indexing continues
-- it submits full files to `CLASSIFIER_API_URL` using `CLASSIFIER_API_TOKEN`
+- it submits mirror-relative source paths to `CLASSIFIER_API_URL` using
+  `CLASSIFIER_API_TOKEN` for normal real-folder ingestion, so the classifier
+  reads the shared source file directly instead of staging a duplicate upload
 - it persists per-file classification state so unchanged files are not
   resubmitted
 - it reads files from the mirrored filesystem source instead of re-downloading
@@ -177,6 +179,14 @@ it successfully.
   arbiter flag into the note-generation process.
 - `IMAGE_OCR_MIN_CHARS` controls when an image is routed through the OCR-backed
   document path instead of going straight to Qwen vision fallback.
+- the classifier role now also needs a read-only shared-source mount:
+  - `CLASSIFIER_SOURCE_MOUNT_SOURCE` should point at the host mirror root
+  - `CLASSIFIER_SOURCE_ROOT` is the in-container mount path, default `/source`
+  - on `tichuml1`, this host mount should usually point at the shared mirror
+    path under `/mnt/cloud-vault/mirrors`
+
+Ad hoc uploads still use the upload endpoint, but the temporary staged copy is
+deleted immediately after classification finishes, even on failures.
 
 ### Reset state
 
@@ -471,6 +481,8 @@ CLASSIFICATION_SUBMISSION_CONCURRENCY=2
 CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS=5
 CLASSIFICATION_MAX_ATTEMPTS=3
 CLASSIFICATION_RETRY_BACKOFF_SECONDS=0
+CLASSIFIER_SOURCE_ROOT=/source
+CLASSIFIER_SOURCE_MOUNT_SOURCE=/mnt/cloud-vault/mirrors
 ICLOUD_SOURCE_MODE=filesystem-mirror
 ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors
 ICLOUD_MIRROR_MOUNT_SOURCE=/srv/cloud-vault

@@ -57,12 +57,14 @@ services:
       - IMAGE_OCR_MIN_CHARS=${IMAGE_OCR_MIN_CHARS:-48}
       - ICLOUD_OCR_LANGS=${ICLOUD_OCR_LANGS:-eng}
       - ICLOUD_PADDLE_OCR_ENABLED=${ICLOUD_PADDLE_OCR_ENABLED:-1}
+      - CLASSIFIER_SOURCE_ROOT=${CLASSIFIER_SOURCE_ROOT:-/source}
       - TZ=${TZ:-America/Anchorage}
       - PYTHONPATH=/app
     volumes:
       - ${CLASSIFIER_CONFIG_DIR:-../../../config}:/config:ro
       - ${CLASSIFIER_INPUT_DIR:-./input}:/input
       - ${CLASSIFIER_OUTPUT_DIR:-./output}:/output
+      - ${CLASSIFIER_SOURCE_MOUNT_SOURCE:-/srv/cloud-vault/mirrors}:${CLASSIFIER_SOURCE_ROOT:-/source}:ro
       - ${CLASSIFIER_VAULT_DIR:-/srv/cloud-vault/document-vault}:/vault
       - ${CLASSIFIER_CACHE_DIR:-./cache}:/root/.cache
       - ${CLASSIFIER_LOG_DIR:-./logs}:/logs

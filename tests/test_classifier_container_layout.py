@@ -37,3 +37,14 @@ def test_classifier_role_compose_includes_dedicated_shadow_worker():
     assert "apps.classifier.shadow_worker" in classifier_compose
     assert "shadow-worker:" in combined_compose
     assert "apps.classifier.shadow_worker" in combined_compose
+
+
+def test_classifier_compose_mounts_shared_source_root_for_direct_ingestion():
+    repo_root = Path(__file__).resolve().parents[1]
+    classifier_compose = (repo_root / "deploy" / "roles" / "classifier" / "docker-compose.yml").read_text(encoding="utf-8")
+    combined_compose = (repo_root / "deploy" / "roles" / "combined" / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "CLASSIFIER_SOURCE_ROOT=${CLASSIFIER_SOURCE_ROOT:-/source}" in classifier_compose
+    assert "CLASSIFIER_SOURCE_MOUNT_SOURCE" in classifier_compose
+    assert "CLASSIFIER_SOURCE_ROOT=${CLASSIFIER_SOURCE_ROOT:-/source}" in combined_compose
+    assert "CLASSIFIER_SOURCE_MOUNT_SOURCE" in combined_compose

@@ -27,6 +27,7 @@ DEFAULT_CLASSIFICATION_STALE_RUNNING_SECONDS = 300
 DEFAULT_CLASSIFICATION_RETRY_BACKOFF_SECONDS = 0
 DEFAULT_CLASSIFIER_API_URL = "http://192.168.50.196:4319"
 CLASSIFIER_UPLOAD_ENDPOINT = "/classify/upload"
+CLASSIFIER_SOURCE_ENDPOINT = "/classify/source"
 CLASSIFIER_INGESTION_MODE = "real-folder"
 PRIORITY_BUCKET_DOCUMENT = "document"
 PRIORITY_BUCKET_TEXT_BACKED = "text-backed"
@@ -478,6 +479,15 @@ def resolve_classification_file_path(file_record: FileRecord) -> Path:
     return candidate
 
 
+def resolve_classification_source_relative_path(file_record: FileRecord) -> str:
+    relative_path = file_record.path.replace("\\", "/").lstrip("/")
+    if not relative_path or any(part in {"", ".", ".."} for part in relative_path.split("/")):
+        raise PermanentClassifierSubmissionError(
+            "Resolved file path is not representable as a safe mirror-relative source path."
+        )
+    return relative_path
+
+
 @dataclass(slots=True)
 class ClassifierApiClient:
     base_url: str
@@ -490,6 +500,7 @@ class ClassifierApiClient:
         *,
         file_path: Path,
         file_name: str,
+        source_relative_path: str | None = None,
         canonical_source_path: str | None = None,
         canonical_source_hash: str | None = None,
         last_seen_filename: str | None = None,
@@ -506,14 +517,23 @@ class ClassifierApiClient:
             form_data["last_seen_filename"] = last_seen_filename
 
         try:
-            with file_path.open("rb") as payload_stream:
+            if source_relative_path:
+                form_data["source_relative_path"] = source_relative_path
                 response = httpx.post(
-                    f"{self.base_url.rstrip('/')}{CLASSIFIER_UPLOAD_ENDPOINT}",
+                    f"{self.base_url.rstrip('/')}{CLASSIFIER_SOURCE_ENDPOINT}",
                     headers=headers,
                     data=form_data,
-                    files={"file": (file_name, payload_stream)},
                     timeout=self.timeout_seconds,
                 )
+            else:
+                with file_path.open("rb") as payload_stream:
+                    response = httpx.post(
+                        f"{self.base_url.rstrip('/')}{CLASSIFIER_UPLOAD_ENDPOINT}",
+                        headers=headers,
+                        data=form_data,
+                        files={"file": (file_name, payload_stream)},
+                        timeout=self.timeout_seconds,
+                    )
         except httpx.HTTPError as exc:
             raise RuntimeError(f"Classifier request failed: {exc}") from exc
 
@@ -715,9 +735,11 @@ def run_next_classification_job(
                 f"Mirrored file is missing for submission: {file_path}"
             )
         canonical_source_hash = compute_file_content_hash(file_path)
+        source_relative_path = resolve_classification_source_relative_path(file_record)
         response_payload = active_client.submit_file(
             file_path=file_path,
             file_name=file_record.name,
+            source_relative_path=source_relative_path,
             canonical_source_path=str(file_path),
             canonical_source_hash=canonical_source_hash,
             last_seen_filename=file_record.name,

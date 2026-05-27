@@ -61,6 +61,7 @@ class FakeClassifierClient:
         *,
         file_path: Path,
         file_name: str,
+        source_relative_path: str | None = None,
         canonical_source_path: str | None = None,
         canonical_source_hash: str | None = None,
         last_seen_filename: str | None = None,
@@ -69,6 +70,7 @@ class FakeClassifierClient:
             {
                 "file_path": file_path,
                 "file_name": file_name,
+                "source_relative_path": source_relative_path,
                 "canonical_source_path": canonical_source_path,
                 "canonical_source_hash": canonical_source_hash,
                 "last_seen_filename": last_seen_filename,
@@ -296,6 +298,7 @@ def test_run_next_classification_job_submits_file_and_persists_completed_state(
         {
             "file_path": local_file,
             "file_name": "Budget.pdf",
+            "source_relative_path": "Finance/Budget.pdf",
             "canonical_source_path": str(local_file),
             "canonical_source_hash": "29d1283686193dc1461a7deac4f53d9bc5402a28b95d854f69e94986756fd0a9",
             "last_seen_filename": "Budget.pdf",
@@ -354,9 +357,58 @@ def test_run_next_classification_job_supports_nested_provider_root(
     assert completed_job is not None
     assert completed_job.status == CLASSIFICATION_STATUS_COMPLETED
     assert client.calls[0]["file_path"] == local_file
+    assert client.calls[0]["source_relative_path"] == "google1/Shared/Budget.pdf"
     assert client.calls[0]["canonical_source_path"] == str(local_file)
     assert state is not None
     assert state.submission_status == CLASSIFICATION_STATUS_COMPLETED
+
+
+def test_classifier_api_client_uses_source_endpoint_for_real_folder_submissions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    local_file = tmp_path / "Pictures" / "Family.jpeg"
+    local_file.parent.mkdir(parents=True)
+    local_file.write_bytes(b"jpeg-bytes")
+    captured: dict[str, object] = {}
+
+    def _fake_post(url, **kwargs):
+        captured["url"] = url
+        captured["headers"] = kwargs.get("headers")
+        captured["data"] = kwargs.get("data")
+        captured["files"] = kwargs.get("files")
+        return httpx.Response(
+            200,
+            json={"ok": True, "record": {}},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(httpx, "post", _fake_post)
+    client = ClassifierApiClient(
+        base_url="http://classifier.local",
+        api_token="secret",
+        ingestion_mode="real-folder",
+    )
+
+    response = client.submit_file(
+        file_path=local_file,
+        file_name=local_file.name,
+        source_relative_path="google2/Pictures/Family.jpeg",
+        canonical_source_path="/srv/cloud-vault/mirrors/google2/Pictures/Family.jpeg",
+        canonical_source_hash="abc123",
+        last_seen_filename=local_file.name,
+    )
+
+    assert response["ok"] is True
+    assert captured["url"] == "http://classifier.local/classify/source"
+    assert captured["files"] is None
+    assert captured["data"] == {
+        "ingestion_mode": "real-folder",
+        "source_relative_path": "google2/Pictures/Family.jpeg",
+        "canonical_source_path": "/srv/cloud-vault/mirrors/google2/Pictures/Family.jpeg",
+        "canonical_source_hash": "abc123",
+        "last_seen_filename": "Family.jpeg",
+    }
 
 
 def test_run_next_classification_job_retries_then_fails_after_attempt_budget(
