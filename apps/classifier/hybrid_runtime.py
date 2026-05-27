@@ -626,27 +626,66 @@ def process_shadow_queue_once(
         if max_jobs is not None and processed >= max_jobs:
             break
         job = load_json(job_path, default={}) or {}
-        llm_result = shadow_classifier(job)
-        comparison = build_shadow_record(
-            filename=str(job.get("filename", "")),
-            extension=str(job.get("extension", "")),
-            parser=job.get("parser"),
-            heuristic_result=job.get("heuristic_result"),
-            lightgbm_result=job.get("lightgbm_result"),
-            live_result=job.get("live_result"),
-            llm_result=llm_result,
-            taxonomy_candidates=job.get("taxonomy_candidates", []) or [],
-            text_preview=str(job.get("text_preview", "")),
-            live_source=str(job.get("live_source", "")),
-            entity_summary=str(job.get("entity_summary", "")),
-            topic_summary=str(job.get("topic_summary", "")),
-            retrieval_terms=job.get("retrieval_terms", []) or [],
-            retrieval_text=str(job.get("retrieval_text", "")),
-            ocr_engine=str(job.get("ocr_engine", "")),
-            ocr_quality=str(job.get("ocr_quality", "")),
-            ocr_char_count=int(job.get("ocr_char_count", 0) or 0),
-            extraction_quality=str(job.get("extraction_quality", "")),
-        )
+        try:
+            llm_result = shadow_classifier(job)
+            comparison = build_shadow_record(
+                filename=str(job.get("filename", "")),
+                extension=str(job.get("extension", "")),
+                parser=job.get("parser"),
+                heuristic_result=job.get("heuristic_result"),
+                lightgbm_result=job.get("lightgbm_result"),
+                live_result=job.get("live_result"),
+                llm_result=llm_result,
+                taxonomy_candidates=job.get("taxonomy_candidates", []) or [],
+                text_preview=str(job.get("text_preview", "")),
+                live_source=str(job.get("live_source", "")),
+                entity_summary=str(job.get("entity_summary", "")),
+                topic_summary=str(job.get("topic_summary", "")),
+                retrieval_terms=job.get("retrieval_terms", []) or [],
+                retrieval_text=str(job.get("retrieval_text", "")),
+                ocr_engine=str(job.get("ocr_engine", "")),
+                ocr_quality=str(job.get("ocr_quality", "")),
+                ocr_char_count=int(job.get("ocr_char_count", 0) or 0),
+                extraction_quality=str(job.get("extraction_quality", "")),
+            )
+        except Exception as exc:
+            heuristic_result = job.get("heuristic_result") or {}
+            lightgbm_result = job.get("lightgbm_result") or {}
+            live_result = job.get("live_result") or {}
+            comparison = {
+                "recorded_at": utc_now(),
+                "filename": str(job.get("filename", "")),
+                "extension": str(job.get("extension", "")),
+                "parser": job.get("parser"),
+                "heuristic_primary": str(heuristic_result.get("primary_label", "unknown") or "unknown"),
+                "heuristic_confidence": heuristic_result.get("confidence"),
+                "lightgbm_primary": str(lightgbm_result.get("top_label", "unknown") or "unknown"),
+                "lightgbm_confidence": lightgbm_result.get("top_probability"),
+                "needs_llm_probability": lightgbm_result.get("needs_llm_probability"),
+                "disagreement_risk": lightgbm_result.get("disagreement_risk"),
+                "live_primary": str(live_result.get("primary_label", "unknown") or "unknown"),
+                "live_source": str(job.get("live_source", "")),
+                "shadow_primary": "unknown",
+                "shadow_confidence": 0.0,
+                "taxonomy_candidates": job.get("taxonomy_candidates", []) or [],
+                "disagreement": False,
+                "teacher_review_status": "shadow-error",
+                "teacher_reason": str(exc),
+                "teacher_approved_for_training": False,
+                "teacher_supports_live_result": False,
+                "teacher_suggests_correction": False,
+                "entity_summary": str(job.get("entity_summary", "")),
+                "topic_summary": str(job.get("topic_summary", "")),
+                "retrieval_terms": job.get("retrieval_terms", []) or [],
+                "retrieval_text": str(job.get("retrieval_text", ""))[:4000],
+                "ocr_engine": str(job.get("ocr_engine", "")),
+                "ocr_quality": str(job.get("ocr_quality", "")),
+                "ocr_char_count": int(job.get("ocr_char_count", 0) or 0),
+                "extraction_quality": str(job.get("extraction_quality", "")),
+                "text_preview": str(job.get("text_preview", ""))[:4000],
+                "feedback_source": "shadow-qwen",
+                "shadow_error": str(exc),
+            }
         append_jsonl(comparisons_path, comparison)
         try:
             job_path.unlink()

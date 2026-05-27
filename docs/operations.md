@@ -279,6 +279,9 @@ Self-training loop:
 - the classifier role now has a dedicated `shadow-worker` service; do not rely
   on the API's in-process background thread when `uvicorn` is running multiple
   workers
+- malformed or non-JSON Qwen shadow responses are now recorded as
+  `shadow-error` comparison rows and removed from the queue so one bad teacher
+  response cannot wedge the autonomous loop
 
 ## External taxonomy refresh and router rebuild
 

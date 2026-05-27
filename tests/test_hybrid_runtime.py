@@ -248,3 +248,38 @@ def test_maybe_retrain_from_shadow_data_uses_bootstrap_examples(tmp_path: Path):
     assert result["feedback_sources"]["reviewed-example"] == 4
     assert model_path.exists()
     assert report_path.exists()
+
+
+def test_process_shadow_queue_once_records_shadow_errors_without_blocking(tmp_path: Path):
+    queue_dir = tmp_path / "shadow-queue"
+    queue_dir.mkdir(parents=True)
+    comparisons_path = tmp_path / "shadow-comparisons.jsonl"
+    (queue_dir / "job.json").write_text(
+        json.dumps(
+            {
+                "filename": "appeal.docx",
+                "extension": ".docx",
+                "parser": "docling",
+                "heuristic_result": {"primary_label": "appeal", "confidence": 0.88},
+                "lightgbm_result": {"top_label": "appeal", "top_probability": 0.91},
+                "live_result": {"primary_label": "appeal", "confidence": 0.88},
+                "taxonomy_candidates": ["appeal", "legal"],
+                "text_preview": "appeal packet",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    processed = hybrid_runtime.process_shadow_queue_once(
+        queue_dir=queue_dir,
+        comparisons_path=comparisons_path,
+        shadow_classifier=lambda _job: (_ for _ in ()).throw(ValueError("teacher-json-parse-failed")),
+        max_jobs=1,
+    )
+
+    rows = hybrid_runtime.read_jsonl(comparisons_path)
+    assert processed == 1
+    assert rows[0]["teacher_review_status"] == "shadow-error"
+    assert rows[0]["teacher_approved_for_training"] is False
+    assert rows[0]["shadow_error"] == "teacher-json-parse-failed"
+    assert not list(queue_dir.glob("*.json"))
