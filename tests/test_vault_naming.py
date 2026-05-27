@@ -122,6 +122,39 @@ def test_write_obsidian_note_prefers_canonical_filename_over_staged_upload_name(
         assert extracted.exists()
 
 
+def test_write_obsidian_note_recovers_malformed_payload_from_hybrid_hint():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        vault = root / "vault"
+        source_path = root / "google2" / "claims.csv"
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text("claim_id,amount\n123,10\n", encoding="utf-8")
+        ensure_vault(vault)
+
+        note_path = write_obsidian_note(
+            vault=vault,
+            source_path=source_path,
+            file_hash="abcdef1234567890",
+            markdown="Aetna claim rows",
+            classification={
+                "candidate_categories_used": ["medical", "insurance", "needs-review"],
+                "summary": "Claims export from insurer.",
+                "reason": "Structured model output omitted the required primary label field.",
+                "confidence": "",
+            },
+            attach_originals=False,
+        )
+
+        note_text = note_path.read_text(encoding="utf-8")
+
+        assert note_path.parent.relative_to(vault).as_posix() == "02 Needs Review"
+        assert note_path.name == "claims - needs-review.md"
+        assert 'primary_label: "needs-review"' in note_text
+        assert 'recommended_action: "review"' in note_text
+        assert 'confidence: 0.55' in note_text
+        assert "Structured model output omitted the required primary label field." in note_text
+
+
 def test_write_index_surfaces_discovery_topics_and_entities():
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)

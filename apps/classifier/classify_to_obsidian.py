@@ -118,16 +118,101 @@ def obsidian_tag(value: str) -> str:
     return value.strip("-") or "unknown"
 
 
-def normalize_vault_classification(classification: Dict[str, Any]) -> Dict[str, Any]:
-    normalized = dict(classification)
-    primary = obsidian_tag(str(normalized.get("primary_label", "unknown") or "unknown"))
-    secondary = list(normalized.get("secondary_labels", []) or [])
+def _coerce_secondary_labels(raw_value: Any) -> List[str]:
+    if isinstance(raw_value, (list, tuple, set)):
+        return [str(item) for item in raw_value if str(item).strip()]
+    if isinstance(raw_value, str) and raw_value.strip():
+        return [raw_value.strip()]
+    return []
+
+
+def _coerce_float(raw_value: Any, default: float = 0.0) -> float:
+    try:
+        return float(raw_value)
+    except Exception:
+        return default
+
+
+def normalize_vault_classification(
+    classification: Dict[str, Any],
+    *,
+    candidate_categories: Optional[List[str]] = None,
+    fallback_primary: Optional[str] = None,
+    fallback_confidence: Optional[float] = None,
+    fallback_secondary: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    normalized = dict(classification or {})
+    allowed_categories = {obsidian_tag(item) for item in (candidate_categories or []) if str(item).strip()}
+    fallback_confidence_value = _coerce_float(fallback_confidence, 0.0)
+    fallback_primary_tag = obsidian_tag(fallback_primary or "")
+    primary = obsidian_tag(str(normalized.get("primary_label", "") or ""))
+    secondary = _coerce_secondary_labels(normalized.get("secondary_labels", []))
+    recovered_from_fallback = False
+
+    def is_allowed(label: str) -> bool:
+        return not allowed_categories or label in allowed_categories
+
+    if primary in {"", "unknown"} or not is_allowed(primary):
+        if fallback_primary_tag and fallback_primary_tag not in {"unknown", "needs-review"} and is_allowed(fallback_primary_tag):
+            normalized["primary_label"] = fallback_primary_tag
+            primary = fallback_primary_tag
+            recovered_from_fallback = True
+        elif "needs-review" in allowed_categories:
+            normalized["primary_label"] = "needs-review"
+            primary = "needs-review"
+            recovered_from_fallback = True
+        else:
+            normalized["primary_label"] = "unknown"
+            primary = "unknown"
+
+    secondary_tags: List[str] = []
+    seen_secondary: set[str] = set()
+    for item in secondary + list(fallback_secondary or []):
+        tag = obsidian_tag(item)
+        if tag in {"", "unknown", primary}:
+            continue
+        if allowed_categories and tag not in allowed_categories:
+            continue
+        if tag in seen_secondary:
+            continue
+        seen_secondary.add(tag)
+        secondary_tags.append(tag)
+    normalized["secondary_labels"] = secondary_tags
+
+    confidence_raw = normalized.get("confidence")
+    confidence = _coerce_float(confidence_raw, default=fallback_confidence_value)
+    if confidence_raw is None or (isinstance(confidence_raw, str) and not confidence_raw.strip()):
+        recovered_from_fallback = True
+    else:
+        try:
+            float(confidence_raw)
+        except Exception:
+            recovered_from_fallback = True
+
+    if recovered_from_fallback:
+        if confidence <= 0:
+            confidence = fallback_confidence_value if fallback_confidence_value > 0 else 0.55
+        confidence = min(confidence, 0.69)
+        normalized["confidence"] = round(confidence, 4)
+        normalized.setdefault(
+            "summary",
+            "Classifier response was partially malformed, so the best available hybrid hint was used.",
+        )
+        normalized.setdefault(
+            "reason",
+            "Recovered a structured label from hybrid hints because the model response omitted required label fields.",
+        )
+        normalized["recommended_action"] = "review"
+        normalized.setdefault("sensitive_flags", ["none"])
+        normalized.setdefault("file_date_guess", "unknown")
+        normalized.setdefault("language", "unknown")
+    elif "confidence" in normalized:
+        normalized["confidence"] = confidence
 
     if primary == "appeal":
         normalized["primary_label"] = "medical"
-        if not any(obsidian_tag(item) == "appeals" for item in secondary):
-            secondary.insert(0, "appeals")
-        normalized["secondary_labels"] = secondary
+        if "appeals" not in normalized["secondary_labels"]:
+            normalized["secondary_labels"] = ["appeals", *normalized["secondary_labels"]]
 
     return normalized
 
@@ -822,9 +907,15 @@ def process_shadow_queue_command(
                 vision_model=vision_model,
                 max_chars=max_chars,
             )
-            return classification
+            return normalize_vault_classification(
+                classification,
+                candidate_categories=list(job.get("taxonomy_candidates", []) or classification.get("candidate_categories_used", []) or []),
+                fallback_primary=str(((job.get("lightgbm_result") or {}).get("top_label") or "")),
+                fallback_confidence=float(((job.get("lightgbm_result") or {}).get("top_probability") or 0.0)),
+                fallback_secondary=[str(((job.get("heuristic_result") or {}).get("primary_label") or ""))],
+            )
 
-        return classify_markdown(
+        classification = classify_markdown(
             markdown=str(job.get("markdown", "")),
             source_path=Path(str(job.get("filename", "shadow-document"))),
             categories=categories,
@@ -832,6 +923,17 @@ def process_shadow_queue_command(
             model=model,
             max_chars=max_chars,
             heuristic_hints=job.get("heuristic_result") or {},
+        )
+        return normalize_vault_classification(
+            classification,
+            candidate_categories=list(job.get("taxonomy_candidates", []) or classification.get("candidate_categories_used", []) or []),
+            fallback_primary=str(
+                ((job.get("lightgbm_result") or {}).get("top_label"))
+                or ((job.get("heuristic_result") or {}).get("primary_label"))
+                or ""
+            ),
+            fallback_confidence=float(((job.get("lightgbm_result") or {}).get("top_probability") or 0.0)),
+            fallback_secondary=[str(((job.get("heuristic_result") or {}).get("primary_label") or ""))],
         )
 
     return run_autonomous_shadow_cycle(
@@ -1231,7 +1333,19 @@ def write_obsidian_note(
         pass
     # --- image-normalize-before-note END ---
 
-    classification = normalize_vault_classification(classification)
+    hybrid_fallback = {
+        "candidate_categories": classification.get("candidate_categories_used", []) or [],
+        "fallback_primary": classification.get("primary_label"),
+        "fallback_confidence": classification.get("confidence"),
+        "fallback_secondary": classification.get("secondary_labels", []) or [],
+    }
+    classification = normalize_vault_classification(
+        classification,
+        candidate_categories=list(hybrid_fallback["candidate_categories"]),
+        fallback_primary=str(hybrid_fallback["fallback_primary"] or ""),
+        fallback_confidence=hybrid_fallback["fallback_confidence"],
+        fallback_secondary=list(hybrid_fallback["fallback_secondary"]),
+    )
 
     primary = str(classification.get("primary_label", "unknown") or "unknown")
     secondary = classification.get("secondary_labels", []) or []
@@ -1737,7 +1851,24 @@ def main() -> int:
                     if hybrid_meta["decision"]["live_source"] == "heuristic-fast-path":
                         timing["model_ms"] = 0.0
 
-                classification = normalize_vault_classification(classification)
+                fallback_primary = str(
+                    ((hybrid_meta or {}).get("decision") or {}).get("selected_primary_hint")
+                    or ((hybrid_meta or {}).get("lightgbm") or {}).get("top_label")
+                    or (heuristic_classification or {}).get("primary_label")
+                    or ""
+                )
+                fallback_confidence = float(
+                    (((hybrid_meta or {}).get("lightgbm") or {}).get("top_probability") or 0.0)
+                )
+                classification = normalize_vault_classification(
+                    classification,
+                    candidate_categories=list(
+                        ((hybrid_meta or {}).get("taxonomy_candidates") or classification.get("candidate_categories_used", []) or [])
+                    ),
+                    fallback_primary=fallback_primary,
+                    fallback_confidence=fallback_confidence,
+                    fallback_secondary=[str((heuristic_classification or {}).get("primary_label") or "")],
+                )
                 retrieval_text_source = "\n".join(
                     filter(
                         None,

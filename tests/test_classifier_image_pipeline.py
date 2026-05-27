@@ -129,3 +129,22 @@ def test_classify_image_falls_back_to_vision_when_ocr_text_is_sparse(tmp_path: P
     assert classification["extraction_quality"] == "low"
     assert hybrid_meta is None
     assert markdown == ""
+
+
+def test_normalize_vault_classification_recovers_primary_from_hybrid_fallback():
+    normalized = classifier_module.normalize_vault_classification(
+        {
+            "summary": "Claims export from insurer.",
+            "reason": "The model returned a malformed structured payload.",
+            "confidence": "",
+        },
+        candidate_categories=["medical", "insurance", "needs-review"],
+        fallback_primary="insurance",
+        fallback_confidence=0.95,
+        fallback_secondary=["medical"],
+    )
+
+    assert normalized["primary_label"] == "insurance"
+    assert normalized["secondary_labels"] == ["medical"]
+    assert normalized["confidence"] == 0.69
+    assert normalized["recommended_action"] == "review"

@@ -292,6 +292,12 @@ Self-training loop:
 - malformed or non-JSON Qwen shadow responses are now recorded as
   `shadow-error` comparison rows and removed from the queue so one bad teacher
   response cannot wedge the autonomous loop
+- malformed structured live-classifier payloads that omit `primary_label` or
+  `confidence` are now normalized before note writing (#32)
+  - if LightGBM or heuristic hybrid hints provide a sensible fallback label, the
+    note keeps that recovered label but stays under `02 Needs Review`
+  - if no safe fallback exists, the note degrades to `needs-review` instead of
+    an opaque `unknown` label
 
 ## External taxonomy refresh and router rebuild
 
