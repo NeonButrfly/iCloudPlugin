@@ -409,6 +409,10 @@ Current retrieval flow:
   filename/path text
 - generated Obsidian notes and `Classification Index.md` now expose discovery
   topics and entities for the same files
+- the `0005_classification_retrieval_metadata` migration now widens
+  `alembic_version.version_num` before applying the retrieval-metadata schema
+  change, so older hosts still using the legacy `VARCHAR(32)` version column can
+  upgrade cleanly without a manual pre-alter (#30)
 
 Current self-learning flow:
 

@@ -18,6 +18,15 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Older live deployments still have alembic_version.version_num at VARCHAR(32),
+    # but this revision id is longer than that legacy width.
+    op.alter_column(
+        "alembic_version",
+        "version_num",
+        existing_type=sa.String(length=32),
+        type_=sa.String(length=64),
+        existing_nullable=False,
+    )
     op.add_column("classification_states", sa.Column("entity_summary", sa.Text(), nullable=True))
     op.add_column("classification_states", sa.Column("topic_summary", sa.Text(), nullable=True))
     op.add_column("classification_states", sa.Column("retrieval_terms_json", sa.Text(), nullable=True))

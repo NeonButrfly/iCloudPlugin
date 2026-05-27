@@ -156,26 +156,35 @@ def test_initial_migration_captures_authoritative_schema_rules():
     assert "Running upgrade 0001_initial_schema -> 0002_active_refresh_unique_index" in result.stdout
     assert "Running upgrade 0002_active_refresh_unique_index -> 0003_file_sync_progress" in result.stdout
     assert "Running upgrade 0003_file_sync_progress -> 0004_classification_jobs" in result.stdout
+    assert "Running upgrade 0004_classification_jobs -> 0005_classification_retrieval_metadata" in result.stdout
     assert "last_seen_sync_run_id INTEGER" in result.stdout
     assert "CREATE TABLE classification_jobs" in result.stdout
     assert "CREATE TABLE classification_states" in result.stdout
+    assert "ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(64);" in result.stdout
+    assert "ALTER TABLE classification_states ADD COLUMN entity_summary TEXT;" in result.stdout
     assert "ROW_NUMBER() OVER" in result.stdout
     assert "Marked failed during 0002_active_refresh_unique_index migration" in result.stdout
 
 
-def test_newest_migration_revision_fits_alembic_version_column_limit():
+def test_retrieval_metadata_migration_hardens_alembic_version_column_for_long_revision_ids():
     repo_root = Path(__file__).resolve().parents[1]
     migration_path = (
-        repo_root / "migrations" / "versions" / "0004_classification_jobs_and_file_metadata.py"
+        repo_root / "migrations" / "versions" / "0005_classification_retrieval_metadata.py"
     )
-    spec = importlib.util.spec_from_file_location("migration_0004", migration_path)
+    spec = importlib.util.spec_from_file_location("migration_0005", migration_path)
     assert spec is not None
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
 
-    assert len(module.revision) <= 32
-    assert module.revision == "0004_classification_jobs"
+    source_text = migration_path.read_text(encoding="utf-8")
+
+    assert module.revision == "0005_classification_retrieval_metadata"
+    assert len(module.revision) > 32
+    assert 'op.alter_column(' in source_text
+    assert '"alembic_version"' in source_text
+    assert '"version_num"' in source_text
+    assert "sa.String(length=64)" in source_text
 
 
 def test_alembic_upgrade_sql_fails_fast_without_database_settings():
