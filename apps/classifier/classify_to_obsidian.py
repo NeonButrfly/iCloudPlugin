@@ -13,6 +13,7 @@ import time
 import zipfile
 from collections import Counter
 from datetime import datetime
+from json import JSONDecoder
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import quote
@@ -1021,6 +1022,11 @@ def parse_document(path: Path, work_dir: Path) -> tuple[str, str, Dict[str, Any]
 
 def extract_json(text: str) -> Dict[str, Any]:
     text = text.strip()
+    decoder = JSONDecoder()
+
+    if text.startswith("```"):
+        fenced_lines = [line for line in text.splitlines() if not line.strip().startswith("```")]
+        text = "\n".join(fenced_lines).strip()
 
     try:
         return json.loads(text)
@@ -1028,8 +1034,20 @@ def extract_json(text: str) -> Dict[str, Any]:
         pass
 
     match = re.search(r"\{.*\}", text, flags=re.DOTALL)
+    candidates: List[str] = []
     if match:
-        return json.loads(match.group(0))
+        candidates.append(match.group(0))
+
+    for candidate in [text, *candidates]:
+        for start_index, char in enumerate(candidate):
+            if char != "{":
+                continue
+            try:
+                payload, _ = decoder.raw_decode(candidate[start_index:])
+            except Exception:
+                continue
+            if isinstance(payload, dict):
+                return payload
 
     raise ValueError(f"Could not parse JSON from model response: {text[:500]}")
 
@@ -1101,6 +1119,8 @@ Important:
 - Use secondary_labels only from Allowed categories.
 - A reimbursement packet with attached receipts may be "reimbursement-packet" or "receipt" depending on the dominant content.
 - Return strict JSON only.
+- Never return markdown fences, numbered lists, or explanatory prose outside the JSON object.
+- If uncertain, still return the required JSON schema with primary_label set to "unknown" or "needs-review".
 
 Allowed categories:
 {json.dumps(candidate_categories, indent=2)}
@@ -1191,6 +1211,8 @@ For environment/reference images, prefer labels such as reference-image, concept
 Describe visible content only.
 Do not invent unreadable text.
 Return strict JSON only.
+- Never return markdown fences, numbered lists, or explanatory prose outside the JSON object.
+- If uncertain, still return the required JSON schema with primary_label set to "unknown" or "needs-review".
 
 Allowed categories:
 {json.dumps(candidate_categories, indent=2)}

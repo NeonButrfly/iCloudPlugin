@@ -298,6 +298,12 @@ Self-training loop:
     note keeps that recovered label but stays under `02 Needs Review`
   - if no safe fallback exists, the note degrades to `needs-review` instead of
     an opaque `unknown` label
+- the dedicated `shadow-worker` also needs the shared source mirror mount, not
+  just `classifier-api`, because image review jobs reopen the original file
+  directly from `/source`
+- the Qwen teacher prompts now explicitly forbid markdown fences, numbered
+  lists, or prose outside the JSON object, and the runtime JSON extractor now
+  tolerates fenced or prefixed JSON responses before declaring `shadow-error`
 
 ## External taxonomy refresh and router rebuild
 

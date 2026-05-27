@@ -48,3 +48,14 @@ def test_classifier_compose_mounts_shared_source_root_for_direct_ingestion():
     assert "CLASSIFIER_SOURCE_MOUNT_SOURCE" in classifier_compose
     assert "CLASSIFIER_SOURCE_ROOT=${CLASSIFIER_SOURCE_ROOT:-/source}" in combined_compose
     assert "CLASSIFIER_SOURCE_MOUNT_SOURCE" in combined_compose
+
+
+def test_shadow_worker_compose_mounts_shared_source_root_for_image_reviews():
+    repo_root = Path(__file__).resolve().parents[1]
+    classifier_compose = (repo_root / "deploy" / "roles" / "classifier" / "docker-compose.yml").read_text(encoding="utf-8")
+    combined_compose = (repo_root / "deploy" / "roles" / "combined" / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert classifier_compose.count("CLASSIFIER_SOURCE_ROOT=${CLASSIFIER_SOURCE_ROOT:-/source}") >= 2
+    assert classifier_compose.count("CLASSIFIER_SOURCE_MOUNT_SOURCE") >= 2
+    assert combined_compose.count("CLASSIFIER_SOURCE_ROOT=${CLASSIFIER_SOURCE_ROOT:-/source}") >= 2
+    assert combined_compose.count("CLASSIFIER_SOURCE_MOUNT_SOURCE") >= 2

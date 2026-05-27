@@ -148,3 +148,18 @@ def test_normalize_vault_classification_recovers_primary_from_hybrid_fallback():
     assert normalized["secondary_labels"] == ["medical"]
     assert normalized["confidence"] == 0.69
     assert normalized["recommended_action"] == "review"
+
+
+def test_extract_json_accepts_fenced_json_payload():
+    payload = """```json
+    {
+      "primary_label": "invoice",
+      "secondary_labels": ["financial"],
+      "confidence": 0.95
+    }
+    ```"""
+
+    result = classifier_module.extract_json(payload)
+
+    assert result["primary_label"] == "invoice"
+    assert result["secondary_labels"] == ["financial"]
