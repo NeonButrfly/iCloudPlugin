@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -87,15 +88,52 @@ def save_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def _copy_if_missing(target_path: Path, filename: str) -> bool:
+    if target_path.exists():
+        return False
+    source_path = SETTINGS.resolve_existing_config_path(filename, include_artifact=False)
+    if source_path is None or source_path == target_path or not source_path.exists():
+        return False
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_path, target_path)
+    return True
+
+
+def ensure_runtime_artifacts_bootstrapped() -> Dict[str, Any]:
+    bootstrapped = []
+    for filename, target_path in [
+        ("hybrid-gating.json", HYBRID_GATING_PATH),
+        ("heuristic-rules.json", HEURISTIC_RULES_PATH),
+        ("lightgbm-classifier.joblib", LIGHTGBM_MODEL_PATH),
+        ("lightgbm-training-report.json", LIGHTGBM_REPORT_PATH),
+        ("taxonomy-router.joblib", SETTINGS.taxonomy_router_model_path),
+        ("taxonomy-router-report.json", SETTINGS.taxonomy_router_report_path),
+    ]:
+        if _copy_if_missing(target_path, filename):
+            bootstrapped.append(filename)
+    return {
+        "ok": True,
+        "bootstrapped": bootstrapped,
+    }
+
+
 def load_hybrid_gating_config(path: Optional[Path] = None) -> Dict[str, Any]:
     merged = dict(DEFAULT_HYBRID_GATING)
-    merged.update(load_json(path or HYBRID_GATING_PATH, default={}) or {})
+    active_path = path or HYBRID_GATING_PATH
+    source_path = active_path
+    if not source_path.exists():
+        source_path = SETTINGS.resolve_existing_config_path("hybrid-gating.json", include_artifact=False) or active_path
+    merged.update(load_json(source_path, default={}) or {})
     return merged
 
 
 def load_heuristic_rules(path: Optional[Path] = None) -> Dict[str, Any]:
     merged = json.loads(json.dumps(DEFAULT_HEURISTIC_RULES))
-    loaded = load_json(path or HEURISTIC_RULES_PATH, default={}) or {}
+    active_path = path or HEURISTIC_RULES_PATH
+    source_path = active_path
+    if not source_path.exists():
+        source_path = SETTINGS.resolve_existing_config_path("heuristic-rules.json", include_artifact=False) or active_path
+    loaded = load_json(source_path, default={}) or {}
     for key, value in loaded.items():
         if isinstance(value, dict) and isinstance(merged.get(key), dict):
             merged[key].update(value)
@@ -481,6 +519,99 @@ def read_jsonl(path: Path, limit: Optional[int] = None) -> list[Dict[str, Any]]:
     return rows
 
 
+def build_bootstrap_feedback_rows(
+    *,
+    corrections_path: Path = CORRECTIONS_PATH,
+    examples_path: Path = EXAMPLES_PATH,
+) -> list[Dict[str, Any]]:
+    rows: list[Dict[str, Any]] = []
+    for source_name, path in [
+        ("correction", corrections_path),
+        ("reviewed-example", examples_path),
+    ]:
+        for item in read_jsonl(path, limit=1000):
+            accepted_primary = str(
+                item.get("correct_label") or item.get("primary_label") or item.get("label") or ""
+            ).strip()
+            if not accepted_primary:
+                continue
+            filename = str(
+                item.get("filename")
+                or item.get("source_filename")
+                or Path(str(item.get("source_path") or "example")).name
+                or "example"
+            ).strip()
+            extension = (
+                Path(filename).suffix.lower()
+                or Path(str(item.get("source_path") or filename)).suffix.lower()
+            )
+            text_preview = " ".join(
+                filter(
+                    None,
+                    [
+                        str(item.get("source_path", "")),
+                        str(item.get("summary", "")),
+                        str(item.get("note", "")),
+                        str(item.get("old_label", "")),
+                        str(item.get("teacher_primary", "")),
+                        " ".join(map(str, item.get("teacher_evidence", []) or [])),
+                        " ".join(map(str, item.get("secondary_labels", []) or [])),
+                        " ".join(map(str, item.get("retrieval_terms", []) or [])),
+                    ],
+                )
+            )
+            rows.append(
+                {
+                    "recorded_at": utc_now(),
+                    "filename": filename,
+                    "extension": extension,
+                    "parser": str(item.get("parser", "")),
+                    "heuristic_primary": str(item.get("old_label") or accepted_primary or "unknown"),
+                    "live_primary": accepted_primary,
+                    "shadow_primary": accepted_primary,
+                    "taxonomy_candidates": item.get("secondary_labels", []) or [],
+                    "teacher_review_status": str(item.get("review_status") or "teacher-approved-bootstrap"),
+                    "teacher_reason": "reviewed-corpus-bootstrap",
+                    "teacher_approved_for_training": True,
+                    "teacher_supports_live_result": True,
+                    "teacher_suggests_correction": bool(str(item.get("old_label") or "").strip()),
+                    "entity_summary": str(item.get("entity_summary", "")),
+                    "topic_summary": str(item.get("topic_summary", "")),
+                    "retrieval_terms": item.get("retrieval_terms", []) or [],
+                    "retrieval_text": str(item.get("retrieval_text", "")),
+                    "ocr_engine": str(item.get("ocr_engine", "")),
+                    "ocr_quality": str(item.get("ocr_quality", "")),
+                    "ocr_char_count": int(item.get("ocr_char_count", 0) or 0),
+                    "extraction_quality": str(item.get("extraction_quality", "")),
+                    "text_preview": text_preview[:4000],
+                    "shadow_confidence": safe_float(item.get("confidence"), 1.0),
+                    "feedback_source": source_name,
+                }
+            )
+    return rows
+
+
+def build_feedback_rows(
+    *,
+    comparisons_path: Path = SHADOW_COMPARISONS_PATH,
+    corrections_path: Path = CORRECTIONS_PATH,
+    examples_path: Path = EXAMPLES_PATH,
+) -> list[Dict[str, Any]]:
+    rows = []
+    for item in read_jsonl(comparisons_path, limit=2000):
+        if isinstance(item, dict):
+            enriched = dict(item)
+            enriched.setdefault("feedback_source", "shadow-qwen")
+            rows.append(enriched)
+    rows.extend(
+        build_bootstrap_feedback_rows(
+            corrections_path=corrections_path,
+            examples_path=examples_path,
+        )
+    )
+    return rows
+
+
 def process_shadow_queue_once(
     queue_dir: Path = SHADOW_QUEUE_DIR,
     comparisons_path: Path = SHADOW_COMPARISONS_PATH,
@@ -567,22 +698,20 @@ def apply_disagreement_updates(
 
 def maybe_retrain_from_shadow_data(
     comparisons_path: Path = SHADOW_COMPARISONS_PATH,
+    corrections_path: Path = CORRECTIONS_PATH,
+    examples_path: Path = EXAMPLES_PATH,
     model_path: Path = LIGHTGBM_MODEL_PATH,
     report_path: Path = LIGHTGBM_REPORT_PATH,
     min_rows: int = 25,
     min_new_rows_since_last_train: int = 0,
 ) -> Dict[str, Any]:
-    comparisons = []
-    if comparisons_path.exists():
-        for line in comparisons_path.read_text(encoding="utf-8", errors="replace").splitlines():
-            try:
-                item = json.loads(line)
-            except Exception:
-                continue
-            if isinstance(item, dict):
-                comparisons.append(item)
-
-    approved = [row for row in comparisons if row.get("teacher_approved_for_training")]
+    ensure_runtime_artifacts_bootstrapped()
+    feedback_rows = build_feedback_rows(
+        comparisons_path=comparisons_path,
+        corrections_path=corrections_path,
+        examples_path=examples_path,
+    )
+    approved = [row for row in feedback_rows if row.get("teacher_approved_for_training")]
     if len(approved) < min_rows:
         return {
             "retrained": False,
@@ -611,7 +740,10 @@ def maybe_retrain_from_shadow_data(
         }
 
     training_rows = []
+    feedback_sources: Dict[str, int] = {}
     for row in approved:
+        source_name = str(row.get("feedback_source", "shadow-qwen") or "shadow-qwen")
+        feedback_sources[source_name] = feedback_sources.get(source_name, 0) + 1
         training_rows.append(
             {
                 "filename": row.get("filename", ""),
@@ -629,7 +761,7 @@ def maybe_retrain_from_shadow_data(
                 "ocr_char_count": int(row.get("ocr_char_count", 0) or 0),
                 "extraction_quality": row.get("extraction_quality", ""),
                 "accepted_primary": row.get("shadow_primary") or row.get("live_primary") or row.get("heuristic_primary") or "unknown",
-                "used_inline_llm": True,
+                "used_inline_llm": source_name == "shadow-qwen",
                 "disagreement": bool(row.get("disagreement")),
             }
         )
@@ -645,6 +777,7 @@ def maybe_retrain_from_shadow_data(
         "teacher_approved_rows": len(approved),
         "new_teacher_rows": new_rows,
         "previous_training_rows": previous_training_rows,
+        "feedback_sources": dict(sorted(feedback_sources.items())),
         "report": report,
     }
 
@@ -824,6 +957,7 @@ def ensure_lightgbm_model(
     training_source: str | None = None,
     index_database_url: str | None = None,
 ) -> Dict[str, Any]:
+    ensure_runtime_artifacts_bootstrapped()
     if model_path.exists():
         return {"ok": True, "created": False, "model_path": str(model_path)}
 
@@ -859,17 +993,28 @@ def ensure_lightgbm_model(
 def build_readiness_report(
     gating_config: Optional[Dict[str, Any]] = None,
     comparisons_path: Path = SHADOW_COMPARISONS_PATH,
+    corrections_path: Path = CORRECTIONS_PATH,
+    examples_path: Path = EXAMPLES_PATH,
     queue_dir: Path = SHADOW_QUEUE_DIR,
     model_path: Path = LIGHTGBM_MODEL_PATH,
 ) -> Dict[str, Any]:
     gating = gating_config or load_hybrid_gating_config()
-    comparisons = read_jsonl(comparisons_path, limit=500)
+    ensure_runtime_artifacts_bootstrapped()
+    feedback_rows = build_feedback_rows(
+        comparisons_path=comparisons_path,
+        corrections_path=corrections_path,
+        examples_path=examples_path,
+    )
     queue_depth = len(list(queue_dir.glob("*.json"))) if queue_dir.exists() else 0
     model_exists = model_path.exists()
 
-    reviewed = [row for row in comparisons if row.get("teacher_review_status")]
-    approved = [row for row in comparisons if row.get("teacher_approved_for_training")]
+    reviewed = [row for row in feedback_rows if row.get("teacher_review_status")]
+    approved = [row for row in feedback_rows if row.get("teacher_approved_for_training")]
     agreements = [row for row in approved if row.get("teacher_supports_live_result")]
+    feedback_sources: Dict[str, int] = {}
+    for row in approved:
+        source_name = str(row.get("feedback_source", "shadow-qwen") or "shadow-qwen")
+        feedback_sources[source_name] = feedback_sources.get(source_name, 0) + 1
     approved_unique_files = sorted(
         {
             str(row.get("filename", "")).strip()
@@ -945,7 +1090,7 @@ def build_readiness_report(
         "generated_at": utc_now(),
         "ok": True,
         "model_exists": model_exists,
-        "comparison_rows": len(comparisons),
+        "comparison_rows": len(read_jsonl(comparisons_path, limit=500)),
         "teacher_reviewed_rows": len(reviewed),
         "teacher_approved_rows": len(approved),
         "teacher_live_agreement_rows": len(agreements),
@@ -955,6 +1100,7 @@ def build_readiness_report(
         "teacher_extensions": approved_extensions,
         "teacher_labels": approved_labels,
         "teacher_parsers": approved_parsers,
+        "feedback_sources": dict(sorted(feedback_sources.items())),
         "queue_depth": queue_depth,
         "thresholds": {
             "readiness_min_teacher_samples": min_samples,

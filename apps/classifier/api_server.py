@@ -19,7 +19,13 @@ from pydantic import BaseModel
 from packages.runtime import load_classifier_runtime_settings
 
 from .category_manager import load_categories, load_groups
-from .hybrid_runtime import READINESS_REPORT_PATH, load_json
+from .hybrid_runtime import (
+    READINESS_REPORT_PATH,
+    ensure_lightgbm_model,
+    ensure_runtime_artifacts_bootstrapped,
+    load_json,
+    write_readiness_report,
+)
 
 APP = FastAPI(title="Local Document Classifier API", version="1.0.0")
 
@@ -184,6 +190,7 @@ async def stage_uploaded_file(file: UploadFile) -> dict:
 def health(x_api_key: Optional[str] = Header(default=None)):
     check_token(x_api_key)
     maybe_start_shadow_worker()
+    ensure_runtime_artifacts_bootstrapped()
 
     INPUT_ROOT.mkdir(parents=True, exist_ok=True)
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
@@ -309,7 +316,9 @@ async def classify_upload(
 @APP.get("/readiness")
 def get_readiness(x_api_key: Optional[str] = Header(default=None)):
     check_token(x_api_key)
-    report = load_json(READINESS_REPORT_PATH, default={}) or {}
+    ensure_runtime_artifacts_bootstrapped()
+    ensure_lightgbm_model()
+    report = write_readiness_report()
     return {
         "ok": True,
         "readiness_path": str(READINESS_REPORT_PATH),

@@ -155,3 +155,96 @@ def test_run_autonomous_shadow_cycle_respects_disabled_retrain_and_threshold_upd
     comparisons = hybrid_runtime.read_jsonl(comparisons_path)
     assert comparisons[0]["entity_summary"] == "organizations: Aetna"
     assert comparisons[0]["retrieval_terms"] == ["aetna", "appeal"]
+
+
+def test_build_readiness_report_uses_reviewed_examples_as_bootstrap_feedback(tmp_path: Path):
+    model_path = tmp_path / "lightgbm.joblib"
+    model_path.write_bytes(b"model")
+    examples_path = tmp_path / "examples.jsonl"
+    rows = []
+    labels = [
+        ("appeal", ".docx"),
+        ("invoice", ".pdf"),
+        ("receipt", ".csv"),
+        ("medical", ".png"),
+        ("legal", ".html"),
+        ("benefits", ".txt"),
+        ("claim", ".xlsx"),
+        ("tax", ".jpg"),
+        ("manual", ".md"),
+        ("contract", ".pptx"),
+    ]
+    for index, (label, extension) in enumerate(labels, start=1):
+        rows.append(
+            {
+                "filename": f"sample-{index}{extension}",
+                "source_filename": f"sample-{index}{extension}",
+                "correct_label": label,
+                "old_label": "unknown",
+                "confidence": 0.99,
+                "summary": f"Reviewed {label} example",
+                "secondary_labels": ["reviewed"],
+            }
+        )
+    examples_path.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+    report = hybrid_runtime.build_readiness_report(
+        gating_config={
+            **hybrid_runtime.DEFAULT_HYBRID_GATING,
+            "allow_real_ingestion": True,
+        },
+        comparisons_path=tmp_path / "shadow-comparisons.jsonl",
+        queue_dir=tmp_path / "shadow-queue",
+        model_path=model_path,
+        examples_path=examples_path,
+        corrections_path=tmp_path / "corrections.jsonl",
+    )
+
+    assert report["model_exists"] is True
+    assert report["teacher_approved_rows"] == 10
+    assert report["teacher_approval_rate"] == 1.0
+    assert report["teacher_agreement_rate"] == 1.0
+    assert report["real_ingestion_allowed"] is True
+    assert report["feedback_sources"]["reviewed-example"] == 10
+
+
+def test_maybe_retrain_from_shadow_data_uses_bootstrap_examples(tmp_path: Path):
+    examples_path = tmp_path / "examples.jsonl"
+    examples_path.write_text(
+        "".join(
+            json.dumps(
+                {
+                    "filename": f"reviewed-{index}.pdf",
+                    "source_filename": f"reviewed-{index}.pdf",
+                    "correct_label": label,
+                    "old_label": "unknown",
+                    "confidence": 0.98,
+                    "summary": f"Reviewed {label} training example",
+                    "secondary_labels": ["reviewed"],
+                }
+            )
+            + "\n"
+            for index, label in enumerate(["appeal", "invoice", "medical", "legal"], start=1)
+        ),
+        encoding="utf-8",
+    )
+    model_path = tmp_path / "lightgbm.joblib"
+    report_path = tmp_path / "lightgbm-report.json"
+
+    result = hybrid_runtime.maybe_retrain_from_shadow_data(
+        comparisons_path=tmp_path / "shadow-comparisons.jsonl",
+        examples_path=examples_path,
+        corrections_path=tmp_path / "corrections.jsonl",
+        model_path=model_path,
+        report_path=report_path,
+        min_rows=3,
+    )
+
+    assert result["retrained"] is True
+    assert result["teacher_approved_rows"] == 4
+    assert result["feedback_sources"]["reviewed-example"] == 4
+    assert model_path.exists()
+    assert report_path.exists()

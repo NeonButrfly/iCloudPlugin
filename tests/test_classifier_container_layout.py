@@ -26,3 +26,14 @@ def test_classifier_runtime_installs_paddleocr_cpu_dependencies():
     assert "paddleocr" in requirements
     assert "pytesseract" in requirements
     assert "paddlepaddle" in dockerfile
+
+
+def test_classifier_role_compose_includes_dedicated_shadow_worker():
+    repo_root = Path(__file__).resolve().parents[1]
+    classifier_compose = (repo_root / "deploy" / "roles" / "classifier" / "docker-compose.yml").read_text(encoding="utf-8")
+    combined_compose = (repo_root / "deploy" / "roles" / "combined" / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert "shadow-worker:" in classifier_compose
+    assert "apps.classifier.shadow_worker" in classifier_compose
+    assert "shadow-worker:" in combined_compose
+    assert "apps.classifier.shadow_worker" in combined_compose

@@ -238,6 +238,48 @@ python -m apps.classifier.retrain_hybrid_model
 If the runtime row cache is empty, the helper falls back to the live index DB
 configured through `INDEX_DATABASE_URL` or the `INDEX_POSTGRES_*` env vars.
 
+## Classifier readiness bootstrap and autonomous shadow learning
+
+The classifier role now treats `/config` as an operator-provided input mount,
+not as the only writable home for active model state (#28).
+
+Runtime behavior:
+
+- bundled seed artifacts live in the image under `/app/config`
+- active writable classifier artifacts live under `/output/_artifacts`
+- on startup and readiness checks, the runtime bootstraps missing writable
+  copies of:
+  - `hybrid-gating.json`
+  - `heuristic-rules.json`
+  - `lightgbm-classifier.joblib`
+  - `lightgbm-training-report.json`
+  - `taxonomy-router.joblib`
+  - `taxonomy-router-report.json`
+- if the active LightGBM model is still missing after bootstrap, the runtime
+  retrains it from the reviewed runtime corpus or the live index fallback
+
+Readiness behavior:
+
+- `/readiness` now refreshes the report on demand instead of serving a stale
+  file forever
+- readiness counts both:
+  - Qwen shadow-comparison approvals from `shadow-comparisons.jsonl`
+  - reviewed bootstrap examples from `examples.jsonl` and `corrections.jsonl`
+- this removes the old catch-22 where real-folder ingestion was blocked until
+  shadow approvals existed, even though a reviewed teacher corpus was already
+  available
+
+Self-training loop:
+
+- heuristics participate through disagreement-driven `force_inline_llm_for`
+  updates and threshold tuning
+- LightGBM participates through retraining on the merged approved feedback set
+- Qwen participates as the shadow teacher that reviews live decisions from the
+  shadow queue
+- the classifier role now has a dedicated `shadow-worker` service; do not rely
+  on the API's in-process background thread when `uvicorn` is running multiple
+  workers
+
 ## External taxonomy refresh and router rebuild
 
 The classifier now keeps a local alias artifact derived from enabled public

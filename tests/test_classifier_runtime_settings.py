@@ -49,6 +49,28 @@ def test_classifier_runtime_paths_allow_role_specific_overrides(monkeypatch):
     assert settings.shadow_queue_dir == Path("/srv/output/shadow-queue")
 
 
+def test_classifier_runtime_paths_support_bundled_and_artifact_overrides(monkeypatch):
+    monkeypatch.setenv("CLASSIFIER_CONFIG_ROOT", "/srv/config")
+    monkeypatch.setenv("CLASSIFIER_OUTPUT_ROOT", "/srv/output")
+    monkeypatch.setenv("CLASSIFIER_INPUT_ROOT", "/srv/input")
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", "/srv/vault")
+    monkeypatch.setenv("CLASSIFIER_BUNDLED_CONFIG_ROOT", "/srv/app-config")
+    monkeypatch.setenv("CLASSIFIER_ARTIFACT_ROOT", "/srv/artifacts")
+
+    module = import_module("packages.runtime.classifier_settings")
+    settings = module.load_classifier_runtime_settings()
+
+    assert settings.bundled_config_root == Path("/srv/app-config")
+    assert settings.artifact_root == Path("/srv/artifacts")
+    assert settings.lightgbm_model_path == Path("/srv/artifacts/lightgbm-classifier.joblib")
+    assert settings.lightgbm_report_path == Path("/srv/artifacts/lightgbm-training-report.json")
+    assert settings.hybrid_gating_path == Path("/srv/artifacts/hybrid-gating.json")
+    assert settings.heuristic_rules_path == Path("/srv/artifacts/heuristic-rules.json")
+    assert settings.readable_config_path("lightgbm-classifier.joblib", include_artifact=False) == Path(
+        "/srv/config/lightgbm-classifier.joblib"
+    )
+
+
 def test_codex_arbiter_requires_explicit_enable_flag(monkeypatch):
     module = import_module("packages.runtime.classifier_settings")
 

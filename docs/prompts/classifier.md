@@ -63,3 +63,13 @@
 - Runtime note: the shipped classifier image should install `paddlepaddle` before `paddleocr` so still-image OCR uses the faster path whenever it is enabled.
 - Training note: OCR evidence fields such as engine, quality, and character count must survive into LightGBM feature text, shadow comparisons, and runtime-manifest training rows so the model can learn that sparse OCR is a weaker signal than clean extracted text.
 - Affected systems: classifier Docker image, live hybrid feature builder, shadow queue/training rows, operator docs.
+
+## 2026-05-27 - Readiness bootstrap and unified self-training loop
+
+- Issue: [#28](https://github.com/NeonButrfly/iCloudPlugin/issues/28)
+- Source prompt: "rebuild/fix classifier readiness until /readiness shows real_ingestion_allowed=true" and "Make sure all classifier heuristics, lightbgm, qwen are part self-training feedback loop"
+- Interpreted requirement: remove the live readiness catch-22 by letting the classifier bootstrap from the bundled reviewed corpus and bundled model artifacts, keep writable runtime artifacts outside the read-only `/config` mount, and make the autonomous feedback loop treat heuristics, LightGBM, and Qwen as one connected learning system.
+- Bootstrap note: the classifier role should copy missing runtime artifacts from `/app/config` into `/output/_artifacts` so live retrains and threshold updates stay writable even when `/config` is a read-only host mount.
+- Readiness note: reviewed bootstrap rows from `examples.jsonl` and `corrections.jsonl` now count toward teacher-approved coverage alongside Qwen shadow comparisons, so `/readiness` can turn green before the first large real-folder submission wave.
+- Feedback-loop note: heuristics should keep learning from disagreement rules, LightGBM should retrain from the merged approved corpus, and Qwen should stay the shadow teacher through a dedicated single-runner `shadow-worker` service rather than an in-process API thread.
+- Affected systems: classifier runtime path resolution, readiness gating, LightGBM bootstrap/retrain path, shadow-worker deployment shape, operator docs.
