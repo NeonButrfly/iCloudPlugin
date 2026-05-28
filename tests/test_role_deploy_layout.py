@@ -18,6 +18,7 @@ def test_cloudsync_role_sync_assets_exist():
     repo_root = Path(__file__).resolve().parents[1]
     expected = [
         repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh",
+        repo_root / "deploy" / "roles" / "cloudsync" / "run_targeted_classification_batch.sh",
         repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.service",
         repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.timer",
     ]
@@ -43,6 +44,30 @@ def test_cloudsync_role_skips_dangling_google_drive_shortcuts():
     script_text = sync_script.read_text(encoding="utf-8")
 
     assert "--drive-skip-dangling-shortcuts" in script_text
+
+
+def test_cloudsync_targeted_batch_helper_restores_queue_state():
+    repo_root = Path(__file__).resolve().parents[1]
+    helper_script = (
+        repo_root / "deploy" / "roles" / "cloudsync" / "run_targeted_classification_batch.sh"
+    )
+    script_text = helper_script.read_text(encoding="utf-8")
+
+    assert "DEFER_PREFIX" in script_text
+    assert "FOCUS_PREFIX" in script_text
+    assert "next_attempt_at" in script_text
+    assert "trap cleanup EXIT" in script_text
+    assert "CLASSIFICATION_SUBMISSION_CONCURRENCY" in script_text
+    assert "run --rm --no-deps" in script_text
+
+
+def test_cloudsync_docs_reference_targeted_batch_helper():
+    repo_root = Path(__file__).resolve().parents[1]
+    role_readme = repo_root / "deploy" / "roles" / "cloudsync" / "README.md"
+    operations_doc = repo_root / "docs" / "operations.md"
+
+    assert "run_targeted_classification_batch.sh" in role_readme.read_text(encoding="utf-8")
+    assert "run_targeted_classification_batch.sh" in operations_doc.read_text(encoding="utf-8")
 
 
 def test_role_compose_files_exist_for_cloudsync_classifier_and_combined():

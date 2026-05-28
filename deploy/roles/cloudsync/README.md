@@ -30,6 +30,7 @@ Primary services in `docker-compose.yml`:
 Related host-level sync assets:
 
 - `deploy/roles/cloudsync/cloud-vault-sync.sh`
+- `deploy/roles/cloudsync/run_targeted_classification_batch.sh`
 - `deploy/roles/cloudsync/cloud-vault-sync.service`
 - `deploy/roles/cloudsync/cloud-vault-sync.timer`
 
@@ -58,3 +59,14 @@ The script is intentionally resilient:
   as source objects
 - ongoing runs use a dedicated state directory under
   `/srv/cloud-vault/.rclone-bisync`
+
+For bounded classifier backfill work on the sync host, use:
+
+- `deploy/roles/cloudsync/run_targeted_classification_batch.sh`
+
+That helper can:
+
+- print before/after queue summaries
+- temporarily defer one queued path prefix such as `/icloud/Downloads/`
+- run a bounded `classification-worker` pass
+- restore deferred jobs automatically on exit

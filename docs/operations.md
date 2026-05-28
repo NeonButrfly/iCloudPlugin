@@ -205,6 +205,20 @@ sudo docker compose -p icloudplugin --env-file .env `
   uv run python -c "from icloud_index_service.classification_worker import run_classification_worker_loop; print(run_classification_worker_loop(max_polls=3, poll_interval_seconds=0.1))"
 ```
 
+- for repeated targeted batches such as `Scanned`-first passes, prefer the
+  helper script added in issue [#36](https://github.com/NeonButrfly/iCloudPlugin/issues/36):
+
+```bash
+cd /opt/iCloudPlugin
+FOCUS_PREFIX=/icloud/Scanned/ \
+DEFER_PREFIX=/icloud/Downloads/ \
+./deploy/roles/cloudsync/run_targeted_classification_batch.sh
+```
+
+- the helper prints before/after queue counts, can temporarily defer one queued
+  path prefix, runs the bounded worker with a configurable timeout, and
+  restores deferred jobs automatically during cleanup
+
 - if a bounded run is interrupted, or a long file is intentionally stopped
   mid-pass, recover stale `running` jobs before the next batch:
 
