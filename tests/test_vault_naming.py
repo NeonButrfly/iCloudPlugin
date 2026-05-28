@@ -155,6 +155,122 @@ def test_write_obsidian_note_recovers_malformed_payload_from_hybrid_hint():
         assert "Structured model output omitted the required primary label field." in note_text
 
 
+def test_write_obsidian_note_reuses_existing_note_for_same_canonical_source():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        vault = root / "vault"
+        source_path = root / "input" / "api" / "uuid-project kay memory.pdf"
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_bytes(b"memory-pdf")
+        ensure_vault(vault)
+
+        classification = {
+            "primary_label": "medical",
+            "secondary_labels": [],
+            "confidence": 0.42,
+            "summary": "Needs review summary.",
+            "reason": "Low confidence medical memory document.",
+            "sensitive_flags": [],
+            "recommended_action": "review",
+            "file_date_guess": "2026-05-27",
+            "language": "English",
+        }
+        kwargs = {
+            "vault": vault,
+            "source_path": source_path,
+            "file_hash": "abcdef1234567890",
+            "markdown": "Memory preview",
+            "classification": classification,
+            "attach_originals": False,
+            "canonical_source_path": "/srv/cloud-vault/mirrors/icloud/project kay memory.pdf",
+            "canonical_source_hash": "abcdef1234567890",
+            "last_seen_filename": "project kay memory.pdf",
+        }
+
+        first_note_path = write_obsidian_note(**kwargs)
+        second_note_path = write_obsidian_note(**kwargs)
+
+        matching_notes = sorted((vault / "02 Needs Review").glob("project kay memory - medical*.md"))
+        matching_extracted = sorted(
+            (vault / "_system" / "extracted-markdown" / "medical").glob("project kay memory.extracted*.md")
+        )
+
+        assert first_note_path == second_note_path
+        assert first_note_path.name == "project kay memory - medical.md"
+        assert [path.name for path in matching_notes] == ["project kay memory - medical.md"]
+        assert [path.name for path in matching_extracted] == ["project kay memory.extracted.md"]
+
+
+def test_write_obsidian_note_collapses_existing_duplicate_note_for_same_canonical_source():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        vault = root / "vault"
+        source_path = root / "icloud" / "project kay memory.pdf"
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_bytes(b"memory-pdf")
+        ensure_vault(vault)
+
+        note_dir = vault / "02 Needs Review"
+        note_dir.mkdir(parents=True, exist_ok=True)
+        extracted_dir = vault / "_system" / "extracted-markdown" / "medical"
+        extracted_dir.mkdir(parents=True, exist_ok=True)
+
+        canonical_source_path = "/srv/cloud-vault/mirrors/icloud/project kay memory.pdf"
+        canonical_source_hash = "abcdef1234567890"
+        frontmatter = (
+            "---\n"
+            'type: "classified-document"\n'
+            'primary_label: "medical"\n'
+            f'canonical_source_path: "{canonical_source_path}"\n'
+            f'canonical_source_hash: "{canonical_source_hash}"\n'
+            'last_seen_filename: "project kay memory.pdf"\n'
+            'attachment_mode: "none"\n'
+            'compatibility_attachment_path: ""\n'
+            'source_link: ""\n'
+            'extracted_markdown: "[[_system/extracted-markdown/medical/project kay memory.extracted.md]]"\n'
+            "---\n\n# project kay memory.pdf\n"
+        )
+        duplicate_frontmatter = frontmatter.replace(
+            "project kay memory.extracted.md",
+            "project kay memory.extracted (2).md",
+        )
+        (note_dir / "project kay memory - medical.md").write_text(frontmatter, encoding="utf-8")
+        (note_dir / "project kay memory - medical (2).md").write_text(duplicate_frontmatter, encoding="utf-8")
+        (extracted_dir / "project kay memory.extracted.md").write_text("original", encoding="utf-8")
+        (extracted_dir / "project kay memory.extracted (2).md").write_text("duplicate", encoding="utf-8")
+
+        note_path = write_obsidian_note(
+            vault=vault,
+            source_path=source_path,
+            file_hash=canonical_source_hash,
+            markdown="Updated memory preview",
+            classification={
+                "primary_label": "medical",
+                "secondary_labels": [],
+                "confidence": 0.42,
+                "summary": "Needs review summary.",
+                "reason": "Low confidence medical memory document.",
+                "sensitive_flags": [],
+                "recommended_action": "review",
+                "file_date_guess": "2026-05-27",
+                "language": "English",
+            },
+            attach_originals=False,
+            canonical_source_path=canonical_source_path,
+            canonical_source_hash=canonical_source_hash,
+            last_seen_filename="project kay memory.pdf",
+        )
+
+        matching_notes = sorted((vault / "02 Needs Review").glob("project kay memory - medical*.md"))
+        matching_extracted = sorted(
+            (vault / "_system" / "extracted-markdown" / "medical").glob("project kay memory.extracted*.md")
+        )
+
+        assert note_path.name == "project kay memory - medical.md"
+        assert [path.name for path in matching_notes] == ["project kay memory - medical.md"]
+        assert [path.name for path in matching_extracted] == ["project kay memory.extracted.md"]
+
+
 def test_write_index_surfaces_discovery_topics_and_entities():
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)

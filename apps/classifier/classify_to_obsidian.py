@@ -14,7 +14,7 @@ import zipfile
 from collections import Counter
 from datetime import datetime
 from json import JSONDecoder
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import quote
 from xml.etree import ElementTree as ET
@@ -296,6 +296,97 @@ def build_canonical_source_link(canonical_source_path: str | None, display_name:
 
     label = display_name.replace("]", r"\]")
     return f"[{label}]({url})"
+
+
+def _parse_note_frontmatter(text: str) -> dict[str, str]:
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+
+    values: dict[str, str] = {}
+    for line in lines[1:]:
+        stripped = line.strip()
+        if stripped == "---":
+            break
+        if ":" not in line:
+            continue
+        key, raw_value = line.split(":", 1)
+        key = key.strip()
+        raw_value = raw_value.strip()
+        try:
+            parsed_value = json.loads(raw_value)
+        except json.JSONDecodeError:
+            parsed_value = raw_value.strip("'\"")
+        if isinstance(parsed_value, str):
+            values[key] = parsed_value
+    return values
+
+
+def _note_suffix_rank(name: str) -> tuple[int, int]:
+    match = re.search(r" \((\d+)\)\.md$", name)
+    if match is None:
+        return (0, 0)
+    return (1, int(match.group(1)))
+
+
+def _extract_wikilink_target(value: str) -> PurePosixPath | None:
+    raw_value = str(value or "").strip()
+    match = re.fullmatch(r"\[\[([^\]]+)\]\]", raw_value)
+    if match is None:
+        return None
+    inner = match.group(1).split("|", 1)[0].strip()
+    if not inner:
+        return None
+    return PurePosixPath(inner)
+
+
+def _existing_generated_note_matches(
+    vault: Path,
+    *,
+    canonical_source_path: str,
+    canonical_source_hash: str,
+    last_seen_filename: str,
+) -> list[tuple[int, Path, dict[str, str]]]:
+    matches: list[tuple[int, Path, dict[str, str]]] = []
+    for root_name in ("01 Classified", "02 Needs Review"):
+        note_root = vault / root_name
+        if not note_root.exists():
+            continue
+        for note_path in note_root.rglob("*.md"):
+            metadata = _parse_note_frontmatter(
+                note_path.read_text(encoding="utf-8", errors="replace")
+            )
+            if metadata.get("type") != "classified-document":
+                continue
+            rank: int | None = None
+            if canonical_source_path and metadata.get("canonical_source_path") == canonical_source_path:
+                rank = 0
+            elif canonical_source_hash and metadata.get("canonical_source_hash") == canonical_source_hash:
+                rank = 1
+            elif last_seen_filename and metadata.get("last_seen_filename") == last_seen_filename:
+                rank = 2
+            if rank is not None:
+                matches.append((rank, note_path, metadata))
+    matches.sort(key=lambda item: (item[0], _note_suffix_rank(item[1].name), str(item[1]).lower()))
+    return matches
+
+
+def _resolve_note_attachment_path(vault: Path, metadata: dict[str, str], field_name: str) -> Path | None:
+    target = _extract_wikilink_target(metadata.get(field_name, ""))
+    if target is None:
+        return None
+    return (vault / Path(*target.parts)).resolve()
+
+
+def _unlink_if_exists(path: Path | None) -> None:
+    if path is None or not path.exists() or not path.is_file():
+        return
+    path.unlink()
+
+
+def _remove_duplicate_generated_note(vault: Path, note_path: Path, metadata: dict[str, str]) -> None:
+    _unlink_if_exists(_resolve_note_attachment_path(vault, metadata, "extracted_markdown"))
+    note_path.unlink(missing_ok=True)
 
 
 def build_summary_fallback(
@@ -1403,6 +1494,9 @@ def write_obsidian_note(
     category_parts = vault_category_parts(primary, secondary)
     category_label = vault_category_label(category_parts)
     category_path = Path(*category_parts)
+    canonical_path_value = canonical_source_path or str(source_path)
+    canonical_hash_value = canonical_source_hash or file_hash
+    last_seen_filename_value = last_seen_filename or source_path.name
 
     if needs_review:
         note_dir = vault / "02 Needs Review"
@@ -1412,27 +1506,63 @@ def write_obsidian_note(
     note_dir.mkdir(parents=True, exist_ok=True)
     visible_source_name = display_source_name(
         source_path=source_path,
-        canonical_source_path=canonical_source_path,
-        last_seen_filename=last_seen_filename,
+        canonical_source_path=canonical_path_value,
+        last_seen_filename=last_seen_filename_value,
     )
     visible_title = Path(visible_source_name).stem
+    existing_note_matches = _existing_generated_note_matches(
+        vault,
+        canonical_source_path=canonical_path_value,
+        canonical_source_hash=canonical_hash_value,
+        last_seen_filename=last_seen_filename_value,
+    )
+    preferred_note_path: Path | None = None
+    preferred_note_metadata: dict[str, str] = {}
+    duplicate_note_matches: list[tuple[int, Path, dict[str, str]]] = []
+    if existing_note_matches:
+        _, preferred_note_path, preferred_note_metadata = existing_note_matches[0]
+        duplicate_note_matches = existing_note_matches[1:]
 
+    note_existing_names = {path.name for path in note_dir.glob("*.md")}
+    if preferred_note_path is not None and preferred_note_path.parent == note_dir:
+        note_existing_names.discard(preferred_note_path.name)
     note_filename = build_note_filename(
         title=visible_title,
         primary_label=category_label,
-        existing_names={path.name for path in note_dir.glob("*.md")},
+        existing_names=note_existing_names,
     )
     note_path = note_dir / note_filename
-    base = note_path.stem
+    if preferred_note_path is not None and preferred_note_path != note_path:
+        note_path.parent.mkdir(parents=True, exist_ok=True)
+        preferred_note_path.replace(note_path)
+        preferred_note_path = note_path
+    elif preferred_note_path is not None:
+        note_path = preferred_note_path
 
     extracted_link = ""
     if markdown is not None:
         extracted_dir = vault / "_system" / "extracted-markdown" / category_path
         extracted_dir.mkdir(parents=True, exist_ok=True)
+        preferred_extracted_path = _resolve_note_attachment_path(
+            vault,
+            preferred_note_metadata,
+            "extracted_markdown",
+        )
+        extracted_existing_names = {
+            path.name for path in extracted_dir.glob("*.md")
+        }
+        if preferred_extracted_path is not None and preferred_extracted_path.parent == extracted_dir:
+            extracted_existing_names.discard(preferred_extracted_path.name)
         extracted_path = extracted_dir / build_extracted_markdown_filename(
             title=visible_title,
-            existing_names={path.name for path in extracted_dir.glob("*.md")},
+            existing_names=extracted_existing_names,
         )
+        if preferred_extracted_path is not None and preferred_extracted_path.exists():
+            if preferred_extracted_path != extracted_path:
+                extracted_path.parent.mkdir(parents=True, exist_ok=True)
+                preferred_extracted_path.replace(extracted_path)
+            else:
+                extracted_path = preferred_extracted_path
         extracted_path.write_text(markdown, encoding="utf-8")
         extracted_link = f"[[{extracted_path.relative_to(vault).as_posix()}]]"
 
@@ -1457,9 +1587,9 @@ def write_obsidian_note(
         attachment_link=attachment_link,
         attachment_mode=attachment_mode,
         source_link=source_link,
-        canonical_source_path=canonical_source_path,
-        canonical_source_hash=canonical_source_hash,
-        last_seen_filename=last_seen_filename,
+        canonical_source_path=canonical_path_value,
+        canonical_source_hash=canonical_hash_value,
+        last_seen_filename=last_seen_filename_value,
     )
 
     tags = [f"classified/{obsidian_tag(primary)}"]
@@ -1549,6 +1679,10 @@ tags:
 """
 
     note_path.write_text(note_body, encoding="utf-8")
+    for _, duplicate_note_path, duplicate_note_metadata in duplicate_note_matches:
+        if duplicate_note_path == note_path:
+            continue
+        _remove_duplicate_generated_note(vault, duplicate_note_path, duplicate_note_metadata)
     return note_path
 
 def write_index(
