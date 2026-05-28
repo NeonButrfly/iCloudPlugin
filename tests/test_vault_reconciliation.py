@@ -185,3 +185,153 @@ def test_run_vault_reconciliation_once_leaves_note_untouched_when_hash_match_is_
     assert result["repaired"] == 0
     assert result["ambiguous"] == 1
     assert updated_note == original_note
+
+
+def test_run_vault_reconciliation_once_updates_state_to_matching_current_note(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from icloud_index_service.services.vault_reconciliation import run_vault_reconciliation_once
+
+    mirror_root = tmp_path / "mirror"
+    live_file = mirror_root / "icloud" / "project kay memory.pdf"
+    live_file.parent.mkdir(parents=True, exist_ok=True)
+    live_file.write_bytes(b"project-kay-memory")
+
+    vault_root = tmp_path / "vault"
+    current_note_path = vault_root / "02 Needs Review" / "project kay memory - financial.md"
+    _write_note(
+        current_note_path,
+        canonical_source_path=str(live_file),
+        canonical_source_hash="2613fcd123f94ff13f061e00f1f34df85ba978db8d6a8bc6ac3c44f55e0b6910",
+        last_seen_filename="project kay memory.pdf",
+    )
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+
+    stale_note_reference = "/vault/02 Needs Review/project kay memory - medical (2).md"
+    current_note_reference = "/vault/02 Needs Review/project kay memory - financial.md"
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    try:
+        file_record = _add_file(
+            session,
+            external_id="file-1",
+            name="project kay memory.pdf",
+            path="/icloud/project kay memory.pdf",
+        )
+        session.add(
+            ClassificationState(
+                file_id=file_record.id,
+                submission_status="completed",
+                classifier_note_path=stale_note_reference,
+                classifier_manifest_record=json.dumps(
+                    {
+                        "note_path": stale_note_reference,
+                        "canonical_source_path": str(live_file),
+                        "canonical_source_hash": "2613fcd123f94ff13f061e00f1f34df85ba978db8d6a8bc6ac3c44f55e0b6910",
+                        "last_seen_filename": "project kay memory.pdf",
+                    }
+                ),
+                response_payload_json=json.dumps(
+                    {
+                        "record": {
+                            "note_path": stale_note_reference,
+                            "canonical_source_path": str(live_file),
+                            "canonical_source_hash": "2613fcd123f94ff13f061e00f1f34df85ba978db8d6a8bc6ac3c44f55e0b6910",
+                            "last_seen_filename": "project kay memory.pdf",
+                        }
+                    }
+                ),
+            )
+        )
+        session.commit()
+
+        result = run_vault_reconciliation_once(session, limit=10)
+        session.expire_all()
+        stored_state = session.scalar(select(ClassificationState).limit(1))
+    finally:
+        session.close()
+
+    assert result["repaired"] == 1
+    assert result["scanned"] == 1
+    assert stored_state is not None
+    assert stored_state.classifier_note_path == current_note_reference
+    assert json.loads(stored_state.classifier_manifest_record)["note_path"] == current_note_reference
+    assert json.loads(stored_state.response_payload_json)["record"]["note_path"] == current_note_reference
+
+
+def test_run_vault_reconciliation_once_prefers_unsuffixed_matching_note(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from icloud_index_service.services.vault_reconciliation import run_vault_reconciliation_once
+
+    mirror_root = tmp_path / "mirror"
+    live_file = mirror_root / "icloud" / "uber_f1099k_2025.pdf"
+    live_file.parent.mkdir(parents=True, exist_ok=True)
+    live_file.write_bytes(b"uber-tax-document")
+
+    vault_root = tmp_path / "vault"
+    canonical_source_hash = "8da613b5d5261de8cb6445f8007a31b9e8a99c0fbd5316db4257c7cb66395c10"
+    last_seen_filename = "uber_f1099k_2025.pdf"
+    unsuffixed_note_path = vault_root / "01 Classified" / "financial" / "uber_f1099k_2025 - financial.md"
+    suffixed_note_path = vault_root / "01 Classified" / "financial" / "uber_f1099k_2025 - financial (2).md"
+    _write_note(
+        unsuffixed_note_path,
+        canonical_source_path=str(live_file),
+        canonical_source_hash=canonical_source_hash,
+        last_seen_filename=last_seen_filename,
+    )
+    _write_note(
+        suffixed_note_path,
+        canonical_source_path=str(live_file),
+        canonical_source_hash=canonical_source_hash,
+        last_seen_filename=last_seen_filename,
+    )
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    try:
+        file_record = _add_file(
+            session,
+            external_id="file-1",
+            name=last_seen_filename,
+            path="/icloud/uber_f1099k_2025.pdf",
+        )
+        session.add(
+            ClassificationState(
+                file_id=file_record.id,
+                submission_status="completed",
+                classifier_note_path="/vault/01 Classified/financial/uber_f1099k_2025 - financial (2).md",
+                classifier_manifest_record=json.dumps(
+                    {
+                        "note_path": "/vault/01 Classified/financial/uber_f1099k_2025 - financial (2).md",
+                        "canonical_source_path": str(live_file),
+                        "canonical_source_hash": canonical_source_hash,
+                        "last_seen_filename": last_seen_filename,
+                    }
+                ),
+            )
+        )
+        session.commit()
+
+        result = run_vault_reconciliation_once(session, limit=10)
+        session.expire_all()
+        stored_state = session.scalar(select(ClassificationState).limit(1))
+    finally:
+        session.close()
+
+    assert result["repaired"] == 1
+    assert stored_state is not None
+    assert (
+        stored_state.classifier_note_path
+        == "/vault/01 Classified/financial/uber_f1099k_2025 - financial.md"
+    )

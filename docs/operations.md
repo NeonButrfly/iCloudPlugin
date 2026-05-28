@@ -165,6 +165,10 @@ it successfully.
 - it can run a bounded vault reconciliation pass against `CLASSIFIER_VAULT_ROOT`
   after submission polls; this first pass repairs note metadata only and does
   not replace the underlying host-level cloud sync direction
+- that reconciliation pass now also realigns `classification_states.classifier_note_path`
+  plus stored manifest/response note references to the preferred current vault
+  note when note convergence has already collapsed duplicate `(2)` or `(3)`
+  variants (#35)
 - the canonical vault root for that role is now `/srv/cloud-vault/document-vault`
 - the old `/srv/cloud-vault/local-doc-classifier-vault` name is a compatibility
   symlink during the soak period

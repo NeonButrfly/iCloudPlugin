@@ -76,6 +76,11 @@ def _resolve_note_path(note_path_value: str, vault_root: Path) -> Path:
     return (vault_root / note_path_value.lstrip("/\\")).resolve()
 
 
+def _vault_note_reference(note_path: Path, vault_root: Path) -> str:
+    relative_path = note_path.resolve().relative_to(vault_root.resolve())
+    return f"/vault/{relative_path.as_posix()}"
+
+
 def _parse_frontmatter(text: str) -> tuple[dict[str, str], list[str], int] | None:
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
@@ -138,6 +143,13 @@ def _normalize_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.lower())
 
 
+def _note_suffix_rank(name: str) -> tuple[int, int]:
+    match = re.search(r" \((\d+)\)\.md$", name)
+    if match is None:
+        return (0, 0)
+    return (1, int(match.group(1)))
+
+
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -158,6 +170,115 @@ def _iter_live_candidates(session: Session, mirror_root: Path) -> list[tuple[Fil
         if candidate_path.exists() and candidate_path.is_file():
             candidates.append((file_record, candidate_path))
     return candidates
+
+
+def _iter_generated_notes(vault_root: Path) -> list[tuple[Path, dict[str, str]]]:
+    notes: list[tuple[Path, dict[str, str]]] = []
+    for root_name in ("01 Classified", "02 Needs Review"):
+        note_root = vault_root / root_name
+        if not note_root.exists():
+            continue
+        for note_path in note_root.rglob("*.md"):
+            parsed = _parse_frontmatter(
+                note_path.read_text(encoding="utf-8", errors="replace")
+            )
+            if parsed is None:
+                continue
+            metadata, _, _ = parsed
+            if metadata.get("type") != "classified-document":
+                continue
+            notes.append((note_path.resolve(), metadata))
+    return notes
+
+
+def _find_matching_generated_notes(
+    vault_root: Path,
+    *,
+    canonical_source_path: str,
+    canonical_source_hash: str,
+    last_seen_filename: str,
+) -> list[tuple[int, Path, dict[str, str]]]:
+    matches: list[tuple[int, Path, dict[str, str]]] = []
+    for note_path, metadata in _iter_generated_notes(vault_root):
+        rank: int | None = None
+        if canonical_source_path and metadata.get("canonical_source_path") == canonical_source_path:
+            rank = 0
+        elif canonical_source_hash and metadata.get("canonical_source_hash") == canonical_source_hash:
+            rank = 1
+        elif last_seen_filename and metadata.get("last_seen_filename") == last_seen_filename:
+            rank = 2
+        if rank is not None:
+            matches.append((rank, note_path, metadata))
+    matches.sort(key=lambda item: (item[0], _note_suffix_rank(item[1].name), str(item[1]).lower()))
+    return matches
+
+
+def _parse_json_object(raw_value: str | None) -> dict[str, object]:
+    if not raw_value:
+        return {}
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _update_state_note_references(
+    state: ClassificationState,
+    *,
+    note_reference: str,
+    note_metadata: dict[str, str],
+) -> bool:
+    changed = False
+    if state.classifier_note_path != note_reference:
+        state.classifier_note_path = note_reference
+        changed = True
+
+    manifest_record = _parse_json_object(state.classifier_manifest_record)
+    if manifest_record:
+        if manifest_record.get("note_path") != note_reference:
+            manifest_record["note_path"] = note_reference
+            changed = True
+        canonical_source_path = note_metadata.get("canonical_source_path", "")
+        if canonical_source_path and manifest_record.get("canonical_source_path") != canonical_source_path:
+            manifest_record["canonical_source_path"] = canonical_source_path
+            changed = True
+        canonical_source_hash = note_metadata.get("canonical_source_hash", "")
+        if canonical_source_hash and manifest_record.get("canonical_source_hash") != canonical_source_hash:
+            manifest_record["canonical_source_hash"] = canonical_source_hash
+            changed = True
+        last_seen_filename = note_metadata.get("last_seen_filename", "")
+        if last_seen_filename and manifest_record.get("last_seen_filename") != last_seen_filename:
+            manifest_record["last_seen_filename"] = last_seen_filename
+            changed = True
+        if changed:
+            state.classifier_manifest_record = json.dumps(manifest_record, ensure_ascii=False)
+
+    response_payload = _parse_json_object(state.response_payload_json)
+    if response_payload:
+        response_changed = False
+        record_payload = response_payload.get("record")
+        if isinstance(record_payload, dict):
+            if record_payload.get("note_path") != note_reference:
+                record_payload["note_path"] = note_reference
+                response_changed = True
+            canonical_source_path = note_metadata.get("canonical_source_path", "")
+            if canonical_source_path and record_payload.get("canonical_source_path") != canonical_source_path:
+                record_payload["canonical_source_path"] = canonical_source_path
+                response_changed = True
+            canonical_source_hash = note_metadata.get("canonical_source_hash", "")
+            if canonical_source_hash and record_payload.get("canonical_source_hash") != canonical_source_hash:
+                record_payload["canonical_source_hash"] = canonical_source_hash
+                response_changed = True
+            last_seen_filename = note_metadata.get("last_seen_filename", "")
+            if last_seen_filename and record_payload.get("last_seen_filename") != last_seen_filename:
+                record_payload["last_seen_filename"] = last_seen_filename
+                response_changed = True
+        if response_changed:
+            state.response_payload_json = json.dumps(response_payload, ensure_ascii=False)
+            changed = True
+
+    return changed
 
 
 def _select_replacement_candidate(
@@ -231,34 +352,77 @@ def run_vault_reconciliation_once(
         .order_by(ClassificationState.id.asc())
         .limit(active_limit)
     ).all()
+    database_changed = False
 
     for state in states:
         result["scanned"] += 1
         note_path_value = state.classifier_note_path or ""
-        if not note_path_value:
-            result["skipped"] += 1
-            continue
+        note_path = _resolve_note_path(note_path_value, vault_root) if note_path_value else None
+        note_text = ""
+        metadata: dict[str, str] = {}
+        if note_path_value and note_path is not None and note_path.exists() and note_path.is_file():
+            note_text = note_path.read_text(encoding="utf-8", errors="replace")
+            parsed = _parse_frontmatter(note_text)
+            if parsed is not None:
+                metadata, _, _ = parsed
 
-        note_path = _resolve_note_path(note_path_value, vault_root)
-        if not note_path.exists() or not note_path.is_file():
-            result["skipped"] += 1
-            continue
+        manifest_record = _parse_json_object(state.classifier_manifest_record)
+        file_record = session.get(FileRecord, state.file_id)
+        fallback_source_path = ""
+        fallback_last_seen_filename = ""
+        if file_record is not None:
+            fallback_last_seen_filename = file_record.name
+            if mirror_root is not None:
+                fallback_source_path = str(
+                    (mirror_root / file_record.path.lstrip("/")).resolve()
+                )
 
-        note_text = note_path.read_text(encoding="utf-8", errors="replace")
-        parsed = _parse_frontmatter(note_text)
-        if parsed is None:
-            result["skipped"] += 1
-            continue
-
-        metadata, _, _ = parsed
-        canonical_source_path = metadata.get("canonical_source_path", "")
-        canonical_source_hash = metadata.get("canonical_source_hash", "")
-        last_seen_filename = metadata.get("last_seen_filename", "")
+        canonical_source_path = (
+            metadata.get("canonical_source_path", "")
+            or str(manifest_record.get("canonical_source_path") or "")
+            or fallback_source_path
+        )
+        canonical_source_hash = (
+            metadata.get("canonical_source_hash", "")
+            or str(manifest_record.get("canonical_source_hash") or "")
+        )
+        last_seen_filename = (
+            metadata.get("last_seen_filename", "")
+            or str(manifest_record.get("last_seen_filename") or "")
+            or fallback_last_seen_filename
+        )
         if not canonical_source_path or not last_seen_filename:
             result["unverified"] += 1
             continue
 
-        current_source_path = Path(canonical_source_path)
+        matching_notes = _find_matching_generated_notes(
+            vault_root,
+            canonical_source_path=canonical_source_path,
+            canonical_source_hash=canonical_source_hash,
+            last_seen_filename=last_seen_filename,
+        )
+        preferred_note_path: Path | None = None
+        preferred_metadata: dict[str, str] = metadata
+        if matching_notes:
+            _, preferred_note_path, preferred_metadata = matching_notes[0]
+            preferred_reference = _vault_note_reference(preferred_note_path, vault_root)
+            if _update_state_note_references(
+                state,
+                note_reference=preferred_reference,
+                note_metadata=preferred_metadata,
+            ):
+                database_changed = True
+                result["repaired"] += 1
+
+        active_note_path = preferred_note_path or note_path
+        active_metadata = preferred_metadata if preferred_note_path is not None else metadata
+        if active_note_path is None or not active_note_path.exists() or not active_note_path.is_file():
+            result["skipped"] += 1
+            continue
+
+        current_source_path = Path(
+            active_metadata.get("canonical_source_path", canonical_source_path)
+        )
         if current_source_path.exists():
             continue
 
@@ -276,16 +440,31 @@ def run_vault_reconciliation_once(
             continue
 
         updated_note = _update_frontmatter_fields(
-            note_text,
+            active_note_path.read_text(encoding="utf-8", errors="replace"),
             {
                 "canonical_source_path": str(replacement_path),
-                "canonical_source_hash": canonical_source_hash or _sha256_file(replacement_path),
+                "canonical_source_hash": active_metadata.get("canonical_source_hash", "") or canonical_source_hash or _sha256_file(replacement_path),
                 "last_seen_filename": replacement_path.name,
-                "attachment_mode": metadata.get("attachment_mode", "none"),
-                "compatibility_attachment_path": metadata.get("compatibility_attachment_path", ""),
+                "attachment_mode": active_metadata.get("attachment_mode", "none"),
+                "compatibility_attachment_path": active_metadata.get("compatibility_attachment_path", ""),
             },
         )
-        note_path.write_text(updated_note, encoding="utf-8")
+        active_note_path.write_text(updated_note, encoding="utf-8")
         result["repaired"] += 1
+        database_changed = True
+        refreshed_metadata = dict(active_metadata)
+        refreshed_metadata["canonical_source_path"] = str(replacement_path)
+        refreshed_metadata["canonical_source_hash"] = (
+            active_metadata.get("canonical_source_hash", "") or canonical_source_hash or _sha256_file(replacement_path)
+        )
+        refreshed_metadata["last_seen_filename"] = replacement_path.name
+        note_reference = _vault_note_reference(active_note_path, vault_root)
+        _update_state_note_references(
+            state,
+            note_reference=note_reference,
+            note_metadata=refreshed_metadata,
+        )
 
+    if database_changed:
+        session.commit()
     return result
