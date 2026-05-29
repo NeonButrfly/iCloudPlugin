@@ -212,12 +212,13 @@ sudo docker compose -p icloudplugin --env-file .env `
 cd /opt/iCloudPlugin
 FOCUS_PREFIX=/icloud/Scanned/ \
 DEFER_PREFIX=/icloud/Downloads/ \
-./deploy/roles/cloudsync/run_targeted_classification_batch.sh
+./deploy/roles/cloudsync/run_targeted_classification_batch.sh --run-live-summary
 ```
 
 - the helper prints before/after queue counts, can temporarily defer one queued
-  path prefix, runs the bounded worker with a configurable timeout, and
-  restores deferred jobs automatically during cleanup
+  path prefix, runs the bounded worker with a configurable timeout, restores
+  deferred jobs automatically during cleanup, and can print the newest
+  completed rows explicitly after the batch with `--run-live-summary`
 
 - if a bounded run is interrupted, or a long file is intentionally stopped
   mid-pass, recover stale `running` jobs before the next batch:

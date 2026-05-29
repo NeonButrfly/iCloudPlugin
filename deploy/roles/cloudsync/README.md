@@ -69,4 +69,5 @@ That helper can:
 - print before/after queue summaries
 - temporarily defer one queued path prefix such as `/icloud/Downloads/`
 - run a bounded `classification-worker` pass
+- optionally print newest completed rows across the whole queue with `--run-live-summary`
 - restore deferred jobs automatically on exit

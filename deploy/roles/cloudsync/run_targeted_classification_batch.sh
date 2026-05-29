@@ -19,7 +19,9 @@ POLL_INTERVAL_SECONDS="${POLL_INTERVAL_SECONDS:-0.1}"
 WORKER_TIMEOUT_SECONDS="${WORKER_TIMEOUT_SECONDS:-1200}"
 QUEUE_LIMIT="${QUEUE_LIMIT:-15}"
 RECENT_LIMIT="${RECENT_LIMIT:-12}"
+LIVE_SUMMARY_LIMIT="${LIVE_SUMMARY_LIMIT:-10}"
 DRY_RUN="${DRY_RUN:-0}"
+RUN_LIVE_SUMMARY="${RUN_LIVE_SUMMARY:-0}"
 TEMP_DEFER_ERROR="${TEMP_DEFER_ERROR:-Temporarily deferred to prioritize targeted bounded batch helper.}"
 
 DEFER_APPLIED=0
@@ -41,6 +43,8 @@ Options:
   --worker-timeout SECONDS    Timeout for the one-shot worker command. Default: 1200
   --queue-limit N             Number of queued rows to display. Default: 15
   --recent-limit N            Number of recent completed rows to display. Default: 12
+  --live-summary-limit N      Number of newest completed rows in live summary mode. Default: 10
+  --run-live-summary          Print a global newest-completed summary after the batch.
   --dry-run                   Show what would run without mutating queue state.
   --help                      Show this help text.
 
@@ -122,6 +126,17 @@ limit ${RECENT_LIMIT};
 EOF
 }
 
+overall_recent_completed_sql() {
+  cat <<EOF
+select cs.id, f.path, cs.classifier_note_path
+from classification_states cs
+join files f on f.id = cs.file_id
+where cs.submission_status = 'completed'
+order by cs.id desc
+limit ${LIVE_SUMMARY_LIMIT};
+EOF
+}
+
 print_queue_counts() {
   psql_exec \
     "select submission_status, count(*) from classification_states group by submission_status order by submission_status;"
@@ -132,6 +147,14 @@ print_focus_previews() {
   psql_exec "$(queued_preview_sql)"
   log_line "Recent completed preview${FOCUS_PREFIX:+ for ${FOCUS_PREFIX}}:"
   psql_exec "$(recent_completed_sql)"
+}
+
+print_live_summary() {
+  if [[ "${RUN_LIVE_SUMMARY}" != "1" ]]; then
+    return 0
+  fi
+  log_line "Recent completed rows overall:"
+  psql_exec "$(overall_recent_completed_sql)"
 }
 
 apply_defer_prefix() {
@@ -192,7 +215,18 @@ trap cleanup EXIT
 
 run_worker_pass() {
   local python_command
+  local -a worker_command
   python_command="from icloud_index_service.classification_worker import run_classification_worker_loop; print(run_classification_worker_loop(max_polls=${MAX_POLLS}, poll_interval_seconds=${POLL_INTERVAL_SECONDS}))"
+  worker_command=(
+    docker compose
+    -p "${COMPOSE_PROJECT}"
+    --env-file "${ENV_FILE}"
+    -f "${COMPOSE_FILE}"
+    run --rm --no-deps
+    -e "CLASSIFICATION_SUBMISSION_CONCURRENCY=${CONCURRENCY}"
+    "${CLASSIFICATION_SERVICE}"
+    uv run python -c "${python_command}"
+  )
 
   if [[ "${DRY_RUN}" == "1" ]]; then
     log_line "Dry run enabled; skipping worker execution."
@@ -202,17 +236,10 @@ run_worker_pass() {
   log_line "Starting bounded worker pass"
   set +e
   if command -v timeout >/dev/null 2>&1; then
-    timeout "${WORKER_TIMEOUT_SECONDS}s" \
-      docker_compose run --rm --no-deps \
-        -e "CLASSIFICATION_SUBMISSION_CONCURRENCY=${CONCURRENCY}" \
-        "${CLASSIFICATION_SERVICE}" \
-        uv run python -c "${python_command}"
+    timeout "${WORKER_TIMEOUT_SECONDS}s" "${worker_command[@]}"
     WORKER_EXIT_STATUS=$?
   else
-    docker_compose run --rm --no-deps \
-      -e "CLASSIFICATION_SUBMISSION_CONCURRENCY=${CONCURRENCY}" \
-      "${CLASSIFICATION_SERVICE}" \
-      uv run python -c "${python_command}"
+    "${worker_command[@]}"
     WORKER_EXIT_STATUS=$?
   fi
   set -e
@@ -262,6 +289,14 @@ parse_args() {
         RECENT_LIMIT="$2"
         shift 2
         ;;
+      --live-summary-limit)
+        LIVE_SUMMARY_LIMIT="$2"
+        shift 2
+        ;;
+      --run-live-summary)
+        RUN_LIVE_SUMMARY="1"
+        shift
+        ;;
       --dry-run)
         DRY_RUN="1"
         shift
@@ -304,6 +339,7 @@ main() {
   log_line "Queue counts after:"
   print_queue_counts
   print_focus_previews
+  print_live_summary
 }
 
 main "$@"

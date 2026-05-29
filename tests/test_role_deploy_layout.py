@@ -59,6 +59,10 @@ def test_cloudsync_targeted_batch_helper_restores_queue_state():
     assert "trap cleanup EXIT" in script_text
     assert "CLASSIFICATION_SUBMISSION_CONCURRENCY" in script_text
     assert "run --rm --no-deps" in script_text
+    assert "RUN_LIVE_SUMMARY" in script_text
+    assert "--run-live-summary" in script_text
+    assert "Recent completed rows overall:" in script_text
+    assert 'timeout "${WORKER_TIMEOUT_SECONDS}s" "${worker_command[@]}"' in script_text
 
 
 def test_cloudsync_docs_reference_targeted_batch_helper():
