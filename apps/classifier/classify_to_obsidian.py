@@ -282,20 +282,28 @@ def build_canonical_source_link(canonical_source_path: str | None, display_name:
     cloud_vault_prefix = "/srv/cloud-vault/"
     if source_path.startswith(cloud_vault_prefix):
         relative_path = source_path[len(cloud_vault_prefix):]
-        base_url = os.getenv(
+        base_target = os.getenv(
             "CLASSIFIER_SOURCE_LINK_BASE_URL",
-            "file://192.168.50.86/cloud-vault",
-        ).rstrip("/")
-        url = f"{base_url}/{quote(relative_path, safe='/')}"
+            r"\\192.168.50.86\cloud-vault",
+        ).strip()
+        if base_target.startswith("\\\\"):
+            normalized_base = base_target.rstrip("\\/")
+            target = normalized_base + "\\" + relative_path.replace("/", "\\")
+        elif re.match(r"^[A-Za-z]:[/\\]", base_target):
+            normalized_base = base_target.rstrip("\\/")
+            target = normalized_base + "\\" + relative_path.replace("/", "\\")
+        else:
+            base_url = base_target.rstrip("/")
+            target = f"{base_url}/{quote(relative_path, safe='/')}"
     elif source_path.startswith("/"):
-        url = f"file://{quote(source_path, safe='/')}"
+        target = f"file://{quote(source_path, safe='/')}"
     elif re.match(r"^[A-Za-z]:/", source_path):
-        url = f"file:///{quote(source_path, safe='/:')}"
+        target = f"file:///{quote(source_path, safe='/:')}"
     else:
-        url = f"file://{quote(source_path, safe='/')}"
+        target = f"file://{quote(source_path, safe='/')}"
 
     label = display_name.replace("]", r"\]")
-    return f"[{label}]({url})"
+    return f"[{label}](<{target}>)"
 
 
 def _parse_note_frontmatter(text: str) -> dict[str, str]:

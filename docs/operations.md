@@ -257,6 +257,9 @@ canonical source filename, not the classifier API's temporary staged upload name
 For canonical mirror submissions, issue #19 makes the note's `attachment` and
 `source_link` metadata point back to the mirrored source file; the classifier
 should not create a duplicate file under `90 Attachments`.
+For cloud-vault mirror files, the generated source link now defaults to a
+Windows UNC share path such as `\\192.168.50.86\cloud-vault\mirrors\...` so the
+link opens naturally from the Windows workflow.
 
 Medical or insurance appeal classifications should be written under
 `01 Classified/medical/appeals` with a visible suffix of `medical - appeals`,

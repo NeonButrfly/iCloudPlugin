@@ -117,7 +117,7 @@ def test_write_obsidian_note_prefers_canonical_filename_over_staged_upload_name(
         assert 'attachment_mode: "canonical-source-link"' in note_text
         assert "entity_summary:" in note_text
         assert "retrieval_terms:" in note_text
-        assert "file://192.168.50.86/cloud-vault/mirrors/google1/Aetna%20Life%20Insurance%20Company%20-%20APPEAL%201%20FFS.docx" in note_text
+        assert r"\\192.168.50.86\cloud-vault\mirrors\google1\Aetna Life Insurance Company - APPEAL 1 FFS.docx" in note_text
         assert not attachment.exists()
         assert extracted.exists()
 
