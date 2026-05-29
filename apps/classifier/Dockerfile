@@ -6,7 +6,7 @@ ENV TZ=America/Anchorage
 ENV PIP_ROOT_USER_ACTION=ignore
 ENV PYTORCH_CPU_INDEX_URL=https://download.pytorch.org/whl/cpu
 ENV PADDLE_CPU_INDEX_URL=https://www.paddlepaddle.org.cn/packages/stable/cpu/
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app:/app/src
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -34,6 +34,7 @@ RUN python -m pip install --upgrade pip setuptools wheel && \
 
 COPY apps /app/apps
 COPY packages /app/packages
+COPY src /app/src
 COPY config /app/config
 
 CMD ["python", "/app/apps/classifier/classify-to-obsidian.py"]

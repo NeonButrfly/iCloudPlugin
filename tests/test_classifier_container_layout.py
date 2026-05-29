@@ -7,6 +7,8 @@ def test_classifier_dockerfile_copies_shared_packages_for_monorepo_runtime():
     text = dockerfile.read_text(encoding="utf-8")
 
     assert "COPY packages /app/packages" in text
+    assert "COPY src /app/src" in text
+    assert "ENV PYTHONPATH=/app:/app/src" in text
 
 
 def test_classifier_dockerfile_uses_cmd_so_api_service_can_override_startup():
