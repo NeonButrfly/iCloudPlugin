@@ -479,11 +479,13 @@ def test_sync_manual_note_feedback_exports_changed_manual_notes(
         vault_root,
         feedback_path=feedback_path,
         state_path=state_path,
+        known_labels=["appeal", "markdown-note"],
     )
     second_result = sync_manual_note_feedback(
         vault_root,
         feedback_path=feedback_path,
         state_path=state_path,
+        known_labels=["appeal", "markdown-note"],
     )
 
     rows = [
@@ -497,3 +499,133 @@ def test_sync_manual_note_feedback_exports_changed_manual_notes(
     assert rows[0]["correct_label"] == "appeal"
     assert rows[0]["source_path"] == "/srv/cloud-vault/mirrors/icloud/Scanned/appeal.pdf"
     assert rows[0]["note"] == "manual-obsidian-note:Projects/Kay Appeal.md"
+
+
+def test_sync_manual_note_feedback_uses_folder_as_weak_label_when_mapped(
+    tmp_path: Path,
+):
+    from icloud_index_service.services.vault_reconciliation import sync_manual_note_feedback
+
+    vault_root = tmp_path / "vault"
+    note_path = vault_root / "Receipts" / "Lowe's trip.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text("# Lowe's trip\n\nStore visit notes.\n", encoding="utf-8")
+
+    feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    state_path = tmp_path / "manual-note-sync-state.json"
+    folder_map_path = tmp_path / "vault-folder-labels.json"
+    folder_map_path.write_text(
+        json.dumps({"receipts": {"primary_label": "receipt"}}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    result = sync_manual_note_feedback(
+        vault_root,
+        feedback_path=feedback_path,
+        state_path=state_path,
+        known_labels=["receipt", "markdown-note"],
+        folder_label_map_path=folder_map_path,
+    )
+
+    rows = [
+        json.loads(line)
+        for line in feedback_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert result == {"scanned": 1, "exported": 1, "unchanged": 0}
+    assert rows[0]["correct_label"] == "receipt"
+    assert rows[0]["review_status"] == "manual-folder-weak-label"
+    assert rows[0]["feedback_strength"] == "weak"
+    assert rows[0]["folder_match_source"] == "explicit-folder-map"
+
+
+def test_sync_manual_note_feedback_exports_generated_note_move_as_correction(
+    tmp_path: Path,
+):
+    from icloud_index_service.services.vault_reconciliation import sync_manual_note_feedback
+
+    vault_root = tmp_path / "vault"
+    note_path = vault_root / "01 Classified" / "insurance" / "botox - medical.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'type: "classified-document"',
+                'primary_label: "medical"',
+                'secondary_labels: []',
+                'recommended_action: "retain"',
+                'canonical_source_path: "/srv/cloud-vault/mirrors/icloud/Scanned/botox.pdf"',
+                "---",
+                "",
+                "# botox.pdf",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    state_path = tmp_path / "manual-note-sync-state.json"
+
+    result = sync_manual_note_feedback(
+        vault_root,
+        feedback_path=feedback_path,
+        state_path=state_path,
+        known_labels=["medical", "insurance", "markdown-note"],
+    )
+
+    rows = [
+        json.loads(line)
+        for line in feedback_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert result == {"scanned": 1, "exported": 1, "unchanged": 0}
+    assert rows[0]["source_path"] == "/srv/cloud-vault/mirrors/icloud/Scanned/botox.pdf"
+    assert rows[0]["correct_label"] == "insurance"
+    assert rows[0]["old_label"] == "medical"
+    assert rows[0]["review_status"] == "manual-note-move"
+    assert rows[0]["feedback_strength"] == "strong"
+    assert rows[0]["parser"] == "obsidian-generated-note"
+
+
+def test_sync_manual_note_feedback_skips_generated_note_when_path_still_matches_default(
+    tmp_path: Path,
+):
+    from icloud_index_service.services.vault_reconciliation import sync_manual_note_feedback
+
+    vault_root = tmp_path / "vault"
+    note_path = vault_root / "01 Classified" / "medical" / "botox - medical.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'type: "classified-document"',
+                'primary_label: "medical"',
+                'secondary_labels: []',
+                'recommended_action: "retain"',
+                'canonical_source_path: "/srv/cloud-vault/mirrors/icloud/Scanned/botox.pdf"',
+                "---",
+                "",
+                "# botox.pdf",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    state_path = tmp_path / "manual-note-sync-state.json"
+
+    result = sync_manual_note_feedback(
+        vault_root,
+        feedback_path=feedback_path,
+        state_path=state_path,
+        known_labels=["medical", "insurance", "markdown-note"],
+    )
+
+    assert result == {"scanned": 1, "exported": 0, "unchanged": 1}
+    assert not feedback_path.exists()

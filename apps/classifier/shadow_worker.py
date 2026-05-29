@@ -25,6 +25,8 @@ def run_shadow_worker_once() -> dict:
         settings.vault_root,
         feedback_path=settings.manual_note_feedback_path,
         state_path=settings.manual_note_sync_state_path,
+        known_labels=categories,
+        folder_label_map_path=settings.vault_folder_label_map_path,
     )
     return {
         **shadow_result,

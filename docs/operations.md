@@ -382,6 +382,16 @@ Self-training loop:
   - these exported rows count as bootstrap feedback for readiness and LightGBM
     retraining, so real user curation in Obsidian can improve the classifier
     without waiting for a replayed live classification
+- manual vault organization now contributes two more classifier signals (#43)
+  - folder paths can act as weak labels when they map cleanly to known
+    classifier categories
+  - moving classifier-generated notes into a different folder can act as a
+    stronger correction signal keyed back to the original source file
+- explicit folder-to-label overrides live in:
+  - `config/vault-folder-labels.json`
+  - use this when a human-facing vault folder name should map to a canonical
+    classifier label such as `receipts -> receipt` or
+    `medical/appeals -> medical + appeal`
 
 ## External taxonomy refresh and router rebuild
 

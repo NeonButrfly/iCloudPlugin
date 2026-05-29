@@ -91,3 +91,12 @@
 - Repair note: the vault reconciliation layer now owns `source_link`, `attachment`, and the rendered `## Original File` section strongly enough to rewrite stale mirror links in place while leaving the rest of each note alone.
 - Manual-feedback note: the shadow worker now fingerprints manual notes outside generated classifier folders, exports changed notes into a dedicated feedback jsonl artifact, and includes those rows in readiness/bootstrap plus LightGBM retraining inputs.
 - Affected systems: vault reconciliation, classifier note metadata, shadow worker, readiness/bootstrap accounting, LightGBM retraining inputs, operator docs.
+
+## 2026-05-29 - Treat Obsidian folders and manual moves as classifier training
+
+- Issue: [#43](https://github.com/NeonButrfly/iCloudPlugin/issues/43)
+- Source prompt: "ok so any changes I make in obsidian like adding categories (folders) and moving notes to those folders would act like training for heuristics, lightbgm?" followed by "1 & 2 & 3"
+- Interpreted requirement: let vault folder organization become classifier supervision by treating mapped folder paths as weak labels, detecting manual relocations of generated classifier notes as stronger corrections, and introducing an explicit folder-to-canonical-label mapping file for human-friendly vault categories.
+- Folder-training note: manual notes without explicit `primary_label` frontmatter can now inherit a weak classifier label from their folder path when that path maps to a known category or to an explicit override in `config/vault-folder-labels.json`.
+- Move-correction note: when a classifier-generated note is manually relocated into a different category folder, the feedback export should key the correction to the original source file and preserve the old label so heuristics and LightGBM can learn from the move.
+- Affected systems: manual note feedback export, shadow worker, classifier readiness/bootstrap inputs, operator docs, classifier config.

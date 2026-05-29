@@ -14,7 +14,8 @@ from icloud_index_service.models.classification_state import ClassificationState
 from icloud_index_service.models.file import FileRecord
 
 DEFAULT_VAULT_RECONCILIATION_LIMIT = 10
-MANUAL_NOTE_SKIP_PREFIXES = (".obsidian", "_system", "01 Classified", "02 Needs Review")
+GENERATED_NOTE_ROOTS = ("01 Classified", "02 Needs Review")
+MANUAL_NOTE_SKIP_PREFIXES = (".obsidian", "_system")
 OWNED_FRONTMATTER_FIELDS = (
     "canonical_source_path",
     "canonical_source_hash",
@@ -24,6 +25,19 @@ OWNED_FRONTMATTER_FIELDS = (
     "source_link",
     "attachment",
 )
+
+
+def _normalize_folder_token(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "-", str(value).strip().lower()).strip("-")
+    if normalized.endswith("ies") and len(normalized) > 3:
+        singular = normalized[:-3] + "y"
+        if singular:
+            return singular
+    if normalized.endswith("s") and len(normalized) > 3 and not normalized.endswith("ss"):
+        singular = normalized[:-1]
+        if singular:
+            return singular
+    return normalized
 
 
 def _read_bool_env(name: str, *, default: bool) -> bool:
@@ -265,7 +279,7 @@ def _iter_live_candidates(session: Session, mirror_root: Path) -> list[tuple[Fil
 
 def _iter_generated_notes(vault_root: Path) -> list[tuple[Path, dict[str, str]]]:
     notes: list[tuple[Path, dict[str, str]]] = []
-    for root_name in ("01 Classified", "02 Needs Review"):
+    for root_name in GENERATED_NOTE_ROOTS:
         note_root = vault_root / root_name
         if not note_root.exists():
             continue
@@ -280,6 +294,257 @@ def _iter_generated_notes(vault_root: Path) -> list[tuple[Path, dict[str, str]]]
                 continue
             notes.append((note_path.resolve(), metadata))
     return notes
+
+
+def _load_vault_folder_label_map(folder_label_map_path: Path | None) -> dict[str, dict[str, object]]:
+    if folder_label_map_path is None or not folder_label_map_path.exists():
+        return {}
+    try:
+        loaded = json.loads(folder_label_map_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+
+    normalized: dict[str, dict[str, object]] = {}
+    for raw_key, raw_value in loaded.items():
+        key_parts = [_normalize_folder_token(part) for part in str(raw_key).split("/") if _normalize_folder_token(part)]
+        if not key_parts:
+            continue
+        normalized_key = "/".join(key_parts)
+        if isinstance(raw_value, str):
+            normalized[normalized_key] = {
+                "primary_label": raw_value,
+                "secondary_labels": [],
+            }
+            continue
+        if not isinstance(raw_value, dict):
+            continue
+        normalized[normalized_key] = {
+            "primary_label": str(raw_value.get("primary_label", "")).strip(),
+            "secondary_labels": [
+                str(item).strip()
+                for item in (raw_value.get("secondary_labels", []) or [])
+                if str(item).strip()
+            ],
+        }
+    return normalized
+
+
+def _build_known_label_aliases(known_labels: list[str]) -> dict[str, str]:
+    aliases: dict[str, str] = {}
+    for label in known_labels:
+        label_text = str(label).strip()
+        if not label_text:
+            continue
+        aliases.setdefault(label_text, label_text)
+        normalized = _normalize_folder_token(label_text)
+        if normalized:
+            aliases.setdefault(normalized, label_text)
+            if not normalized.endswith("s"):
+                aliases.setdefault(f"{normalized}s", label_text)
+            if normalized.endswith("y"):
+                aliases.setdefault(f"{normalized[:-1]}ies", label_text)
+    return aliases
+
+
+def _extract_frontmatter_list(note_text: str, field_name: str) -> list[str]:
+    parsed = _parse_frontmatter(note_text)
+    if parsed is None:
+        return []
+    _, lines, end_index = parsed
+    for index in range(1, end_index):
+        line = lines[index]
+        if ":" not in line:
+            continue
+        key, raw_value = line.split(":", 1)
+        if key.strip() != field_name:
+            continue
+        try:
+            parsed_value = json.loads(raw_value.strip())
+        except json.JSONDecodeError:
+            return []
+        if isinstance(parsed_value, list):
+            return [str(item).strip() for item in parsed_value if str(item).strip()]
+        return []
+    return []
+
+
+def _expected_generated_category_parts(note_text: str, metadata: dict[str, str]) -> list[str]:
+    primary_label = str(metadata.get("primary_label", "")).strip().lower()
+    secondary_labels = [item.lower() for item in _extract_frontmatter_list(note_text, "secondary_labels")]
+    if primary_label == "medical" and {"appeal", "appeals"} & set(secondary_labels):
+        return ["medical", "appeals"]
+    return [primary_label] if primary_label else []
+
+
+def _infer_label_from_folder_parts(
+    folder_parts: list[str],
+    *,
+    known_label_aliases: dict[str, str],
+    folder_label_map: dict[str, dict[str, object]],
+) -> dict[str, object] | None:
+    normalized_parts = [_normalize_folder_token(part) for part in folder_parts if _normalize_folder_token(part)]
+    if not normalized_parts:
+        return None
+
+    for start_index in range(len(normalized_parts)):
+        candidate_key = "/".join(normalized_parts[start_index:])
+        mapped = folder_label_map.get(candidate_key)
+        if mapped:
+            primary_label = str(mapped.get("primary_label", "")).strip()
+            if primary_label:
+                return {
+                    "primary_label": primary_label,
+                    "secondary_labels": [
+                        str(item).strip()
+                        for item in (mapped.get("secondary_labels", []) or [])
+                        if str(item).strip()
+                    ],
+                    "match_source": "explicit-folder-map",
+                    "matched_folder_key": candidate_key,
+                }
+
+    matched_labels: list[str] = []
+    seen: set[str] = set()
+    for part in reversed(normalized_parts):
+        mapped_label = known_label_aliases.get(part)
+        if not mapped_label or mapped_label in seen:
+            continue
+        matched_labels.append(mapped_label)
+        seen.add(mapped_label)
+
+    if not matched_labels:
+        return None
+
+    return {
+        "primary_label": matched_labels[0],
+        "secondary_labels": matched_labels[1:3],
+        "match_source": "derived-folder-label",
+        "matched_folder_key": normalized_parts[-1],
+    }
+
+
+def _manual_feedback_entry(
+    *,
+    vault_root: Path,
+    note_path: Path,
+    metadata: dict[str, str],
+    note_text: str,
+    known_label_aliases: dict[str, str],
+    folder_label_map: dict[str, dict[str, object]],
+) -> dict[str, object] | None:
+    relative_path = note_path.relative_to(vault_root)
+    relative_parts = list(relative_path.parts)
+    if not relative_parts or relative_parts[0] in MANUAL_NOTE_SKIP_PREFIXES:
+        return None
+
+    folder_parts = relative_parts[:-1]
+    generated_root = relative_parts[0] if relative_parts[0] in GENERATED_NOTE_ROOTS else ""
+    generated_folder_parts = folder_parts[1:] if generated_root else folder_parts
+    folder_hint = _infer_label_from_folder_parts(
+        generated_folder_parts,
+        known_label_aliases=known_label_aliases,
+        folder_label_map=folder_label_map,
+    )
+
+    explicit_primary = str(metadata.get("primary_label", "")).strip()
+    explicit_secondary = _extract_frontmatter_list(note_text, "secondary_labels")
+    heading = ""
+    for line in note_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            heading = stripped[2:].strip()
+            break
+    summary = heading or note_path.stem
+
+    is_generated_note = str(metadata.get("type", "")).strip() == "classified-document"
+    if is_generated_note:
+        expected_parts = _expected_generated_category_parts(note_text, metadata)
+        path_matches_generated_default = bool(generated_root) and generated_folder_parts == expected_parts
+        review_action = str(metadata.get("recommended_action", "")).strip().lower()
+        moved_between_review_states = (
+            (generated_root == "01 Classified" and review_action == "review")
+            or (generated_root == "02 Needs Review" and review_action not in {"", "review"})
+        )
+        if path_matches_generated_default and not moved_between_review_states:
+            return None
+
+        source_path = (
+            metadata.get("canonical_source_path", "")
+            or metadata.get("source_file", "")
+            or note_path.as_posix()
+        )
+        correct_label = (
+            str((folder_hint or {}).get("primary_label", "")).strip()
+            or explicit_primary
+        )
+        if not correct_label:
+            return None
+        old_label = explicit_primary or "unknown"
+        secondary_labels = [
+            str(item).strip()
+            for item in ((folder_hint or {}).get("secondary_labels", []) or [])
+            if str(item).strip()
+        ]
+        review_status = "manual-note-move"
+        note_summary = f"manual-note-move:{relative_path.as_posix()}"
+        return {
+            "state_key": f"generated:{source_path}",
+            "source_path": source_path,
+            "filename": Path(source_path).name or note_path.name,
+            "source_filename": note_path.name,
+            "correct_label": correct_label,
+            "old_label": old_label,
+            "secondary_labels": secondary_labels,
+            "summary": summary,
+            "note": note_summary,
+            "parser": "obsidian-generated-note",
+            "review_status": review_status,
+            "feedback_strength": "strong",
+            "folder_match_source": str((folder_hint or {}).get("match_source", "")),
+        }
+
+    source_path = (
+        metadata.get("canonical_source_path", "")
+        or metadata.get("source_file", "")
+        or note_path.as_posix()
+    )
+    if explicit_primary:
+        correct_label = explicit_primary
+        secondary_labels = explicit_secondary
+        review_status = "manual-obsidian-note"
+        feedback_strength = "strong"
+    elif folder_hint:
+        correct_label = str(folder_hint.get("primary_label", "")).strip()
+        secondary_labels = [
+            str(item).strip()
+            for item in (folder_hint.get("secondary_labels", []) or [])
+            if str(item).strip()
+        ]
+        review_status = "manual-folder-weak-label"
+        feedback_strength = "weak"
+    else:
+        correct_label = "markdown-note"
+        secondary_labels = []
+        review_status = "manual-obsidian-note"
+        feedback_strength = "strong"
+
+    return {
+        "state_key": note_path.as_posix(),
+        "source_path": source_path,
+        "filename": Path(source_path).name or note_path.name,
+        "source_filename": note_path.name,
+        "correct_label": correct_label,
+        "old_label": metadata.get("old_label", "").strip() or "unknown",
+        "secondary_labels": secondary_labels,
+        "summary": summary,
+        "note": f"manual-obsidian-note:{relative_path.as_posix()}",
+        "parser": "obsidian-markdown",
+        "review_status": review_status,
+        "feedback_strength": feedback_strength,
+        "folder_match_source": str((folder_hint or {}).get("match_source", "")),
+    }
 
 
 def _iter_manual_notes(vault_root: Path) -> list[tuple[Path, dict[str, str], str]]:
@@ -330,6 +595,8 @@ def sync_manual_note_feedback(
     *,
     feedback_path: Path,
     state_path: Path,
+    known_labels: list[str] | None = None,
+    folder_label_map_path: Path | None = None,
     limit: int | None = None,
 ) -> dict[str, int]:
     result = {
@@ -351,42 +618,40 @@ def sync_manual_note_feedback(
     if note_limit > 0:
         notes = notes[:note_limit]
 
+    known_label_aliases = _build_known_label_aliases(known_labels or [])
+    folder_label_map = _load_vault_folder_label_map(folder_label_map_path)
     updated_state = dict(existing_state)
     feedback_rows: list[dict[str, object]] = []
     for note_path, metadata, note_text in notes:
         result["scanned"] += 1
-        fingerprint = f"{note_path.stat().st_mtime_ns}:{note_path.stat().st_size}"
-        state_key = note_path.as_posix()
+        feedback_entry = _manual_feedback_entry(
+            vault_root=vault_root,
+            note_path=note_path,
+            metadata=metadata,
+            note_text=note_text,
+            known_label_aliases=known_label_aliases,
+            folder_label_map=folder_label_map,
+        )
+        if feedback_entry is None:
+            result["unchanged"] += 1
+            continue
+
+        state_key = str(feedback_entry.pop("state_key"))
+        fingerprint = (
+            f"{note_path.as_posix()}:"
+            f"{note_path.stat().st_mtime_ns}:"
+            f"{note_path.stat().st_size}:"
+            f"{feedback_entry.get('correct_label', '')}:"
+            f"{feedback_entry.get('review_status', '')}"
+        )
         if existing_state.get(state_key) == fingerprint:
             result["unchanged"] += 1
             continue
 
-        heading = ""
-        for line in note_text.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("# "):
-                heading = stripped[2:].strip()
-                break
-        summary = heading or note_path.stem
-        source_path = (
-            metadata.get("canonical_source_path", "")
-            or metadata.get("source_file", "")
-            or note_path.as_posix()
-        )
-        primary_label = metadata.get("primary_label", "").strip() or "markdown-note"
         feedback_rows.append(
             {
                 "recorded_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-                "source_path": source_path,
-                "filename": Path(source_path).name or note_path.name,
-                "source_filename": note_path.name,
-                "correct_label": primary_label,
-                "old_label": metadata.get("old_label", "").strip() or "unknown",
-                "secondary_labels": [],
-                "summary": summary,
-                "note": f"manual-obsidian-note:{note_path.relative_to(vault_root).as_posix()}",
-                "parser": "obsidian-markdown",
-                "review_status": "manual-obsidian-note",
+                **feedback_entry,
             }
         )
         updated_state[state_key] = fingerprint

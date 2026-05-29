@@ -11,6 +11,7 @@ def test_run_shadow_worker_once_includes_manual_note_sync(monkeypatch, tmp_path:
         vault_root = tmp_path / "vault"
         manual_note_feedback_path = tmp_path / "manual-note-feedback.jsonl"
         manual_note_sync_state_path = tmp_path / "manual-note-sync-state.json"
+        vault_folder_label_map_path = tmp_path / "vault-folder-labels.json"
 
     monkeypatch.setattr(shadow_worker, "load_classifier_runtime_settings", lambda: FakeSettings())
     monkeypatch.setattr(shadow_worker, "load_categories", lambda: ["medical"])
@@ -22,7 +23,7 @@ def test_run_shadow_worker_once_includes_manual_note_sync(monkeypatch, tmp_path:
     monkeypatch.setattr(
         shadow_worker,
         "sync_manual_note_feedback",
-        lambda vault_root, *, feedback_path, state_path: {
+        lambda vault_root, *, feedback_path, state_path, known_labels, folder_label_map_path: {
             "scanned": 3,
             "exported": 1,
             "unchanged": 2,

@@ -1,0 +1,110 @@
+{
+  "appeals": {
+    "primary_label": "appeal"
+  },
+  "medical/appeals": {
+    "primary_label": "medical",
+    "secondary_labels": [
+      "appeal"
+    ]
+  },
+  "benefits": {
+    "primary_label": "benefits"
+  },
+  "billing": {
+    "primary_label": "billing-statement"
+  },
+  "billing-statements": {
+    "primary_label": "billing-statement"
+  },
+  "checks": {
+    "primary_label": "check"
+  },
+  "claims": {
+    "primary_label": "claim"
+  },
+  "contracts": {
+    "primary_label": "contract"
+  },
+  "eobs": {
+    "primary_label": "explanation-of-benefits"
+  },
+  "forms": {
+    "primary_label": "form"
+  },
+  "identification": {
+    "primary_label": "identity-document"
+  },
+  "ids": {
+    "primary_label": "identity-document"
+  },
+  "invoices": {
+    "primary_label": "invoice"
+  },
+  "legal": {
+    "primary_label": "legal"
+  },
+  "letters": {
+    "primary_label": "letter"
+  },
+  "manuals": {
+    "primary_label": "manual"
+  },
+  "medical": {
+    "primary_label": "medical"
+  },
+  "medical-receipts": {
+    "primary_label": "medical-receipt"
+  },
+  "photos": {
+    "primary_label": "photo"
+  },
+  "policies": {
+    "primary_label": "policy"
+  },
+  "product-photos": {
+    "primary_label": "product-photo"
+  },
+  "receipts": {
+    "primary_label": "receipt"
+  },
+  "reimbursement-packets": {
+    "primary_label": "reimbursement-packet"
+  },
+  "reports": {
+    "primary_label": "report"
+  },
+  "returns": {
+    "primary_label": "return-summary"
+  },
+  "school": {
+    "primary_label": "school"
+  },
+  "screenshots": {
+    "primary_label": "screenshot"
+  },
+  "source-code": {
+    "primary_label": "source-code"
+  },
+  "spreadsheets": {
+    "primary_label": "spreadsheet"
+  },
+  "statements": {
+    "primary_label": "statement"
+  },
+  "taxes": {
+    "primary_label": "tax"
+  },
+  "tax-forms": {
+    "primary_label": "tax-form"
+  },
+  "technical": {
+    "primary_label": "technical"
+  },
+  "ui-screenshots": {
+    "primary_label": "ui-screenshot"
+  },
+  "work": {
+    "primary_label": "work"
+  }
+}

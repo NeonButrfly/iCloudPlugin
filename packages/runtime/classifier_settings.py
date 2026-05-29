@@ -134,6 +134,10 @@ class ClassifierRuntimeSettings:
         return self.output_root / "manual-note-sync-state.json"
 
     @property
+    def vault_folder_label_map_path(self) -> Path:
+        return self.readable_config_path("vault-folder-labels.json", include_artifact=False)
+
+    @property
     def reviewed_examples_report_path(self) -> Path:
         return self.readable_config_path("reviewed-examples-report.json")
 
