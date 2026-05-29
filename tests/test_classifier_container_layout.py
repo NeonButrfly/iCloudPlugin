@@ -27,6 +27,7 @@ def test_classifier_runtime_installs_paddleocr_cpu_dependencies():
 
     assert "paddleocr" in requirements
     assert "pytesseract" in requirements
+    assert "sqlalchemy" in requirements
     assert "paddlepaddle" in dockerfile
 
 
