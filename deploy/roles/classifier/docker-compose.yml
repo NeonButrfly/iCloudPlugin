@@ -59,7 +59,7 @@ services:
       - ICLOUD_PADDLE_OCR_ENABLED=${ICLOUD_PADDLE_OCR_ENABLED:-1}
       - CLASSIFIER_SOURCE_ROOT=${CLASSIFIER_SOURCE_ROOT:-/source}
       - TZ=${TZ:-America/Anchorage}
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app:/app/src
     volumes:
       - ${CLASSIFIER_CONFIG_DIR:-../../../config}:/config:ro
       - ${CLASSIFIER_INPUT_DIR:-./input}:/input
@@ -102,7 +102,7 @@ services:
       - CLASSIFIER_SOURCE_ROOT=${CLASSIFIER_SOURCE_ROOT:-/source}
       - SHADOW_WORKER_INTERVAL_SECONDS=${SHADOW_WORKER_INTERVAL_SECONDS:-15}
       - TZ=${TZ:-America/Anchorage}
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app:/app/src
     volumes:
       - ${CLASSIFIER_CONFIG_DIR:-../../../config}:/config:ro
       - ${CLASSIFIER_INPUT_DIR:-./input}:/input

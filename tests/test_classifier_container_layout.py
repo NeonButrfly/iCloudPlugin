@@ -37,8 +37,10 @@ def test_classifier_role_compose_includes_dedicated_shadow_worker():
 
     assert "shadow-worker:" in classifier_compose
     assert "apps.classifier.shadow_worker" in classifier_compose
+    assert "PYTHONPATH=/app:/app/src" in classifier_compose
     assert "shadow-worker:" in combined_compose
     assert "apps.classifier.shadow_worker" in combined_compose
+    assert "PYTHONPATH=/app:/app/src" in combined_compose
 
 
 def test_classifier_compose_mounts_shared_source_root_for_direct_ingestion():
