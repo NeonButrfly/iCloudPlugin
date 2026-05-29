@@ -62,6 +62,12 @@ def test_cloudsync_targeted_batch_helper_restores_queue_state():
     assert "RUN_LIVE_SUMMARY" in script_text
     assert "--run-live-summary" in script_text
     assert "Recent completed rows overall:" in script_text
+    assert "SUMMARY_JSON_PATH" in script_text
+    assert "--summary-json" in script_text
+    assert "write_summary_json" in script_text
+    assert "'path', cj.path" in script_text
+    assert "'path', cs.path" in script_text
+    assert "'path', f.path" not in script_text
     assert 'timeout "${WORKER_TIMEOUT_SECONDS}s" "${worker_command[@]}"' in script_text
 
 

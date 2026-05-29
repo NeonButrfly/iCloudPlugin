@@ -70,4 +70,5 @@ That helper can:
 - temporarily defer one queued path prefix such as `/icloud/Downloads/`
 - run a bounded `classification-worker` pass
 - optionally print newest completed rows across the whole queue with `--run-live-summary`
+- optionally write a machine-readable JSON run summary with `--summary-json /path/to/output.json`
 - restore deferred jobs automatically on exit

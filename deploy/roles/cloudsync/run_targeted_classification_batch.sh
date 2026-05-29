@@ -22,10 +22,23 @@ RECENT_LIMIT="${RECENT_LIMIT:-12}"
 LIVE_SUMMARY_LIMIT="${LIVE_SUMMARY_LIMIT:-10}"
 DRY_RUN="${DRY_RUN:-0}"
 RUN_LIVE_SUMMARY="${RUN_LIVE_SUMMARY:-0}"
+SUMMARY_JSON_PATH="${SUMMARY_JSON_PATH:-}"
+SUMMARY_PYTHON="${SUMMARY_PYTHON:-python3}"
 TEMP_DEFER_ERROR="${TEMP_DEFER_ERROR:-Temporarily deferred to prioritize targeted bounded batch helper.}"
 
 DEFER_APPLIED=0
 WORKER_EXIT_STATUS=0
+WORKER_TIMED_OUT=0
+RUN_STARTED_AT=""
+RUN_FINISHED_AT=""
+
+BEFORE_COUNTS_JSON='{}'
+AFTER_COUNTS_JSON='{}'
+BEFORE_QUEUED_JSON='[]'
+AFTER_QUEUED_JSON='[]'
+BEFORE_RECENT_JSON='[]'
+AFTER_RECENT_JSON='[]'
+AFTER_LIVE_SUMMARY_JSON='[]'
 
 usage() {
   cat <<'EOF'
@@ -45,6 +58,7 @@ Options:
   --recent-limit N            Number of recent completed rows to display. Default: 12
   --live-summary-limit N      Number of newest completed rows in live summary mode. Default: 10
   --run-live-summary          Print a global newest-completed summary after the batch.
+  --summary-json PATH         Write a machine-readable JSON summary artifact.
   --dry-run                   Show what would run without mutating queue state.
   --help                      Show this help text.
 
@@ -94,6 +108,18 @@ psql_exec() {
     psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "${sql}"
 }
 
+psql_json() {
+  local sql="$1"
+  docker_compose exec -T "${POSTGRES_SERVICE}" \
+    psql -t -A -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "${sql}"
+}
+
+recent_completed_where_clause() {
+  if [[ -n "${FOCUS_PREFIX}" ]]; then
+    printf " and f.path like '%s%%'" "${FOCUS_PREFIX}"
+  fi
+}
+
 queued_preview_sql() {
   local where_clause=""
   if [[ -n "${FOCUS_PREFIX}" ]]; then
@@ -137,6 +163,104 @@ limit ${LIVE_SUMMARY_LIMIT};
 EOF
 }
 
+counts_json_sql() {
+  cat <<'EOF'
+select coalesce(
+  json_object_agg(submission_status, item_count order by submission_status),
+  '{}'::json
+)
+from (
+  select submission_status, count(*) as item_count
+  from classification_states
+  group by submission_status
+) counts;
+EOF
+}
+
+queued_preview_json_sql() {
+  local where_clause=""
+  if [[ -n "${FOCUS_PREFIX}" ]]; then
+    where_clause=" and f.path like '${FOCUS_PREFIX}%'"
+  fi
+
+  cat <<EOF
+select coalesce(
+  json_agg(
+    json_build_object(
+      'id', cj.id,
+      'priority_bucket', cj.priority_bucket,
+      'priority_rank', cj.priority_rank,
+      'next_attempt_at', cj.next_attempt_at,
+      'path', cj.path
+    )
+    order by cj.priority_rank asc, cj.id asc
+  ),
+  '[]'::json
+)
+from (
+  select cj.id, cj.priority_bucket, cj.priority_rank, cj.next_attempt_at, f.path
+  from classification_jobs cj
+  join files f on f.id = cj.file_id
+  where cj.status = 'queued'${where_clause}
+  order by cj.priority_rank asc, cj.id asc
+  limit ${QUEUE_LIMIT}
+) as cj;
+EOF
+}
+
+recent_completed_json_sql() {
+  local where_clause=""
+  if [[ -n "${FOCUS_PREFIX}" ]]; then
+    where_clause=" and f.path like '${FOCUS_PREFIX}%'"
+  fi
+
+  cat <<EOF
+select coalesce(
+  json_agg(
+    json_build_object(
+      'id', cs.id,
+      'path', cs.path,
+      'classifier_note_path', cs.classifier_note_path
+    )
+    order by cs.id desc
+  ),
+  '[]'::json
+)
+from (
+  select cs.id, f.path, cs.classifier_note_path
+  from classification_states cs
+  join files f on f.id = cs.file_id
+  where cs.submission_status = 'completed'${where_clause}
+  order by cs.id desc
+  limit ${RECENT_LIMIT}
+) as cs;
+EOF
+}
+
+overall_recent_completed_json_sql() {
+  cat <<EOF
+select coalesce(
+  json_agg(
+    json_build_object(
+      'id', cs.id,
+      'path', cs.path,
+      'classifier_note_path', cs.classifier_note_path
+    )
+    order by cs.id desc
+  ),
+  '[]'::json
+)
+from (
+  select cs.id, f.path, cs.classifier_note_path
+  from classification_states cs
+  join files f on f.id = cs.file_id
+  where cs.submission_status = 'completed'
+  order by cs.id desc
+  limit ${LIVE_SUMMARY_LIMIT}
+) as cs;
+EOF
+}
+
 print_queue_counts() {
   psql_exec \
     "select submission_status, count(*) from classification_states group by submission_status order by submission_status;"
@@ -155,6 +279,77 @@ print_live_summary() {
   fi
   log_line "Recent completed rows overall:"
   psql_exec "$(overall_recent_completed_sql)"
+}
+
+capture_before_state() {
+  BEFORE_COUNTS_JSON="$(psql_json "$(counts_json_sql)")"
+  BEFORE_QUEUED_JSON="$(psql_json "$(queued_preview_json_sql)")"
+  BEFORE_RECENT_JSON="$(psql_json "$(recent_completed_json_sql)")"
+}
+
+capture_after_state() {
+  AFTER_COUNTS_JSON="$(psql_json "$(counts_json_sql)")"
+  AFTER_QUEUED_JSON="$(psql_json "$(queued_preview_json_sql)")"
+  AFTER_RECENT_JSON="$(psql_json "$(recent_completed_json_sql)")"
+  if [[ "${RUN_LIVE_SUMMARY}" == "1" ]]; then
+    AFTER_LIVE_SUMMARY_JSON="$(psql_json "$(overall_recent_completed_json_sql)")"
+  else
+    AFTER_LIVE_SUMMARY_JSON='[]'
+  fi
+}
+
+write_summary_json() {
+  if [[ -z "${SUMMARY_JSON_PATH}" ]]; then
+    return 0
+  fi
+  require_command "${SUMMARY_PYTHON}"
+  export RUN_STARTED_AT RUN_FINISHED_AT FOCUS_PREFIX DEFER_PREFIX CONCURRENCY MAX_POLLS \
+    POLL_INTERVAL_SECONDS WORKER_TIMEOUT_SECONDS DRY_RUN RUN_LIVE_SUMMARY WORKER_EXIT_STATUS \
+    WORKER_TIMED_OUT SUMMARY_JSON_PATH BEFORE_COUNTS_JSON AFTER_COUNTS_JSON BEFORE_QUEUED_JSON \
+    AFTER_QUEUED_JSON BEFORE_RECENT_JSON AFTER_RECENT_JSON AFTER_LIVE_SUMMARY_JSON
+  "${SUMMARY_PYTHON}" - <<'PY'
+import json
+import os
+from pathlib import Path
+
+
+def parse_json_env(name: str, default):
+    raw = os.environ.get(name, "")
+    if not raw:
+        return default
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return default
+
+
+summary = {
+    "started_at": os.environ.get("RUN_STARTED_AT", ""),
+    "finished_at": os.environ.get("RUN_FINISHED_AT", ""),
+    "focus_prefix": os.environ.get("FOCUS_PREFIX", ""),
+    "defer_prefix": os.environ.get("DEFER_PREFIX", ""),
+    "concurrency": int(os.environ.get("CONCURRENCY", "0") or "0"),
+    "max_polls": int(os.environ.get("MAX_POLLS", "0") or "0"),
+    "poll_interval_seconds": float(os.environ.get("POLL_INTERVAL_SECONDS", "0") or "0"),
+    "worker_timeout_seconds": int(os.environ.get("WORKER_TIMEOUT_SECONDS", "0") or "0"),
+    "dry_run": os.environ.get("DRY_RUN", "0") == "1",
+    "run_live_summary": os.environ.get("RUN_LIVE_SUMMARY", "0") == "1",
+    "worker_exit_status": int(os.environ.get("WORKER_EXIT_STATUS", "0") or "0"),
+    "worker_timed_out": os.environ.get("WORKER_TIMED_OUT", "0") == "1",
+    "before_counts": parse_json_env("BEFORE_COUNTS_JSON", {}),
+    "after_counts": parse_json_env("AFTER_COUNTS_JSON", {}),
+    "before_queued_preview": parse_json_env("BEFORE_QUEUED_JSON", []),
+    "after_queued_preview": parse_json_env("AFTER_QUEUED_JSON", []),
+    "before_recent_completed": parse_json_env("BEFORE_RECENT_JSON", []),
+    "after_recent_completed": parse_json_env("AFTER_RECENT_JSON", []),
+    "after_live_summary": parse_json_env("AFTER_LIVE_SUMMARY_JSON", []),
+}
+
+target = Path(os.environ["SUMMARY_JSON_PATH"])
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+PY
+  log_line "Wrote summary JSON to ${SUMMARY_JSON_PATH}"
 }
 
 apply_defer_prefix() {
@@ -245,6 +440,7 @@ run_worker_pass() {
   set -e
 
   if [[ "${WORKER_EXIT_STATUS}" == "124" ]]; then
+    WORKER_TIMED_OUT=1
     log_line "Worker command hit the timeout; verifying live DB state instead of failing."
     return 0
   fi
@@ -297,6 +493,10 @@ parse_args() {
         RUN_LIVE_SUMMARY="1"
         shift
         ;;
+      --summary-json)
+        SUMMARY_JSON_PATH="$2"
+        shift 2
+        ;;
       --dry-run)
         DRY_RUN="1"
         shift
@@ -330,16 +530,23 @@ main() {
   log_line "Concurrency: ${CONCURRENCY}; max polls: ${MAX_POLLS}; timeout: ${WORKER_TIMEOUT_SECONDS}s"
 
   log_line "Queue counts before:"
+  RUN_STARTED_AT="$(date -Is)"
+  capture_before_state
   print_queue_counts
   print_focus_previews
 
   apply_defer_prefix
   run_worker_pass
+  clear_defer_prefix
+  cleanup_worker_containers
 
   log_line "Queue counts after:"
+  RUN_FINISHED_AT="$(date -Is)"
+  capture_after_state
   print_queue_counts
   print_focus_previews
   print_live_summary
+  write_summary_json
 }
 
 main "$@"

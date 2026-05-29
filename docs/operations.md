@@ -209,16 +209,21 @@ sudo docker compose -p icloudplugin --env-file .env `
   helper script added in issue [#36](https://github.com/NeonButrfly/iCloudPlugin/issues/36):
 
 ```bash
-cd /opt/iCloudPlugin
-FOCUS_PREFIX=/icloud/Scanned/ \
-DEFER_PREFIX=/icloud/Downloads/ \
-./deploy/roles/cloudsync/run_targeted_classification_batch.sh --run-live-summary
-```
-
-- the helper prints before/after queue counts, can temporarily defer one queued
-  path prefix, runs the bounded worker with a configurable timeout, restores
-  deferred jobs automatically during cleanup, and can print the newest
-  completed rows explicitly after the batch with `--run-live-summary`
+  cd /opt/iCloudPlugin
+  FOCUS_PREFIX=/icloud/Scanned/ \
+  DEFER_PREFIX=/icloud/Downloads/ \
+  ./deploy/roles/cloudsync/run_targeted_classification_batch.sh \
+    --run-live-summary \
+    --summary-json /tmp/targeted-batch-summary.json
+  ```
+  
+  - the helper prints before/after queue counts, can temporarily defer one queued
+    path prefix, runs the bounded worker with a configurable timeout, restores
+    deferred jobs automatically during cleanup, and can print the newest
+    completed rows explicitly after the batch with `--run-live-summary`
+  - when `--summary-json` is provided, the helper also writes a machine-readable
+    artifact with before/after counts, queue previews, recent completions, and
+    timeout status for the bounded run
 
 - if a bounded run is interrupted, or a long file is intentionally stopped
   mid-pass, recover stale `running` jobs before the next batch:
