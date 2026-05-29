@@ -4,8 +4,9 @@ import hashlib
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -665,6 +666,65 @@ def sync_manual_note_feedback(
     state_path.parent.mkdir(parents=True, exist_ok=True)
     state_path.write_text(json.dumps(updated_state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return result
+
+
+def collect_targeted_manual_feedback(
+    vault_root: Path,
+    *,
+    known_labels: list[str] | None = None,
+    folder_label_map_path: Path | None = None,
+    limit: int | None = None,
+) -> list[dict[str, object]]:
+    note_limit = limit if limit is not None else 0
+    notes = _iter_manual_notes(vault_root)
+    if note_limit > 0:
+        notes = notes[:note_limit]
+
+    known_label_aliases = _build_known_label_aliases(known_labels or [])
+    folder_label_map = _load_vault_folder_label_map(folder_label_map_path)
+    rows: list[dict[str, object]] = []
+
+    for note_path, metadata, note_text in notes:
+        feedback_entry = _manual_feedback_entry(
+            vault_root=vault_root,
+            note_path=note_path,
+            metadata=metadata,
+            note_text=note_text,
+            known_label_aliases=known_label_aliases,
+            folder_label_map=folder_label_map,
+        )
+        if feedback_entry is None:
+            continue
+        if str(feedback_entry.get("feedback_strength", "")).strip().lower() != "strong":
+            continue
+
+        source_path = str(feedback_entry.get("source_path", "")).strip()
+        correct_label = str(feedback_entry.get("correct_label", "")).strip()
+        old_label = str(feedback_entry.get("old_label", "")).strip()
+        if not source_path or not correct_label:
+            continue
+        if old_label and old_label == correct_label:
+            continue
+
+        rows.append(
+            {
+                **feedback_entry,
+                "note_path": str(note_path),
+                "note_modified_at": datetime.fromtimestamp(
+                    note_path.stat().st_mtime,
+                    tz=timezone.utc,
+                ),
+            }
+        )
+
+    rows.sort(
+        key=lambda item: (
+            cast(datetime, item["note_modified_at"]),
+            str(item.get("note_path", "")).lower(),
+        ),
+        reverse=True,
+    )
+    return rows
 
 
 def _find_matching_generated_notes(

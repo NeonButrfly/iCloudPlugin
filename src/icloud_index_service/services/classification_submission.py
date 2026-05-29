@@ -15,6 +15,9 @@ from icloud_index_service.models.classification_job import ClassificationJob
 from icloud_index_service.models.classification_state import ClassificationState
 from icloud_index_service.models.extracted_content import ExtractedContent
 from icloud_index_service.models.file import FileRecord
+from icloud_index_service.services.vault_reconciliation import collect_targeted_manual_feedback
+from apps.classifier.category_manager import load_categories
+from packages.runtime import load_classifier_runtime_settings
 
 CLASSIFICATION_STATUS_QUEUED = "queued"
 CLASSIFICATION_STATUS_RUNNING = "running"
@@ -25,6 +28,7 @@ DEFAULT_CLASSIFICATION_SUBMISSION_CONCURRENCY = 2
 DEFAULT_CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS = 5.0
 DEFAULT_CLASSIFICATION_STALE_RUNNING_SECONDS = 300
 DEFAULT_CLASSIFICATION_RETRY_BACKOFF_SECONDS = 0
+DEFAULT_CLASSIFICATION_TARGETED_REQUEUE_LIMIT = 10
 DEFAULT_CLASSIFIER_API_URL = "http://192.168.50.196:4319"
 CLASSIFIER_UPLOAD_ENDPOINT = "/classify/upload"
 CLASSIFIER_SOURCE_ENDPOINT = "/classify/source"
@@ -148,6 +152,22 @@ def get_classification_retry_backoff_seconds() -> int:
         parsed_value = int(raw_value)
     except ValueError:
         return DEFAULT_CLASSIFICATION_RETRY_BACKOFF_SECONDS
+    return max(parsed_value, 0)
+
+
+def get_classification_targeted_requeue_enabled() -> bool:
+    return (os.getenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "1").strip().lower()
+            not in {"", "0", "false", "no", "off"})
+
+
+def get_classification_targeted_requeue_limit() -> int:
+    raw_value = os.getenv("CLASSIFICATION_TARGETED_REQUEUE_LIMIT", "").strip()
+    if not raw_value:
+        return DEFAULT_CLASSIFICATION_TARGETED_REQUEUE_LIMIT
+    try:
+        parsed_value = int(raw_value)
+    except ValueError:
+        return DEFAULT_CLASSIFICATION_TARGETED_REQUEUE_LIMIT
     return max(parsed_value, 0)
 
 
@@ -371,6 +391,118 @@ def enqueue_classification_backfill(
                 created_jobs.append(job)
                 if len(created_jobs) >= limit:
                     break
+
+    session.commit()
+    return created_jobs
+
+
+def _find_file_record_for_source_path(
+    session: Session,
+    *,
+    canonical_source_path: str,
+    mirror_root: Path,
+) -> FileRecord | None:
+    try:
+        relative_path = Path(canonical_source_path).resolve().relative_to(mirror_root.resolve())
+    except Exception:
+        return None
+    normalized_path = "/" + relative_path.as_posix()
+    return session.scalar(select(FileRecord).where(FileRecord.path == normalized_path))
+
+
+def enqueue_targeted_reclassification_from_manual_feedback(
+    session: Session,
+    *,
+    limit: int,
+) -> list[ClassificationJob]:
+    if limit <= 0 or not get_classification_targeted_requeue_enabled():
+        return []
+
+    mirror_root = _resolve_mirror_root()
+    if not mirror_root.exists():
+        return []
+
+    settings = load_classifier_runtime_settings()
+    try:
+        known_labels = load_categories()
+    except Exception:
+        known_labels = []
+    feedback_rows = collect_targeted_manual_feedback(
+        settings.vault_root,
+        known_labels=known_labels,
+        folder_label_map_path=settings.vault_folder_label_map_path,
+        limit=max(limit * 5, 25),
+    )
+    created_jobs: list[ClassificationJob] = []
+
+    for row in feedback_rows:
+        if len(created_jobs) >= limit:
+            break
+
+        source_path = str(row.get("source_path", "")).strip()
+        correct_label = str(row.get("correct_label", "")).strip()
+        note_modified_at = row.get("note_modified_at")
+        if not source_path or not correct_label or not isinstance(note_modified_at, datetime):
+            continue
+
+        file_record = _find_file_record_for_source_path(
+            session,
+            canonical_source_path=source_path,
+            mirror_root=mirror_root,
+        )
+        if file_record is None:
+            continue
+
+        active_job_exists = session.scalar(
+            select(ClassificationJob.id)
+            .where(ClassificationJob.file_id == file_record.id)
+            .where(
+                ClassificationJob.status.in_(
+                    [CLASSIFICATION_STATUS_QUEUED, CLASSIFICATION_STATUS_RUNNING]
+                )
+            )
+            .limit(1)
+        )
+        if active_job_exists is not None:
+            continue
+
+        state = session.scalar(
+            select(ClassificationState).where(ClassificationState.file_id == file_record.id)
+        )
+        if state is not None:
+            last_completed_at = _coerce_utc_datetime(state.last_completed_at)
+            if last_completed_at is not None and note_modified_at <= last_completed_at:
+                continue
+            if (state.primary_label or "").strip() == correct_label:
+                continue
+
+        extracted_content = session.scalar(
+            select(ExtractedContent).where(ExtractedContent.file_id == file_record.id)
+        )
+        source_fingerprint = compute_source_fingerprint(
+            file_record=file_record,
+            extracted_content=extracted_content,
+        )
+        priority_bucket, _ = _determine_priority_bucket(
+            file_record=file_record,
+            extracted_content=extracted_content,
+        )
+        job = ClassificationJob(
+            file_id=file_record.id,
+            status=CLASSIFICATION_STATUS_QUEUED,
+            priority_bucket=priority_bucket,
+            priority_rank=-1,
+            source_fingerprint=source_fingerprint,
+            max_attempts=get_classification_max_attempts(),
+        )
+        session.add(job)
+        _upsert_classification_state(
+            session,
+            file_record=file_record,
+            source_fingerprint=source_fingerprint,
+            submission_status=CLASSIFICATION_STATUS_QUEUED,
+        )
+        created_jobs.append(job)
 
     session.commit()
     return created_jobs

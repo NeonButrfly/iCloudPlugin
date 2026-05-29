@@ -241,6 +241,8 @@ def test_compose_includes_classification_worker_with_classifier_environment():
     assert worker_env["CLASSIFIER_API_TOKEN"] == "top-secret"
     assert worker_env["CLASSIFICATION_SUBMISSION_ENABLED"] == "true"
     assert worker_env["CLASSIFICATION_SUBMISSION_CONCURRENCY"] == "2"
+    assert worker_env["CLASSIFICATION_TARGETED_REQUEUE_ENABLED"] == "true"
+    assert worker_env["CLASSIFICATION_TARGETED_REQUEUE_LIMIT"] == "10"
     assert worker_env["CLASSIFIER_VAULT_ROOT"] == "/srv/cloud-vault/document-vault"
 
 

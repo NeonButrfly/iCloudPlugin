@@ -24,6 +24,7 @@ from icloud_index_service.services.classification_submission import (
     DEFAULT_CLASSIFICATION_SUBMISSION_CONCURRENCY,
     compute_source_fingerprint,
     enqueue_classification_backfill,
+    enqueue_targeted_reclassification_from_manual_feedback,
     get_classification_submission_concurrency,
     run_next_classification_job,
 )
@@ -578,12 +579,21 @@ def test_classification_worker_once_runs_vault_reconciliation_pass(
 ):
     session_factory = _build_session_factory(tmp_path)
     reconciliation_calls: list[int] = []
+    targeted_requeue_calls: list[int] = []
 
     monkeypatch.setenv("CLASSIFICATION_SUBMISSION_ENABLED", "true")
     monkeypatch.setenv("CLASSIFICATION_SUBMISSION_CONCURRENCY", "1")
     monkeypatch.setattr(
         "icloud_index_service.classification_worker.enqueue_classification_backfill",
         lambda session, limit: [],
+    )
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.enqueue_targeted_reclassification_from_manual_feedback",
+        lambda session, limit: targeted_requeue_calls.append(limit) or [],
+    )
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.get_classification_targeted_requeue_limit",
+        lambda: 10,
     )
     monkeypatch.setattr(
         "icloud_index_service.classification_worker.run_next_classification_job",
@@ -608,4 +618,189 @@ def test_classification_worker_once_runs_vault_reconciliation_pass(
     )
 
     assert processed_count == 0
+    assert targeted_requeue_calls == [10]
     assert reconciliation_calls == [None]
+
+
+def test_enqueue_targeted_reclassification_from_manual_feedback_queues_strong_generated_note_move(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    mirror_root = tmp_path / "mirrors"
+    local_file = mirror_root / "icloud" / "Scanned" / "botox.pdf"
+    local_file.parent.mkdir(parents=True)
+    local_file.write_bytes(b"botox-pdf")
+
+    vault_root = tmp_path / "vault"
+    note_path = vault_root / "01 Classified" / "insurance" / "botox - medical.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'type: "classified-document"',
+                'primary_label: "medical"',
+                'secondary_labels: []',
+                'recommended_action: "retain"',
+                f'canonical_source_path: "{local_file}"',
+                "---",
+                "",
+                "# botox.pdf",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+    monkeypatch.setenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "true")
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    try:
+        file_record = _add_file(
+            session,
+            external_id="pdf-strong-1",
+            name="botox.pdf",
+            path="/icloud/Scanned/botox.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=len(b"botox-pdf"),
+        )
+        session.add(
+            ClassificationState(
+                file_id=file_record.id,
+                source_fingerprint=compute_source_fingerprint(
+                    file_record=file_record,
+                    extracted_content=None,
+                ),
+                source_size_bytes=file_record.size_bytes,
+                submission_status=CLASSIFICATION_STATUS_COMPLETED,
+                primary_label="medical",
+            )
+        )
+        session.commit()
+
+        created_jobs = enqueue_targeted_reclassification_from_manual_feedback(session, limit=10)
+        stored_jobs = session.scalars(select(ClassificationJob).order_by(ClassificationJob.id.asc())).all()
+    finally:
+        session.close()
+
+    assert len(created_jobs) == 1
+    assert created_jobs[0].file_id == file_record.id
+    assert stored_jobs[0].status == CLASSIFICATION_STATUS_QUEUED
+    assert stored_jobs[0].priority_bucket == "document"
+
+
+def test_enqueue_targeted_reclassification_from_manual_feedback_skips_weak_folder_labels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    mirror_root = tmp_path / "mirrors"
+    local_file = mirror_root / "icloud" / "Scanned" / "manual-note.pdf"
+    local_file.parent.mkdir(parents=True)
+    local_file.write_bytes(b"manual-pdf")
+
+    vault_root = tmp_path / "vault"
+    note_path = vault_root / "medical" / "manual-note.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text("# Manual note\n", encoding="utf-8")
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+    monkeypatch.setenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "true")
+
+    folder_map_path = tmp_path / "vault-folder-labels.json"
+    folder_map_path.write_text('{"medical": {"primary_label": "medical"}}\n', encoding="utf-8")
+    monkeypatch.setenv("CLASSIFIER_CONFIG_ROOT", str(tmp_path))
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    try:
+        _add_file(
+            session,
+            external_id="pdf-weak-1",
+            name="manual-note.pdf",
+            path="/icloud/Scanned/manual-note.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=len(b"manual-pdf"),
+        )
+        created_jobs = enqueue_targeted_reclassification_from_manual_feedback(session, limit=10)
+    finally:
+        session.close()
+
+    assert created_jobs == []
+
+
+def test_enqueue_targeted_reclassification_from_manual_feedback_skips_when_feedback_is_older_than_last_completion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from datetime import datetime, timedelta, timezone
+
+    mirror_root = tmp_path / "mirrors"
+    local_file = mirror_root / "icloud" / "Scanned" / "botox.pdf"
+    local_file.parent.mkdir(parents=True)
+    local_file.write_bytes(b"botox-pdf")
+
+    vault_root = tmp_path / "vault"
+    note_path = vault_root / "01 Classified" / "insurance" / "botox - medical.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'type: "classified-document"',
+                'primary_label: "medical"',
+                'secondary_labels: []',
+                'recommended_action: "retain"',
+                f'canonical_source_path: "{local_file}"',
+                "---",
+                "",
+                "# botox.pdf",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+    monkeypatch.setenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "true")
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    try:
+        file_record = _add_file(
+            session,
+            external_id="pdf-strong-2",
+            name="botox.pdf",
+            path="/icloud/Scanned/botox.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=len(b"botox-pdf"),
+        )
+        state = ClassificationState(
+            file_id=file_record.id,
+            source_fingerprint=compute_source_fingerprint(
+                file_record=file_record,
+                extracted_content=None,
+            ),
+            source_size_bytes=file_record.size_bytes,
+            submission_status=CLASSIFICATION_STATUS_COMPLETED,
+            primary_label="medical",
+            last_completed_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        )
+        session.add(state)
+        session.commit()
+
+        created_jobs = enqueue_targeted_reclassification_from_manual_feedback(session, limit=10)
+    finally:
+        session.close()
+
+    assert created_jobs == []

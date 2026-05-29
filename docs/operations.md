@@ -387,6 +387,14 @@ Self-training loop:
     classifier categories
   - moving classifier-generated notes into a different folder can act as a
     stronger correction signal keyed back to the original source file
+- strong manual corrections now also trigger targeted backend reclassification
+  for the matching source file (#44)
+  - only strong corrections participate; weak folder-label hints stay in the
+    training set and do not requeue the source file immediately
+  - the worker only requeues when the note edit is newer than the last
+    completed classification for that source, which prevents repeat loops
+  - `CLASSIFICATION_TARGETED_REQUEUE_ENABLED` and
+    `CLASSIFICATION_TARGETED_REQUEUE_LIMIT` bound this behavior
 - explicit folder-to-label overrides live in:
   - `config/vault-folder-labels.json`
   - use this when a human-facing vault folder name should map to a canonical

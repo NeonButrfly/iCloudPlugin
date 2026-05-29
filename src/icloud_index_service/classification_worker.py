@@ -10,7 +10,9 @@ from icloud_index_service.db import get_session_factory
 from icloud_index_service.services.classification_submission import (
     ClassifierSubmissionNotReadyError,
     enqueue_classification_backfill,
+    enqueue_targeted_reclassification_from_manual_feedback,
     get_classification_submission_concurrency,
+    get_classification_targeted_requeue_limit,
     get_classification_submission_enabled,
     get_classification_submission_poll_interval_seconds,
     run_next_classification_job,
@@ -41,6 +43,10 @@ def run_classification_worker_once(
     seed_session = active_session_factory()
     try:
         enqueue_classification_backfill(seed_session, limit=max(concurrency * 2, concurrency))
+        enqueue_targeted_reclassification_from_manual_feedback(
+            seed_session,
+            limit=get_classification_targeted_requeue_limit(),
+        )
     finally:
         seed_session.close()
 
