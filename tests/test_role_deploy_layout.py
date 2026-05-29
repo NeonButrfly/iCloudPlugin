@@ -68,6 +68,8 @@ def test_cloudsync_targeted_batch_helper_restores_queue_state():
     assert "'path', cj.path" in script_text
     assert "'path', cs.path" in script_text
     assert "'path', f.path" not in script_text
+    assert 'docker rm -f "${container_id}" >/dev/null 2>&1 || true' in script_text
+    assert "return 0" in script_text
     assert 'timeout "${WORKER_TIMEOUT_SECONDS}s" "${worker_command[@]}"' in script_text
 
 

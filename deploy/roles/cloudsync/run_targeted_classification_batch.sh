@@ -393,8 +393,12 @@ cleanup_worker_containers() {
   local ids
   ids="$(docker ps -aq --filter "name=${COMPOSE_PROJECT}-${CLASSIFICATION_SERVICE}-run")"
   if [[ -n "${ids}" ]]; then
-    docker rm -f ${ids} >/dev/null
+    while IFS= read -r container_id; do
+      [[ -z "${container_id}" ]] && continue
+      docker rm -f "${container_id}" >/dev/null 2>&1 || true
+    done <<< "${ids}"
   fi
+  return 0
 }
 
 cleanup() {
