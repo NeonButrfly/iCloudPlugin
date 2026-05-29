@@ -126,6 +126,14 @@ class ClassifierRuntimeSettings:
         return self.readable_config_path("examples.jsonl")
 
     @property
+    def manual_note_feedback_path(self) -> Path:
+        return self.artifact_path("manual-note-feedback.jsonl")
+
+    @property
+    def manual_note_sync_state_path(self) -> Path:
+        return self.output_root / "manual-note-sync-state.json"
+
+    @property
     def reviewed_examples_report_path(self) -> Path:
         return self.readable_config_path("reviewed-examples-report.json")
 

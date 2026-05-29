@@ -169,6 +169,11 @@ it successfully.
   plus stored manifest/response note references to the preferred current vault
   note when note convergence has already collapsed duplicate `(2)` or `(3)`
   variants (#35)
+- the same reconciliation layer can now repair stale owned source-link fields
+  in existing generated notes without a full reset (#41)
+  - `source_link`
+  - `attachment`
+  - the rendered `## Original File` section
 - the canonical vault root for that role is now `/srv/cloud-vault/document-vault`
 - the old `/srv/cloud-vault/local-doc-classifier-vault` name is a compatibility
   symlink during the soak period
@@ -238,6 +243,17 @@ sudo docker compose -p icloudplugin --env-file .env `
 
 Ad hoc uploads still use the upload endpoint, but the temporary staged copy is
 deleted immediately after classification finishes, even on failures.
+
+To repair existing generated notes in place after the Windows UNC source-link
+change, run the file-only repair helper on the writable classifier host:
+
+```bash
+cd /opt/iCloudPlugin
+docker compose --env-file .env \
+  -f deploy/roles/classifier/docker-compose.yml run --rm --no-deps \
+  classifier-api \
+  uv run python -c "from pathlib import Path; from icloud_index_service.services.vault_reconciliation import repair_vault_source_links; print(repair_vault_source_links(Path('/mnt/cloud-vault/document-vault')))"
+```
 
 ### Reset state
 
@@ -358,6 +374,14 @@ Self-training loop:
 - the Qwen teacher prompts now explicitly forbid markdown fences, numbered
   lists, or prose outside the JSON object, and the runtime JSON extractor now
   tolerates fenced or prefixed JSON responses before declaring `shadow-error`
+- the dedicated `shadow-worker` also scans manual user-authored Obsidian notes
+  outside generated classifier folders and exports changed notes into
+  `manual-note-feedback.jsonl` (#42)
+  - supported manual signals come from note edits plus optional frontmatter such
+    as `primary_label`, `canonical_source_path`, and `source_file`
+  - these exported rows count as bootstrap feedback for readiness and LightGBM
+    retraining, so real user curation in Obsidian can improve the classifier
+    without waiting for a replayed live classification
 
 ## External taxonomy refresh and router rebuild
 

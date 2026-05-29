@@ -30,6 +30,7 @@ RETRAIN_DIR = SETTINGS.retrain_dir
 MANIFEST_PATH = SETTINGS.manifest_path
 CORRECTIONS_PATH = SETTINGS.corrections_path
 EXAMPLES_PATH = SETTINGS.examples_path
+MANUAL_NOTE_FEEDBACK_PATH = SETTINGS.manual_note_feedback_path
 
 DEFAULT_HYBRID_GATING = {
     "mode": "hybrid",
@@ -523,11 +524,13 @@ def build_bootstrap_feedback_rows(
     *,
     corrections_path: Path = CORRECTIONS_PATH,
     examples_path: Path = EXAMPLES_PATH,
+    manual_note_feedback_path: Path = MANUAL_NOTE_FEEDBACK_PATH,
 ) -> list[Dict[str, Any]]:
     rows: list[Dict[str, Any]] = []
     for source_name, path in [
         ("correction", corrections_path),
         ("reviewed-example", examples_path),
+        ("manual-obsidian-note", manual_note_feedback_path),
     ]:
         for item in read_jsonl(path, limit=1000):
             accepted_primary = str(
@@ -596,6 +599,7 @@ def build_feedback_rows(
     comparisons_path: Path = SHADOW_COMPARISONS_PATH,
     corrections_path: Path = CORRECTIONS_PATH,
     examples_path: Path = EXAMPLES_PATH,
+    manual_note_feedback_path: Path = MANUAL_NOTE_FEEDBACK_PATH,
 ) -> list[Dict[str, Any]]:
     rows = []
     for item in read_jsonl(comparisons_path, limit=2000):
@@ -607,6 +611,7 @@ def build_feedback_rows(
         build_bootstrap_feedback_rows(
             corrections_path=corrections_path,
             examples_path=examples_path,
+            manual_note_feedback_path=manual_note_feedback_path,
         )
     )
     return rows
@@ -739,6 +744,7 @@ def maybe_retrain_from_shadow_data(
     comparisons_path: Path = SHADOW_COMPARISONS_PATH,
     corrections_path: Path = CORRECTIONS_PATH,
     examples_path: Path = EXAMPLES_PATH,
+    manual_note_feedback_path: Path = MANUAL_NOTE_FEEDBACK_PATH,
     model_path: Path = LIGHTGBM_MODEL_PATH,
     report_path: Path = LIGHTGBM_REPORT_PATH,
     min_rows: int = 25,
@@ -749,6 +755,7 @@ def maybe_retrain_from_shadow_data(
         comparisons_path=comparisons_path,
         corrections_path=corrections_path,
         examples_path=examples_path,
+        manual_note_feedback_path=manual_note_feedback_path,
     )
     approved = [row for row in feedback_rows if row.get("teacher_approved_for_training")]
     if len(approved) < min_rows:
@@ -1034,6 +1041,7 @@ def build_readiness_report(
     comparisons_path: Path = SHADOW_COMPARISONS_PATH,
     corrections_path: Path = CORRECTIONS_PATH,
     examples_path: Path = EXAMPLES_PATH,
+    manual_note_feedback_path: Path = MANUAL_NOTE_FEEDBACK_PATH,
     queue_dir: Path = SHADOW_QUEUE_DIR,
     model_path: Path = LIGHTGBM_MODEL_PATH,
 ) -> Dict[str, Any]:
@@ -1043,6 +1051,7 @@ def build_readiness_report(
         comparisons_path=comparisons_path,
         corrections_path=corrections_path,
         examples_path=examples_path,
+        manual_note_feedback_path=manual_note_feedback_path,
     )
     queue_depth = len(list(queue_dir.glob("*.json"))) if queue_dir.exists() else 0
     model_exists = model_path.exists()

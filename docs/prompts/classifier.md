@@ -82,3 +82,12 @@
 - Runtime note: the classification worker should now send mirror-relative source paths to the classifier API, while the classifier API resolves those paths against a dedicated read-only shared-source mount such as `/source`.
 - Cleanup note: one-off upload requests still stage a temp file, but that temp copy should be removed right after classification returns instead of accumulating under `/input/api`.
 - Affected systems: classification submission client, classifier API endpoints, classifier role compose mounts, operator docs.
+
+## 2026-05-29 - Repair existing source links and feed manual Obsidian edits back into training
+
+- Issues: [#41](https://github.com/NeonButrfly/iCloudPlugin/issues/41), [#42](https://github.com/NeonButrfly/iCloudPlugin/issues/42)
+- Source prompts: "fix existing notes or start over", then "repair pass", then "ok also have the classifier update on anything I create manually in obsidian"
+- Interpreted requirement: repair already-generated classifier notes in place so older Windows users stop seeing Linux-style mirror links, and treat user-created or manually edited Obsidian notes as reviewed feedback that can strengthen the classifier without rerunning the original file through the live classification path.
+- Repair note: the vault reconciliation layer now owns `source_link`, `attachment`, and the rendered `## Original File` section strongly enough to rewrite stale mirror links in place while leaving the rest of each note alone.
+- Manual-feedback note: the shadow worker now fingerprints manual notes outside generated classifier folders, exports changed notes into a dedicated feedback jsonl artifact, and includes those rows in readiness/bootstrap plus LightGBM retraining inputs.
+- Affected systems: vault reconciliation, classifier note metadata, shadow worker, readiness/bootstrap accounting, LightGBM retraining inputs, operator docs.

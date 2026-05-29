@@ -211,6 +211,46 @@ def test_build_readiness_report_uses_reviewed_examples_as_bootstrap_feedback(tmp
     assert report["feedback_sources"]["reviewed-example"] == 10
 
 
+def test_build_readiness_report_counts_manual_obsidian_feedback(tmp_path: Path):
+    model_path = tmp_path / "lightgbm.joblib"
+    model_path.write_bytes(b"model")
+    manual_note_feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    manual_note_feedback_path.write_text(
+        "".join(
+            json.dumps(
+                {
+                    "source_path": f"/vault/Projects/note-{index}.md",
+                    "source_filename": f"note-{index}.md",
+                    "correct_label": "markdown-note",
+                    "old_label": "unknown",
+                    "summary": f"Manual note {index}",
+                    "note": f"manual-obsidian-note:Projects/note-{index}.md",
+                }
+            )
+            + "\n"
+            for index in range(1, 11)
+        ),
+        encoding="utf-8",
+    )
+
+    report = hybrid_runtime.build_readiness_report(
+        gating_config={
+            **hybrid_runtime.DEFAULT_HYBRID_GATING,
+            "allow_real_ingestion": True,
+        },
+        comparisons_path=tmp_path / "shadow-comparisons.jsonl",
+        queue_dir=tmp_path / "shadow-queue",
+        model_path=model_path,
+        examples_path=tmp_path / "examples.jsonl",
+        corrections_path=tmp_path / "corrections.jsonl",
+        manual_note_feedback_path=manual_note_feedback_path,
+    )
+
+    assert report["teacher_approved_rows"] == 10
+    assert report["feedback_sources"]["manual-obsidian-note"] == 10
+    assert report["real_ingestion_allowed"] is False
+
+
 def test_maybe_retrain_from_shadow_data_uses_bootstrap_examples(tmp_path: Path):
     examples_path = tmp_path / "examples.jsonl"
     examples_path.write_text(

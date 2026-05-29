@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 from sqlalchemy import select
@@ -13,12 +14,15 @@ from icloud_index_service.models.classification_state import ClassificationState
 from icloud_index_service.models.file import FileRecord
 
 DEFAULT_VAULT_RECONCILIATION_LIMIT = 10
+MANUAL_NOTE_SKIP_PREFIXES = (".obsidian", "_system", "01 Classified", "02 Needs Review")
 OWNED_FRONTMATTER_FIELDS = (
     "canonical_source_path",
     "canonical_source_hash",
     "last_seen_filename",
     "attachment_mode",
     "compatibility_attachment_path",
+    "source_link",
+    "attachment",
 )
 
 
@@ -139,6 +143,93 @@ def _update_frontmatter_fields(note_text: str, updates: dict[str, str]) -> str:
     return "\n".join(lines) + ("\n" if note_text.endswith("\n") else "")
 
 
+def _build_canonical_source_link(canonical_source_path: str | None, display_name: str) -> str:
+    if not canonical_source_path:
+        return ""
+
+    source_path = canonical_source_path.strip().replace("\\", "/")
+    if not source_path:
+        return ""
+
+    cloud_vault_prefix = "/srv/cloud-vault/"
+    if source_path.startswith(cloud_vault_prefix):
+        relative_path = source_path[len(cloud_vault_prefix):]
+        base_target = os.getenv(
+            "CLASSIFIER_SOURCE_LINK_BASE_URL",
+            r"\\192.168.50.86\cloud-vault",
+        ).strip()
+        if base_target.startswith("\\\\"):
+            normalized_base = base_target.rstrip("\\/")
+            target = normalized_base + "\\" + relative_path.replace("/", "\\")
+        elif re.match(r"^[A-Za-z]:[/\\]", base_target):
+            normalized_base = base_target.rstrip("\\/")
+            target = normalized_base + "\\" + relative_path.replace("/", "\\")
+        else:
+            target = f"{base_target.rstrip('/')}/{relative_path}"
+    elif source_path.startswith("/"):
+        target = f"file://{source_path}"
+    elif re.match(r"^[A-Za-z]:/", source_path):
+        target = f"file:///{source_path}"
+    else:
+        target = f"file://{source_path}"
+
+    label = display_name.replace("]", r"\]")
+    return f"[{label}](<{target}>)"
+
+
+def _update_original_file_section(note_text: str, replacement: str) -> str:
+    pattern = re.compile(
+        r"(## Original File\s*\n\s*\n)(.*?)(\n## Extracted Markdown File\s*\n)",
+        re.DOTALL,
+    )
+
+    def _replace(match: re.Match[str]) -> str:
+        return f"{match.group(1)}{replacement}{match.group(3)}"
+
+    updated_text, count = pattern.subn(_replace, note_text, count=1)
+    return updated_text if count else note_text
+
+
+def _repair_note_links(note_text: str, metadata: dict[str, str]) -> tuple[str, bool]:
+    canonical_source_path = metadata.get("canonical_source_path", "")
+    last_seen_filename = metadata.get("last_seen_filename", "")
+    attachment_mode = metadata.get("attachment_mode", "none")
+    compatibility_attachment_path = metadata.get("compatibility_attachment_path", "")
+    if (
+        attachment_mode != "canonical-source-link"
+        and "source_link" not in metadata
+        and "attachment" not in metadata
+        and "## Original File" not in note_text
+    ):
+        return note_text, False
+    source_link = _build_canonical_source_link(canonical_source_path, last_seen_filename)
+    attachment_value = (
+        source_link
+        if attachment_mode == "canonical-source-link"
+        else compatibility_attachment_path
+    )
+    updated_text = _update_frontmatter_fields(
+        note_text,
+        {
+            "canonical_source_path": canonical_source_path,
+            "canonical_source_hash": metadata.get("canonical_source_hash", ""),
+            "last_seen_filename": last_seen_filename,
+            "attachment_mode": attachment_mode,
+            "compatibility_attachment_path": compatibility_attachment_path,
+            "source_link": source_link,
+            "attachment": attachment_value,
+        },
+    )
+
+    replacement = (
+        attachment_value
+        if attachment_value
+        else "Original file was not copied into the vault. Re-run with `--attach-originals` if desired."
+    )
+    updated_text = _update_original_file_section(updated_text, replacement)
+    return updated_text, updated_text != note_text
+
+
 def _normalize_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.lower())
 
@@ -189,6 +280,126 @@ def _iter_generated_notes(vault_root: Path) -> list[tuple[Path, dict[str, str]]]
                 continue
             notes.append((note_path.resolve(), metadata))
     return notes
+
+
+def _iter_manual_notes(vault_root: Path) -> list[tuple[Path, dict[str, str], str]]:
+    notes: list[tuple[Path, dict[str, str], str]] = []
+    for note_path in vault_root.rglob("*.md"):
+        if note_path.name == "Classification Index.md":
+            continue
+        relative_parts = note_path.relative_to(vault_root).parts
+        if relative_parts and relative_parts[0] in MANUAL_NOTE_SKIP_PREFIXES:
+            continue
+        note_text = note_path.read_text(encoding="utf-8", errors="replace")
+        parsed = _parse_frontmatter(note_text)
+        metadata = parsed[0] if parsed is not None else {}
+        notes.append((note_path.resolve(), metadata, note_text))
+    notes.sort(key=lambda item: str(item[0]).lower())
+    return notes
+
+
+def repair_vault_source_links(
+    vault_root: Path,
+    *,
+    limit: int | None = None,
+) -> dict[str, int]:
+    result = {
+        "scanned": 0,
+        "repaired": 0,
+        "skipped": 0,
+    }
+    note_limit = limit if limit is not None else 0
+    notes = _iter_generated_notes(vault_root)
+    if note_limit > 0:
+        notes = notes[:note_limit]
+
+    for note_path, metadata in notes:
+        result["scanned"] += 1
+        note_text = note_path.read_text(encoding="utf-8", errors="replace")
+        repaired_note_text, changed = _repair_note_links(note_text, metadata)
+        if not changed:
+            result["skipped"] += 1
+            continue
+        note_path.write_text(repaired_note_text, encoding="utf-8")
+        result["repaired"] += 1
+    return result
+
+
+def sync_manual_note_feedback(
+    vault_root: Path,
+    *,
+    feedback_path: Path,
+    state_path: Path,
+    limit: int | None = None,
+) -> dict[str, int]:
+    result = {
+        "scanned": 0,
+        "exported": 0,
+        "unchanged": 0,
+    }
+    existing_state: dict[str, str] = {}
+    if state_path.exists():
+        try:
+            loaded = json.loads(state_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                existing_state = {str(key): str(value) for key, value in loaded.items()}
+        except json.JSONDecodeError:
+            existing_state = {}
+
+    note_limit = limit if limit is not None else 0
+    notes = _iter_manual_notes(vault_root)
+    if note_limit > 0:
+        notes = notes[:note_limit]
+
+    updated_state = dict(existing_state)
+    feedback_rows: list[dict[str, object]] = []
+    for note_path, metadata, note_text in notes:
+        result["scanned"] += 1
+        fingerprint = f"{note_path.stat().st_mtime_ns}:{note_path.stat().st_size}"
+        state_key = note_path.as_posix()
+        if existing_state.get(state_key) == fingerprint:
+            result["unchanged"] += 1
+            continue
+
+        heading = ""
+        for line in note_text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("# "):
+                heading = stripped[2:].strip()
+                break
+        summary = heading or note_path.stem
+        source_path = (
+            metadata.get("canonical_source_path", "")
+            or metadata.get("source_file", "")
+            or note_path.as_posix()
+        )
+        primary_label = metadata.get("primary_label", "").strip() or "markdown-note"
+        feedback_rows.append(
+            {
+                "recorded_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "source_path": source_path,
+                "filename": Path(source_path).name or note_path.name,
+                "source_filename": note_path.name,
+                "correct_label": primary_label,
+                "old_label": metadata.get("old_label", "").strip() or "unknown",
+                "secondary_labels": [],
+                "summary": summary,
+                "note": f"manual-obsidian-note:{note_path.relative_to(vault_root).as_posix()}",
+                "parser": "obsidian-markdown",
+                "review_status": "manual-obsidian-note",
+            }
+        )
+        updated_state[state_key] = fingerprint
+        result["exported"] += 1
+
+    if feedback_rows:
+        feedback_path.parent.mkdir(parents=True, exist_ok=True)
+        with feedback_path.open("a", encoding="utf-8") as handle:
+            for row in feedback_rows:
+                handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(json.dumps(updated_state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return result
 
 
 def _find_matching_generated_notes(
@@ -251,6 +462,11 @@ def _update_state_note_references(
         if last_seen_filename and manifest_record.get("last_seen_filename") != last_seen_filename:
             manifest_record["last_seen_filename"] = last_seen_filename
             changed = True
+        for field in ("attachment_mode", "compatibility_attachment_path", "source_link"):
+            field_value = note_metadata.get(field, "")
+            if manifest_record.get(field) != field_value:
+                manifest_record[field] = field_value
+                changed = True
         if changed:
             state.classifier_manifest_record = json.dumps(manifest_record, ensure_ascii=False)
 
@@ -274,6 +490,11 @@ def _update_state_note_references(
             if last_seen_filename and record_payload.get("last_seen_filename") != last_seen_filename:
                 record_payload["last_seen_filename"] = last_seen_filename
                 response_changed = True
+            for field in ("attachment_mode", "compatibility_attachment_path", "source_link"):
+                field_value = note_metadata.get(field, "")
+                if record_payload.get(field) != field_value:
+                    record_payload[field] = field_value
+                    response_changed = True
         if response_changed:
             state.response_payload_json = json.dumps(response_payload, ensure_ascii=False)
             changed = True
@@ -356,6 +577,7 @@ def run_vault_reconciliation_once(
 
     for state in states:
         result["scanned"] += 1
+        state_repaired = False
         note_path_value = state.classifier_note_path or ""
         note_path = _resolve_note_path(note_path_value, vault_root) if note_path_value else None
         note_text = ""
@@ -412,7 +634,7 @@ def run_vault_reconciliation_once(
                 note_metadata=preferred_metadata,
             ):
                 database_changed = True
-                result["repaired"] += 1
+                state_repaired = True
 
         active_note_path = preferred_note_path or note_path
         active_metadata = preferred_metadata if preferred_note_path is not None else metadata
@@ -420,10 +642,29 @@ def run_vault_reconciliation_once(
             result["skipped"] += 1
             continue
 
+        active_note_text = active_note_path.read_text(encoding="utf-8", errors="replace")
+        repaired_note_text, note_link_changed = _repair_note_links(active_note_text, active_metadata)
+        if note_link_changed:
+            active_note_path.write_text(repaired_note_text, encoding="utf-8")
+            state_repaired = True
+            database_changed = True
+            parsed = _parse_frontmatter(repaired_note_text)
+            if parsed is not None:
+                active_metadata, _, _ = parsed
+                note_reference = _vault_note_reference(active_note_path, vault_root)
+                if _update_state_note_references(
+                    state,
+                    note_reference=note_reference,
+                    note_metadata=active_metadata,
+                ):
+                    database_changed = True
+
         current_source_path = Path(
             active_metadata.get("canonical_source_path", canonical_source_path)
         )
         if current_source_path.exists():
+            if state_repaired:
+                result["repaired"] += 1
             continue
 
         decision, replacement_path = _select_replacement_candidate(
@@ -433,9 +674,13 @@ def run_vault_reconciliation_once(
             last_seen_filename=last_seen_filename,
         )
         if decision == "ambiguous":
+            if state_repaired:
+                result["repaired"] += 1
             result["ambiguous"] += 1
             continue
         if decision != "repair" or replacement_path is None:
+            if state_repaired:
+                result["repaired"] += 1
             result["unverified"] += 1
             continue
 
@@ -447,23 +692,31 @@ def run_vault_reconciliation_once(
                 "last_seen_filename": replacement_path.name,
                 "attachment_mode": active_metadata.get("attachment_mode", "none"),
                 "compatibility_attachment_path": active_metadata.get("compatibility_attachment_path", ""),
+                "source_link": active_metadata.get("source_link", ""),
+                "attachment": active_metadata.get("attachment", ""),
             },
         )
-        active_note_path.write_text(updated_note, encoding="utf-8")
-        result["repaired"] += 1
-        database_changed = True
         refreshed_metadata = dict(active_metadata)
         refreshed_metadata["canonical_source_path"] = str(replacement_path)
         refreshed_metadata["canonical_source_hash"] = (
             active_metadata.get("canonical_source_hash", "") or canonical_source_hash or _sha256_file(replacement_path)
         )
         refreshed_metadata["last_seen_filename"] = replacement_path.name
+        refreshed_note_text, _ = _repair_note_links(updated_note, refreshed_metadata)
+        active_note_path.write_text(refreshed_note_text, encoding="utf-8")
+        state_repaired = True
+        database_changed = True
+        parsed = _parse_frontmatter(refreshed_note_text)
+        if parsed is not None:
+            refreshed_metadata, _, _ = parsed
         note_reference = _vault_note_reference(active_note_path, vault_root)
         _update_state_note_references(
             state,
             note_reference=note_reference,
             note_metadata=refreshed_metadata,
         )
+        if state_repaired:
+            result["repaired"] += 1
 
     if database_changed:
         session.commit()

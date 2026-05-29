@@ -335,3 +335,165 @@ def test_run_vault_reconciliation_once_prefers_unsuffixed_matching_note(
         stored_state.classifier_note_path
         == "/vault/01 Classified/financial/uber_f1099k_2025 - financial.md"
     )
+
+
+def test_run_vault_reconciliation_once_repairs_stale_source_link_fields_in_place(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from icloud_index_service.services.vault_reconciliation import (
+        _build_canonical_source_link,
+        run_vault_reconciliation_once,
+    )
+
+    mirror_root = tmp_path / "mirror"
+    live_file = mirror_root / "icloud" / "Scanned" / "botox.pdf"
+    live_file.parent.mkdir(parents=True, exist_ok=True)
+    live_file.write_bytes(b"botox-pdf")
+
+    vault_root = tmp_path / "vault"
+    note_path = vault_root / "01 Classified" / "medical" / "botox - medical.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'type: classified-document',
+                f'canonical_source_path: {json.dumps(str(live_file))}',
+                'canonical_source_hash: "abc123"',
+                'last_seen_filename: "botox.pdf"',
+                'attachment_mode: "canonical-source-link"',
+                'compatibility_attachment_path: ""',
+                'source_link: "[botox.pdf](file://192.168.50.86/cloud-vault/mirrors/icloud/Scanned/botox.pdf)"',
+                'attachment: "[botox.pdf](file://192.168.50.86/cloud-vault/mirrors/icloud/Scanned/botox.pdf)"',
+                "---",
+                "",
+                "# botox.pdf",
+                "",
+                "## Original File",
+                "",
+                "[botox.pdf](file://192.168.50.86/cloud-vault/mirrors/icloud/Scanned/botox.pdf)",
+                "",
+                "## Extracted Markdown File",
+                "",
+                "_none_",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    try:
+        file_record = _add_file(
+            session,
+            external_id="file-1",
+            name="botox.pdf",
+            path="/icloud/Scanned/botox.pdf",
+        )
+        session.add(
+            ClassificationState(
+                file_id=file_record.id,
+                submission_status="completed",
+                classifier_note_path="/vault/01 Classified/medical/botox - medical.md",
+                classifier_manifest_record=json.dumps(
+                    {
+                        "note_path": "/vault/01 Classified/medical/botox - medical.md",
+                        "canonical_source_path": str(live_file),
+                        "canonical_source_hash": "abc123",
+                        "last_seen_filename": "botox.pdf",
+                        "attachment_mode": "canonical-source-link",
+                        "compatibility_attachment_path": "",
+                        "source_link": "[botox.pdf](file://192.168.50.86/cloud-vault/mirrors/icloud/Scanned/botox.pdf)",
+                    }
+                ),
+                response_payload_json=json.dumps(
+                    {
+                        "record": {
+                            "note_path": "/vault/01 Classified/medical/botox - medical.md",
+                            "canonical_source_path": str(live_file),
+                            "canonical_source_hash": "abc123",
+                            "last_seen_filename": "botox.pdf",
+                            "attachment_mode": "canonical-source-link",
+                            "compatibility_attachment_path": "",
+                            "source_link": "[botox.pdf](file://192.168.50.86/cloud-vault/mirrors/icloud/Scanned/botox.pdf)",
+                        }
+                    }
+                ),
+            )
+        )
+        session.commit()
+
+        result = run_vault_reconciliation_once(session, limit=10)
+        session.expire_all()
+        stored_state = session.scalar(select(ClassificationState).limit(1))
+        updated_note = note_path.read_text(encoding="utf-8")
+    finally:
+        session.close()
+
+    expected_link = _build_canonical_source_link(str(live_file), "botox.pdf")
+    assert result["repaired"] == 1
+    assert result["scanned"] == 1
+    assert expected_link in updated_note
+    assert f'source_link: {json.dumps(expected_link)}' in updated_note
+    assert f'attachment: {json.dumps(expected_link)}' in updated_note
+    assert stored_state is not None
+    assert json.loads(stored_state.classifier_manifest_record)["source_link"] == expected_link
+    assert json.loads(stored_state.response_payload_json)["record"]["source_link"] == expected_link
+
+
+def test_sync_manual_note_feedback_exports_changed_manual_notes(
+    tmp_path: Path,
+):
+    from icloud_index_service.services.vault_reconciliation import sync_manual_note_feedback
+
+    vault_root = tmp_path / "vault"
+    note_path = vault_root / "Projects" / "Kay Appeal.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'primary_label: "appeal"',
+                'canonical_source_path: "/srv/cloud-vault/mirrors/icloud/Scanned/appeal.pdf"',
+                "---",
+                "",
+                "# Kay Appeal",
+                "",
+                "Appeal planning notes.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    state_path = tmp_path / "manual-note-sync-state.json"
+
+    first_result = sync_manual_note_feedback(
+        vault_root,
+        feedback_path=feedback_path,
+        state_path=state_path,
+    )
+    second_result = sync_manual_note_feedback(
+        vault_root,
+        feedback_path=feedback_path,
+        state_path=state_path,
+    )
+
+    rows = [
+        json.loads(line)
+        for line in feedback_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert first_result == {"scanned": 1, "exported": 1, "unchanged": 0}
+    assert second_result == {"scanned": 1, "exported": 0, "unchanged": 1}
+    assert rows[0]["correct_label"] == "appeal"
+    assert rows[0]["source_path"] == "/srv/cloud-vault/mirrors/icloud/Scanned/appeal.pdf"
+    assert rows[0]["note"] == "manual-obsidian-note:Projects/Kay Appeal.md"
