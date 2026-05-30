@@ -61,6 +61,7 @@ def test_cloudsync_targeted_batch_helper_restores_queue_state():
     assert "next_attempt_at" in script_text
     assert "trap cleanup EXIT" in script_text
     assert "load_env_file()" in script_text
+    assert "source <(tr -d '\\r' < \"${ENV_FILE}\")" in script_text
     assert "postgres_service_running()" in script_text
     assert "docker run --rm \\" in script_text
     assert "--network host \\" in script_text
