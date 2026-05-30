@@ -11,14 +11,16 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 ## Live Host Layout
 
 - `kayraspi` (`192.168.50.232`)
-  - live `iCloudPlugin` sync/API host
+  - transitional legacy `iCloudPlugin` host
+  - still hosts the live cloudsync Postgres database during the compute-only cutover
   - repo path: `/opt/iCloudPlugin`
-  - main service port: `8080`
   - mounts `/srv/cloud-vault` from `kayraspi2` as read-only NFS
 
 - `tichuml1` (`192.168.50.196`)
   - live classifier host
+  - live sync/index/API compute host
   - repo path: `/opt/iCloudPlugin`
+  - main service port: `8080`
   - classifier API port: `4319`
   - mounts shared vault from `kayraspi2` at `/mnt/cloud-vault`
 
@@ -63,13 +65,16 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - the classifier API role was hardened for live traffic:
   - `ENABLE_SHADOW_WORKER=0` by default in the API role
   - four Uvicorn workers in the classifier API role
-- on `kayraspi`, `CLASSIFIER_VAULT_RECONCILIATION_ENABLED=false` is intentional because `/srv/cloud-vault` is mounted read-only there
+- on `kayraspi`, `CLASSIFIER_VAULT_RECONCILIATION_ENABLED=false` is intentional when that host is using the read-only NFS mount from `kayraspi2`
 
 ## Current Status
 
-- `kayraspi` `iCloudPlugin` health is OK
-- `kayraspi` `/refresh/status` is running
+- `tichuml1` `iCloudPlugin` health is OK on `127.0.0.1:8080`
+- `tichuml1` `/refresh/status` resumed the existing aggregate background scan
+- `clouddrive.neonbutterfly.net` now proxies to `192.168.50.196:8080`
 - `tichuml1` classifier health is OK
+- `kayraspi` now carries only the legacy cloudsync Postgres database for the
+  compute-only cutover; the old service and worker are stopped there
 - `classification-worker` on `kayraspi` is intentionally stopped after reset
 - aggregate mirror indexing has picked up both `google1` and `google2`
 - `document-vault` is the canonical local Obsidian vault
@@ -87,7 +92,8 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - retrain/approve classifier readiness before resuming bulk real-folder submissions
 - normalize old hash-heavy note filenames
 - retire/archive the old standalone `local-doc-classifier` checkout after safe soak period
-- decide whether `cloudsync/api` should remain on `kayraspi` or be intentionally moved later
+- optionally move cloudsync Postgres off `kayraspi` later if the compute-only
+  cutover soaks cleanly
 
 ## Recent Commits That Matter
 
@@ -111,5 +117,4 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 4. Treat `/srv/cloud-vault/document-vault` as the canonical Obsidian vault.
 5. Assume:
    - `kayraspi2` is storage/share/proxy
-   - `kayraspi` is sync/API
-   - `tichuml1` is classifier
+   - `tichuml1` is classifier plus live cloudsync compute host

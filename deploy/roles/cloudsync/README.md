@@ -1,14 +1,18 @@
 # Cloudsync Role
 
 Runs mirrored-drive crawl, refresh scheduling, extraction, and reconciliation
- triggers on the sync host.
+triggers on the cloudsync compute host.
 
-Typical host:
+Preferred host split:
 
-- current live app host: `kayraspi`
-- current live storage/share host: `kayraspi2`
+- cloudsync compute host: `tichuml1`
+- storage/share host: `kayraspi2`
 
-Expected shared mount:
+Expected host-side shared mount on the compute host:
+
+- `/mnt/cloud-vault`
+
+Expected in-container shared mount:
 
 - `/srv/cloud-vault`
 
@@ -47,6 +51,20 @@ The sync/index/classifier-facing mirror root should point at:
 
 That keeps one local source of truth for indexing and classifier submission
 while still preserving provider-specific provenance by folder.
+
+For the compute-only deployment on `tichuml1`:
+
+- keep `kayraspi2` authoritative for `/srv/cloud-vault`
+- keep the existing cloudsync Postgres on `kayraspi` during the first cutover
+- mount `192.168.50.86:/srv/cloud-vault` at `/mnt/cloud-vault` on `tichuml1`
+- set `POSTGRES_HOST=192.168.50.232`
+- set `POSTGRES_PORT=5432`
+- set `ICLOUD_MIRROR_MOUNT_SOURCE=/mnt/cloud-vault`
+- leave `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors` so the container path
+  stays stable
+- keep `CLASSIFIER_API_URL=http://192.168.50.196:4319`
+- prefer `docker compose -p icloudplugin --env-file deploy/roles/cloudsync/.env.live`
+  so the cloudsync project name remains stable during cutover
 
 The script is intentionally resilient:
 

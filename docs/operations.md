@@ -29,7 +29,8 @@ Use the role-specific Compose files when sync and classifier stay on different
 hosts:
 
 - `deploy/roles/cloudsync/docker-compose.yml`
-  - use on the sync/index/API host such as `kayraspi2`
+  - use on the sync/index/API compute host such as `tichuml1`
+  - keep storage authoritative on `kayraspi2`
 - `deploy/roles/classifier/docker-compose.yml`
   - use on the classifier/Ollama host such as `tichuml1`
 - `deploy/roles/combined/docker-compose.yml`
@@ -52,9 +53,11 @@ Current flow:
 If a maintained live mirror already exists, the service can index that tree
 directly instead of traversing Apple web APIs.
 
-For the `kayraspi2` deployment:
+For a compute-only deployment where `tichuml1` mounts the shared storage from
+`kayraspi2`:
 
 - set `ICLOUD_SOURCE_MODE=filesystem-mirror`
+- set `ICLOUD_MIRROR_MOUNT_SOURCE=/mnt/cloud-vault`
 - set `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors`
 - make sure the host mirror mount is also visible inside the containers; by default compose binds `${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}` to `/srv/cloud-vault`
 - leave Apple credentials unset unless you still want the optional direct mode
@@ -209,6 +212,30 @@ sudo docker compose -p icloudplugin --env-file .env `
   classification-worker `
   uv run python -c "from icloud_index_service.classification_worker import run_classification_worker_loop; print(run_classification_worker_loop(max_polls=3, poll_interval_seconds=0.1))"
 ```
+
+For the preferred compute-only cutover to `tichuml1`, start the long-running
+cloudsync stack with the host-local mount path instead of the old read-only Pi
+mount:
+
+```bash
+cd /opt/iCloudPlugin
+cp deploy/roles/cloudsync/.env.tichuml1.example deploy/roles/cloudsync/.env.live
+# then set the real secrets in deploy/roles/cloudsync/.env.live
+sudo docker compose -p icloudplugin \
+  --env-file deploy/roles/cloudsync/.env.live \
+  -f deploy/roles/cloudsync/docker-compose.yml \
+  up -d --build postgres migrate service worker
+```
+
+Recommended first cutover values in `deploy/roles/cloudsync/.env.live`:
+
+- `POSTGRES_HOST=192.168.50.232`
+- `POSTGRES_PORT=5432`
+- `ICLOUD_MIRROR_MOUNT_SOURCE=/mnt/cloud-vault`
+- `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors`
+
+That keeps the existing Postgres on `kayraspi` for the first compute move
+while shifting the expensive API and refresh worker load onto `tichuml1`.
 
 - for repeated targeted batches such as `Scanned`-first passes, prefer the
   helper script added in issue [#36](https://github.com/NeonButrfly/iCloudPlugin/issues/36):
