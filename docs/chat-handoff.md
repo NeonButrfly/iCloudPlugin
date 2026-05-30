@@ -70,7 +70,17 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 ## Current Status
 
 - `tichuml1` `iCloudPlugin` health is OK on `127.0.0.1:8080`
-- `tichuml1` `/refresh/status` resumed the existing aggregate background scan
+- `tichuml1` `/refresh/status` is still running the active aggregate
+  background scan
+- live `/refresh/status` on 2026-05-30 AKDT shows:
+  - `status=running`
+  - `job_id=12`
+  - `job_type=metadata-refresh`
+  - `source=background-scan`
+  - `items_seen=1700`
+  - `batch_count=17`
+  - `frontier_length=2218`
+  - `error_message=null`
 - `clouddrive.neonbutterfly.net` now proxies to `192.168.50.196:8080`
 - `tichuml1` classifier health is OK
 - `tichuml1` classifier containers were recreated from the monorepo compose on
@@ -363,8 +373,21 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - `classification-worker` on `kayraspi` is intentionally stopped after reset
 - aggregate mirror indexing has picked up both `google1` and `google2`
 - `document-vault` is the canonical local Obsidian vault
-- `document-vault` now contains both the original smoke output and additional
-  live classifier notes from the resumed pipeline work
+- issue [#47](https://github.com/NeonButrfly/iCloudPlugin/issues/47) cleared
+  the generated note surfaces in `document-vault` on 2026-05-30 AKDT before
+  the next broad ingestion attempt:
+  - `01 Classified`
+  - `02 Needs Review`
+  - `90 Attachments`
+  - `_system/classifications`
+  - `_system/extracted-markdown`
+  - root `Classification Index.md`
+- that reset intentionally preserved:
+  - `.obsidian`
+  - `00 Inbox`
+  - `_system/templates`
+  - `_system/training`
+  - the source mirrors and indexed `files` table
 - the smoke classification used
   `/srv/cloud-vault/mirrors/google1/Aetna Life Insurance Company - APPEAL 1 FFS.docx`
   and created an `appeal` note in `document-vault`

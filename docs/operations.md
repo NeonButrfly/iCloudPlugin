@@ -346,6 +346,30 @@ not as a vague top-level `appeal` category.
 Do not resume bulk real-folder submissions until classifier readiness has been
 rebuilt and `/readiness` reports `real_ingestion_allowed=true`.
 
+As of 2026-05-30 AKDT, issue #47 performed a narrower pre-ingestion reset on
+the live `document-vault` note surfaces only. The generated note/output paths
+were cleared again:
+
+- `01 Classified`
+- `02 Needs Review`
+- `90 Attachments`
+- `_system/classifications`
+- `_system/extracted-markdown`
+- root `Classification Index.md`
+
+That reset intentionally preserved:
+
+- `.obsidian`
+- `00 Inbox`
+- `_system/templates`
+- `_system/training`
+- source mirrors
+- the indexed `files` table and active background indexer run
+
+Live verification right after the reset showed `/refresh/status` still running
+job `12` (`metadata-refresh`, `background-scan`) with `items_seen=1700`,
+`batch_count=17`, `frontier_length=2218`, and `error_message=null`.
+
 Current classifier submission coverage follows the classifier API's accepted
 extensions:
 
