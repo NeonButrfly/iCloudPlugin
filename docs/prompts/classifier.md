@@ -155,6 +155,23 @@
   reclassifies of `Request Denial Information.html`, `your_messages.html`, and
   `comments.html` to land in those corrected folders via
   `manual-correction-override`.
+- Docling-converted heuristic-proof note: as of 2026-05-30 AKDT the same live
+  proof now also exists for `docling-converted|unknown` after one image-heavy
+  `.doc` file and two surgery-letter `.doc` sources were manually moved from
+  `medical` and `letter` into `personal` and `medical`, which added the live
+  forced rule `docling-converted|unknown`, retrained LightGBM through
+  `training_rows=676`, and allowed later reclassifies of
+  `B217C1 Buff Parchment.doc` and both `Kay Vaginoplasty GRS Letter.doc`
+  source paths to land in those corrected folders via
+  `manual-correction-override`.
+- Pdftotext heuristic-proof note: as of 2026-05-30 AKDT the live
+  `pdftotext|unknown` family is also directly re-proven from current manual
+  moves. Three real PDFs were manually moved from `medical` and
+  `reimbursement-packet` into `form`, `insurance`, and `tax-form`, which wrote
+  fresh strong manual-note rows for `pdftotext`, retrained LightGBM through
+  `training_rows=698`, and allowed later reclassifies of
+  `New Patient Cognitive Questionnaire.pdf`, `botox.pdf`, and `show.pdf` to
+  land in the corrected folders via `manual-correction-override`.
 - Bootstrap-noise note: generated-note history rows where `correct_label` already matched `old_label` should not count as reviewed corrections during bootstrap import, otherwise stale no-op rewrites can inflate readiness and teach the heuristic gate from noise instead of real user corrections.
 - Secondary-label note: manual generated-note moves must also count when the
   primary label stays the same but the user adds a meaningful secondary label

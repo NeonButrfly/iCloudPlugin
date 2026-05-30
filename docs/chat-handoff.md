@@ -288,6 +288,67 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `source_parser="docling"`
     - `heuristic_primary_hint="unknown"`
     - `hybrid_live_source="manual-correction-override"`
+- after three additional real manual moves on 2026-05-30 AKDT in the
+  `docling-converted|unknown` family:
+  - `B217C1 Buff Parchment.doc` moved from `medical` to `personal`
+  - `Kay Vaginoplasty GRS Letter.doc` under `/google1/Surgery/` moved from
+    `letter` to `medical`
+  - `Kay Vaginoplasty GRS Letter.doc` under
+    `/icloud/untitled folder/sort/combined/Surgery/` moved from `letter` to
+    `medical`
+  the live runtime then proved a sixth heuristic-learning family:
+  - `force_inline_llm_for` now includes `docling-converted|unknown`
+  - LightGBM retrained live through `training_rows=676`
+  - readiness remained green with:
+    - `teacher_reviewed_rows=726`
+    - `teacher_approved_rows=677`
+    - `feedback_sources.manual-obsidian-note=110`
+    - `queue_depth=0`
+    - `real_ingestion_allowed=true`
+- live downstream proof on 2026-05-30 AKDT:
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/icloud/untitled folder/B217C1 Buff Parchment.doc`
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/google1/Surgery/Kay Vaginoplasty GRS Letter.doc`
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/icloud/untitled folder/sort/combined/Surgery/Kay Vaginoplasty GRS Letter.doc`
+  - resulting notes now land at:
+    - `01 Classified/personal/B217C1 Buff Parchment - personal.md`
+    - `01 Classified/medical/Kay Vaginoplasty GRS Letter - medical.md`
+  - verified frontmatter now shows:
+    - `source_parser="docling-converted"`
+    - `heuristic_primary_hint="unknown"`
+    - `hybrid_live_source="manual-correction-override"`
+- after three additional real manual moves on 2026-05-30 AKDT in the
+  `pdftotext|unknown` family:
+  - `New Patient Cognitive Questionnaire.pdf` moved from `medical` to `form`
+  - `botox.pdf` moved from `medical` to `insurance`
+  - `show.pdf` moved from `reimbursement-packet` to `tax-form`
+  the live runtime then re-proved the seventh active parser family:
+  - `force_inline_llm_for` includes `pdftotext|unknown`
+  - fresh strong manual-note rows were exported for all three PDFs
+  - LightGBM retrained live to `training_rows=698`
+  - readiness remained green with:
+    - `teacher_reviewed_rows=747`
+    - `teacher_approved_rows=698`
+    - `feedback_sources.manual-obsidian-note=120`
+    - `queue_depth=0`
+    - `real_ingestion_allowed=true`
+- live downstream proof on 2026-05-30 AKDT:
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/icloud/Downloads/New Patient Cognitive Questionnaire.pdf`
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/icloud/Scanned/botox.pdf`
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/icloud/Downloads/show.pdf`
+  - resulting notes now land at:
+    - `01 Classified/form/New Patient Cognitive Questionnaire - form.md`
+    - `01 Classified/insurance/botox - insurance.md`
+    - `01 Classified/tax-form/show - tax-form.md`
+  - verified frontmatter now shows:
+    - `source_parser="pdftotext"`
+    - `heuristic_primary_hint="unknown"`
+    - `hybrid_live_source="manual-correction-override"`
 - rerunning the shadow-worker after that live rewrite did not append any newer
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
@@ -317,14 +378,15 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   corrections so `force_inline_llm_for` picks up at least one meaningful
   parser-plus-hint pattern from user curation (now proven for
   `pdf-ocr-tesseract|unknown`; broader coverage still open)
-- prove the same live learning loop across at least one non-PDF parser family
-  now that canonical mirror-path translation into the classifier source mount
-  is live (now proven for `docx-xml|unknown`, `plain-text|unknown`,
-  `spreadsheet-openpyxl|spreadsheet`, and `docling|unknown`; other families
-  still open)
-- decide whether the remaining thin `docling-converted` family needs explicit
-  proof work or whether the current single-note coverage is enough for the
-  broader training/readiness goal
+- the classifier/manual-feedback loop is now live-proven across every current
+  parser family present in the vault:
+  - `pdf-ocr-tesseract|unknown`
+  - `docx-xml|unknown`
+  - `plain-text|unknown`
+  - `spreadsheet-openpyxl|spreadsheet`
+  - `docling|unknown`
+  - `docling-converted|unknown`
+  - `pdftotext|unknown`
 - decide how to backfill richer classifier context for the remaining legacy
   generated notes that still lack `source_parser` / `heuristic_primary_hint` /
   `hybrid_live_source` because their state rows are either still queued or are

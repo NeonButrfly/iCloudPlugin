@@ -216,13 +216,15 @@ it successfully.
   - exact reviewed overrides now prefer a same-source correction over a newer
     same-filename row from the reviewed corpus, which matters for common names
     like `Appeal.docx`
-  - this feedback loop is now proven live across five parser-plus-hint
+  - this feedback loop is now proven live across seven parser-plus-hint
     families:
     - `pdf-ocr-tesseract|unknown`
     - `docx-xml|unknown`
     - `plain-text|unknown`
     - `spreadsheet-openpyxl|spreadsheet`
     - `docling|unknown`
+    - `docling-converted|unknown`
+    - `pdftotext|unknown`
 - on `kayraspi`, ad hoc `docker compose` runs for the `cloudsync` role should
   use the live project name explicitly:
   - use `-p icloudplugin`
@@ -503,6 +505,36 @@ Self-training loop:
     - `01 Classified/insurance/Request Denial Information - insurance.md`
     - `01 Classified/personal/your_messages - personal.md`
     - `01 Classified/personal/comments - personal.md`
+    with `hybrid_live_source="manual-correction-override"`
+  - live proof on 2026-05-30 AKDT: three real `.doc` note moves in the
+    `docling-converted|unknown` family moved:
+    - `B217C1 Buff Parchment.doc` from `medical` to `personal`
+    - `Kay Vaginoplasty GRS Letter.doc` under `/google1/Surgery/` from
+      `letter` to `medical`
+    - `Kay Vaginoplasty GRS Letter.doc` under
+      `/icloud/untitled folder/sort/combined/Surgery/` from `letter` to
+      `medical`
+    the live shadow-worker then exported fresh strong manual-note rows,
+    retrained LightGBM through `training_rows=676`, and grew
+    `force_inline_llm_for` to include `docling-converted|unknown`
+  - live downstream proof on 2026-05-30 AKDT: rerunning direct classification
+    for those `.doc` sources then landed them at:
+    - `01 Classified/personal/B217C1 Buff Parchment - personal.md`
+    - `01 Classified/medical/Kay Vaginoplasty GRS Letter - medical.md`
+    with `hybrid_live_source="manual-correction-override"`
+  - live proof on 2026-05-30 AKDT: three real PDF note moves in the
+    `pdftotext|unknown` family moved:
+    - `New Patient Cognitive Questionnaire.pdf` from `medical` to `form`
+    - `botox.pdf` from `medical` to `insurance`
+    - `show.pdf` from `reimbursement-packet` to `tax-form`
+    the live manual-feedback artifact now contains fresh strong rows for all
+    three sources, and a follow-up shadow-worker pass retrained LightGBM to
+    `training_rows=698` while readiness remained green with `queue_depth=0`
+  - live downstream proof on 2026-05-30 AKDT: rerunning direct classification
+    for those same PDFs then landed them at:
+    - `01 Classified/form/New Patient Cognitive Questionnaire - form.md`
+    - `01 Classified/insurance/botox - insurance.md`
+    - `01 Classified/tax-form/show - tax-form.md`
     with `hybrid_live_source="manual-correction-override"`
   - historical generated-note rows where `correct_label == old_label` are now
     ignored by bootstrap feedback import, so stale no-op rewrites do not count
