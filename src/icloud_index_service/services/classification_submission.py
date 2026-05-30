@@ -111,6 +111,10 @@ def get_classification_submission_enabled() -> bool:
     return _read_bool_env("CLASSIFICATION_SUBMISSION_ENABLED", default=True)
 
 
+def get_classification_backfill_enabled() -> bool:
+    return _read_bool_env("CLASSIFICATION_BACKFILL_ENABLED", default=True)
+
+
 def get_classification_submission_concurrency() -> int:
     raw_value = os.getenv("CLASSIFICATION_SUBMISSION_CONCURRENCY")
     if raw_value is None:

@@ -253,6 +253,9 @@ while shifting the expensive API and refresh worker load onto `tichuml1`.
     path prefix, runs the bounded worker with a configurable timeout, restores
     deferred jobs automatically during cleanup, and can print the newest
     completed rows explicitly after the batch with `--run-live-summary`
+  - add `--targeted-feedback-only` when you want the bounded run to process
+    strong manual-feedback requeues plus reconciliation without seeding broader
+    backfill work
   - when `--summary-json` is provided, the helper also writes a machine-readable
     artifact with before/after counts, queue previews, recent completions, and
     timeout status for the bounded run
@@ -422,6 +425,8 @@ Self-training loop:
     completed classification for that source, which prevents repeat loops
   - `CLASSIFICATION_TARGETED_REQUEUE_ENABLED` and
     `CLASSIFICATION_TARGETED_REQUEUE_LIMIT` bound this behavior
+  - set `CLASSIFICATION_BACKFILL_ENABLED=false` when you want a bounded worker
+    run to process only manual-feedback requeues plus reconciliation
 - explicit folder-to-label overrides live in:
   - `config/vault-folder-labels.json`
   - use this when a human-facing vault folder name should map to a canonical
@@ -617,6 +622,7 @@ CLASSIFIER_VAULT_ROOT=/srv/cloud-vault/document-vault
 CLASSIFIER_VAULT_RECONCILIATION_ENABLED=true
 CLASSIFIER_VAULT_RECONCILIATION_LIMIT=10
 CLASSIFICATION_SUBMISSION_CONCURRENCY=2
+CLASSIFICATION_BACKFILL_ENABLED=true
 CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS=5
 CLASSIFICATION_MAX_ATTEMPTS=3
 CLASSIFICATION_RETRY_BACKOFF_SECONDS=0

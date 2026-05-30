@@ -61,6 +61,9 @@ def test_cloudsync_targeted_batch_helper_restores_queue_state():
     assert "run --rm --no-deps" in script_text
     assert "RUN_LIVE_SUMMARY" in script_text
     assert "--run-live-summary" in script_text
+    assert "TARGETED_FEEDBACK_ONLY" in script_text
+    assert "--targeted-feedback-only" in script_text
+    assert 'CLASSIFICATION_BACKFILL_ENABLED=$([[ "${TARGETED_FEEDBACK_ONLY}" == "1" ]] && printf false || printf true)' in script_text
     assert "Recent completed rows overall:" in script_text
     assert "SUMMARY_JSON_PATH" in script_text
     assert "--summary-json" in script_text

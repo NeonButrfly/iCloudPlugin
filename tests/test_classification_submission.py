@@ -25,6 +25,7 @@ from icloud_index_service.services.classification_submission import (
     compute_source_fingerprint,
     enqueue_classification_backfill,
     enqueue_targeted_reclassification_from_manual_feedback,
+    get_classification_backfill_enabled,
     get_classification_submission_concurrency,
     run_next_classification_job,
 )
@@ -620,6 +621,66 @@ def test_classification_worker_once_runs_vault_reconciliation_pass(
     assert processed_count == 0
     assert targeted_requeue_calls == [10]
     assert reconciliation_calls == [None]
+
+
+def test_classification_worker_once_can_skip_backfill_and_still_seed_targeted_requeue(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session_factory = _build_session_factory(tmp_path)
+    backfill_calls: list[int] = []
+    targeted_requeue_calls: list[int] = []
+
+    monkeypatch.setenv("CLASSIFICATION_SUBMISSION_ENABLED", "true")
+    monkeypatch.setenv("CLASSIFICATION_BACKFILL_ENABLED", "false")
+    monkeypatch.setenv("CLASSIFICATION_SUBMISSION_CONCURRENCY", "1")
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.enqueue_classification_backfill",
+        lambda session, limit: backfill_calls.append(limit) or [],
+    )
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.enqueue_targeted_reclassification_from_manual_feedback",
+        lambda session, limit: targeted_requeue_calls.append(limit) or [],
+    )
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.get_classification_targeted_requeue_limit",
+        lambda: 10,
+    )
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.run_next_classification_job",
+        lambda session, client, worker_id: None,
+    )
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.run_vault_reconciliation_once",
+        lambda session, limit=None: {
+            "scanned": 0,
+            "repaired": 0,
+            "ambiguous": 0,
+            "unverified": 0,
+            "skipped": 0,
+        },
+        raising=False,
+    )
+
+    processed_count = run_classification_worker_once(
+        session_factory=session_factory,
+        worker_id="classifier-a",
+        client=FakeClassifierClient(),
+    )
+
+    assert processed_count == 0
+    assert backfill_calls == []
+    assert targeted_requeue_calls == [10]
+
+
+def test_get_classification_backfill_enabled_defaults_true_and_honors_false_env(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv("CLASSIFICATION_BACKFILL_ENABLED", raising=False)
+    assert get_classification_backfill_enabled() is True
+
+    monkeypatch.setenv("CLASSIFICATION_BACKFILL_ENABLED", "false")
+    assert get_classification_backfill_enabled() is False
 
 
 def test_enqueue_targeted_reclassification_from_manual_feedback_queues_strong_generated_note_move(

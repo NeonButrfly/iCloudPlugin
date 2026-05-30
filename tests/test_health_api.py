@@ -212,6 +212,7 @@ def test_compose_includes_classification_worker_with_classifier_environment():
         "CLASSIFIER_API_URL": "http://192.168.50.196:4319",
         "CLASSIFIER_API_TOKEN": "top-secret",
         "CLASSIFICATION_SUBMISSION_ENABLED": "true",
+        "CLASSIFICATION_BACKFILL_ENABLED": "false",
         "CLASSIFICATION_SUBMISSION_CONCURRENCY": "2",
         "CLASSIFIER_VAULT_ROOT": "/srv/cloud-vault/document-vault",
     }
@@ -240,6 +241,7 @@ def test_compose_includes_classification_worker_with_classifier_environment():
     assert worker_env["CLASSIFIER_API_URL"] == "http://192.168.50.196:4319"
     assert worker_env["CLASSIFIER_API_TOKEN"] == "top-secret"
     assert worker_env["CLASSIFICATION_SUBMISSION_ENABLED"] == "true"
+    assert worker_env["CLASSIFICATION_BACKFILL_ENABLED"] == "false"
     assert worker_env["CLASSIFICATION_SUBMISSION_CONCURRENCY"] == "2"
     assert worker_env["CLASSIFICATION_TARGETED_REQUEUE_ENABLED"] == "true"
     assert worker_env["CLASSIFICATION_TARGETED_REQUEUE_LIMIT"] == "10"

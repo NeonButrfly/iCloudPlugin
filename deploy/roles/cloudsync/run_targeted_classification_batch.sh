@@ -22,6 +22,7 @@ RECENT_LIMIT="${RECENT_LIMIT:-12}"
 LIVE_SUMMARY_LIMIT="${LIVE_SUMMARY_LIMIT:-10}"
 DRY_RUN="${DRY_RUN:-0}"
 RUN_LIVE_SUMMARY="${RUN_LIVE_SUMMARY:-0}"
+TARGETED_FEEDBACK_ONLY="${TARGETED_FEEDBACK_ONLY:-0}"
 SUMMARY_JSON_PATH="${SUMMARY_JSON_PATH:-}"
 SUMMARY_PYTHON="${SUMMARY_PYTHON:-python3}"
 TEMP_DEFER_ERROR="${TEMP_DEFER_ERROR:-Temporarily deferred to prioritize targeted bounded batch helper.}"
@@ -58,6 +59,7 @@ Options:
   --recent-limit N            Number of recent completed rows to display. Default: 12
   --live-summary-limit N      Number of newest completed rows in live summary mode. Default: 10
   --run-live-summary          Print a global newest-completed summary after the batch.
+  --targeted-feedback-only    Disable broad backfill seeding during this bounded run.
   --summary-json PATH         Write a machine-readable JSON summary artifact.
   --dry-run                   Show what would run without mutating queue state.
   --help                      Show this help text.
@@ -423,6 +425,7 @@ run_worker_pass() {
     -f "${COMPOSE_FILE}"
     run --rm --no-deps
     -e "CLASSIFICATION_SUBMISSION_CONCURRENCY=${CONCURRENCY}"
+    -e "CLASSIFICATION_BACKFILL_ENABLED=$([[ "${TARGETED_FEEDBACK_ONLY}" == "1" ]] && printf false || printf true)"
     "${CLASSIFICATION_SERVICE}"
     uv run python -c "${python_command}"
   )
@@ -497,6 +500,10 @@ parse_args() {
         RUN_LIVE_SUMMARY="1"
         shift
         ;;
+      --targeted-feedback-only)
+        TARGETED_FEEDBACK_ONLY="1"
+        shift
+        ;;
       --summary-json)
         SUMMARY_JSON_PATH="$2"
         shift 2
@@ -531,6 +538,7 @@ main() {
   log_line "Repo root: ${REPO_ROOT}"
   log_line "Focus prefix: ${FOCUS_PREFIX:-<all queued rows>}"
   log_line "Deferred prefix: ${DEFER_PREFIX:-<none>}"
+  log_line "Targeted feedback only: ${TARGETED_FEEDBACK_ONLY}"
   log_line "Concurrency: ${CONCURRENCY}; max polls: ${MAX_POLLS}; timeout: ${WORKER_TIMEOUT_SECONDS}s"
 
   log_line "Queue counts before:"
