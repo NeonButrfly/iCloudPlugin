@@ -90,9 +90,15 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   with `correct_label=receipt` and `old_label=financial`
 - a direct bounded cloudsync classification-worker run created and completed
   targeted job `#55` for that same receipt source file
-- the current model still rewrote that specific note back into
-  `02 Needs Review/... - financial.md`, so the live feedback/training loop is
-  proven, but this one example has not flipped the downstream decision yet
+- the classifier now honors strong reviewed corrections by canonical source path
+  and ignores no-op generated-note feedback rows where `correct_label` matches
+  `old_label`
+- after the follow-up live redeploy on 2026-05-29 AKDT, the same receipt source
+  now rewrites correctly to:
+  `01 Classified/receipt/03182023_You for Shopping at Lowe’s your new purchase! - receipt.md`
+  with `primary_label="receipt"` and `confidence=1.0`
+- rerunning the shadow-worker after that live rewrite did not append any newer
+  bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
   compute-only cutover; the old service and worker are stopped there
 - a pause was requested for the current aggregate background scan so manual
@@ -114,8 +120,8 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 
 ## Not Finished Yet
 
-- make manual curation change downstream classifier decisions more reliably than
-  the current single-example receipt result
+- prove the stronger manual-correction override on more than the single live
+  receipt example
 - finish proving the fixed targeted batch helper end to end on the compute-only
   cloudsync host; the original `service "postgres" is not running` failure is
   fixed in repo, but the workstation-timed live helper run still needs one
