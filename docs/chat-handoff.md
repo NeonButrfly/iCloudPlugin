@@ -260,6 +260,34 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `source_parser="spreadsheet-openpyxl"`
     - `heuristic_primary_hint="spreadsheet"`
     - `hybrid_live_source="manual-correction-override"`
+- after three additional real manual moves on 2026-05-30 AKDT in the
+  `docling|unknown` family:
+  - `Request Denial Information.html` moved from `medical` to `insurance`
+  - `your_messages.html` moved from `financial` to `personal`
+  - `comments.html` moved from `insurance` to `personal`
+  the live runtime then proved a fifth heuristic-learning family:
+  - `force_inline_llm_for` now includes `docling|unknown`
+  - LightGBM retrained live from `657` to `660` approved teacher rows
+  - readiness remained green with:
+    - `teacher_reviewed_rows=705`
+    - `teacher_approved_rows=660`
+    - `feedback_sources.manual-obsidian-note=101`
+    - `real_ingestion_allowed=true`
+- live downstream proof on 2026-05-30 AKDT:
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/google1/FFS/Request Denial Information.html`
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/google2/meta-2025-May-02-05-47-46/facebook-kaymayers49-2025-05-02-6iqlH3mC/your_facebook_activity/messages/your_messages.html`
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/google2/meta-2025-May-02-05-47-46/facebook-kaymayers49-2025-05-02-6iqlH3mC/your_facebook_activity/comments_and_reactions/comments.html`
+  - resulting notes now land at:
+    - `01 Classified/insurance/Request Denial Information - insurance.md`
+    - `01 Classified/personal/your_messages - personal.md`
+    - `01 Classified/personal/comments - personal.md`
+  - verified frontmatter on each now shows:
+    - `source_parser="docling"`
+    - `heuristic_primary_hint="unknown"`
+    - `hybrid_live_source="manual-correction-override"`
 - rerunning the shadow-worker after that live rewrite did not append any newer
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
@@ -291,8 +319,12 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   `pdf-ocr-tesseract|unknown`; broader coverage still open)
 - prove the same live learning loop across at least one non-PDF parser family
   now that canonical mirror-path translation into the classifier source mount
-  is live (now proven for `docx-xml|unknown`, `plain-text|unknown`, and
-  `spreadsheet-openpyxl|spreadsheet`; other families still open)
+  is live (now proven for `docx-xml|unknown`, `plain-text|unknown`,
+  `spreadsheet-openpyxl|spreadsheet`, and `docling|unknown`; other families
+  still open)
+- decide whether the remaining thin `docling-converted` family needs explicit
+  proof work or whether the current single-note coverage is enough for the
+  broader training/readiness goal
 - decide how to backfill richer classifier context for the remaining legacy
   generated notes that still lack `source_parser` / `heuristic_primary_hint` /
   `hybrid_live_source` because their state rows are either still queued or are

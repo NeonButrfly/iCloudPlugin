@@ -216,12 +216,13 @@ it successfully.
   - exact reviewed overrides now prefer a same-source correction over a newer
     same-filename row from the reviewed corpus, which matters for common names
     like `Appeal.docx`
-  - this feedback loop is now proven live across four parser-plus-hint
+  - this feedback loop is now proven live across five parser-plus-hint
     families:
     - `pdf-ocr-tesseract|unknown`
     - `docx-xml|unknown`
     - `plain-text|unknown`
     - `spreadsheet-openpyxl|spreadsheet`
+    - `docling|unknown`
 - on `kayraspi`, ad hoc `docker compose` runs for the `cloudsync` role should
   use the live project name explicitly:
   - use `-p icloudplugin`
@@ -488,6 +489,20 @@ Self-training loop:
     - `01 Classified/technical/MDM Enrollment DNS and Ports - technical.md`
     - `01 Classified/financial/capital_gains_2024 - financial.md`
     - `01 Classified/medical/appeals/Actions Taken - medical - appeals.md`
+    with `hybrid_live_source="manual-correction-override"`
+  - live proof on 2026-05-30 AKDT: three real HTML note moves in the
+    `docling|unknown` family moved:
+    - `Request Denial Information.html` from `medical` to `insurance`
+    - `your_messages.html` from `financial` to `personal`
+    - `comments.html` from `insurance` to `personal`
+    the live shadow-worker then exported `4` fresh manual-note rows, retrained
+    LightGBM from `657 -> 660` approved teacher rows, and grew
+    `force_inline_llm_for` to include `docling|unknown`
+  - live downstream proof on 2026-05-30 AKDT: rerunning direct classification
+    for those same HTML sources then landed them at:
+    - `01 Classified/insurance/Request Denial Information - insurance.md`
+    - `01 Classified/personal/your_messages - personal.md`
+    - `01 Classified/personal/comments - personal.md`
     with `hybrid_live_source="manual-correction-override"`
   - historical generated-note rows where `correct_label == old_label` are now
     ignored by bootstrap feedback import, so stale no-op rewrites do not count

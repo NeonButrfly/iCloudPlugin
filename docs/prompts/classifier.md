@@ -147,6 +147,14 @@
   `MDM Enrollment DNS and Ports.xlsx`, `capital_gains_2024.xlsx`, and
   `Actions Taken.xlsx` to land in those corrected folders via
   `manual-correction-override`.
+- Docling heuristic-proof note: as of 2026-05-30 AKDT the same live proof now
+  also exists for `docling|unknown` after three real HTML notes were manually
+  moved from `medical`, `financial`, and `insurance` into `insurance` and
+  `personal`, which added the live forced rule `docling|unknown`, retrained
+  LightGBM from `657` to `660` approved teacher rows, and allowed later
+  reclassifies of `Request Denial Information.html`, `your_messages.html`, and
+  `comments.html` to land in those corrected folders via
+  `manual-correction-override`.
 - Bootstrap-noise note: generated-note history rows where `correct_label` already matched `old_label` should not count as reviewed corrections during bootstrap import, otherwise stale no-op rewrites can inflate readiness and teach the heuristic gate from noise instead of real user corrections.
 - Secondary-label note: manual generated-note moves must also count when the
   primary label stays the same but the user adds a meaningful secondary label
