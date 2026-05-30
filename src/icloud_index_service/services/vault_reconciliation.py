@@ -6,6 +6,7 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
+from tempfile import TemporaryDirectory
 from typing import cast
 
 from sqlalchemy import select
@@ -543,6 +544,7 @@ def _manual_feedback_entry(
     note_path: Path,
     metadata: dict[str, str],
     note_text: str,
+    known_labels: list[str],
     known_label_aliases: dict[str, str],
     folder_label_map: dict[str, dict[str, object]],
 ) -> dict[str, object] | None:
@@ -596,6 +598,11 @@ def _manual_feedback_entry(
         old_label = explicit_primary or "unknown"
         if old_label and correct_label == old_label:
             return None
+        generated_context = _derive_generated_note_feedback_context(
+            source_path_text=source_path,
+            metadata=metadata,
+            known_labels=known_labels,
+        )
         secondary_labels = [
             str(item).strip()
             for item in ((folder_hint or {}).get("secondary_labels", []) or [])
@@ -613,9 +620,9 @@ def _manual_feedback_entry(
             "secondary_labels": secondary_labels,
             "summary": summary,
             "note": note_summary,
-            "parser": str(metadata.get("source_parser", "")).strip() or "obsidian-generated-note",
-            "heuristic_primary": str(metadata.get("heuristic_primary_hint", "")).strip() or old_label,
-            "hybrid_live_source": str(metadata.get("hybrid_live_source", "")).strip(),
+            "parser": str(generated_context.get("parser", "")).strip() or "obsidian-generated-note",
+            "heuristic_primary": str(generated_context.get("heuristic_primary", "")).strip() or old_label,
+            "hybrid_live_source": str(generated_context.get("hybrid_live_source", "")).strip(),
             "review_status": review_status,
             "feedback_strength": "strong",
             "folder_match_source": str((folder_hint or {}).get("match_source", "")),
@@ -660,6 +667,95 @@ def _manual_feedback_entry(
         "review_status": review_status,
         "feedback_strength": feedback_strength,
         "folder_match_source": str((folder_hint or {}).get("match_source", "")),
+    }
+
+
+def _derive_generated_note_feedback_context(
+    *,
+    source_path_text: str,
+    metadata: dict[str, str],
+    known_labels: list[str],
+) -> dict[str, str]:
+    existing_parser = str(metadata.get("source_parser", "")).strip()
+    existing_heuristic = str(metadata.get("heuristic_primary_hint", "")).strip()
+    existing_live_source = str(metadata.get("hybrid_live_source", "")).strip()
+    if existing_parser and existing_heuristic and existing_live_source:
+        return {
+            "parser": existing_parser,
+            "heuristic_primary": existing_heuristic,
+            "hybrid_live_source": existing_live_source,
+        }
+
+    source_path = Path(source_path_text)
+    if not source_path.exists() or not source_path.is_file():
+        return {
+            "parser": existing_parser or "obsidian-generated-note",
+            "heuristic_primary": existing_heuristic or "unknown",
+            "hybrid_live_source": existing_live_source,
+        }
+
+    parser = existing_parser
+    heuristic_primary = existing_heuristic
+    hybrid_live_source = existing_live_source
+
+    try:
+        from apps.classifier.classify_to_obsidian import (
+            IMAGE_EXTENSIONS,
+            SPREADSHEET_EXTENSIONS,
+            classify_document_fast,
+            classify_spreadsheet_fast,
+            parse_document,
+        )
+        from packages.classification.ocr_pipeline import extract_image_text_with_metadata
+
+        ext = source_path.suffix.lower()
+        if ext in SPREADSHEET_EXTENSIONS:
+            markdown, heuristic_result, spreadsheet_metadata = classify_spreadsheet_fast(
+                source_path=source_path,
+                categories=known_labels,
+            )
+            parser = parser or str(spreadsheet_metadata.get("parser", "")).strip() or "spreadsheet-openpyxl"
+            heuristic_primary = (
+                heuristic_primary
+                or str((heuristic_result or {}).get("primary_label", "")).strip()
+                or "unknown"
+            )
+        elif ext in IMAGE_EXTENSIONS:
+            ocr_evidence = extract_image_text_with_metadata(source_path)
+            ocr_text = str(ocr_evidence.get("text", "") or "")
+            ocr_engine = str(ocr_evidence.get("engine", "") or "").strip()
+            parser = parser or (f"image-ocr-{ocr_engine}".rstrip("-") if ocr_text.strip() else "image-binary")
+            heuristic_result = classify_document_fast(
+                source_path=source_path,
+                markdown=ocr_text,
+                categories=known_labels,
+            )
+            heuristic_primary = (
+                heuristic_primary
+                or str((heuristic_result or {}).get("primary_label", "")).strip()
+                or "unknown"
+            )
+        else:
+            with TemporaryDirectory() as work_dir:
+                markdown, parser_name, _ = parse_document(source_path, Path(work_dir))
+            parser = parser or str(parser_name or "").strip() or "unknown"
+            heuristic_result = classify_document_fast(
+                source_path=source_path,
+                markdown=markdown,
+                categories=known_labels,
+            )
+            heuristic_primary = (
+                heuristic_primary
+                or str((heuristic_result or {}).get("primary_label", "")).strip()
+                or "unknown"
+            )
+    except Exception:
+        pass
+
+    return {
+        "parser": parser or "obsidian-generated-note",
+        "heuristic_primary": heuristic_primary or "unknown",
+        "hybrid_live_source": hybrid_live_source,
     }
 
 
@@ -745,6 +841,7 @@ def sync_manual_note_feedback(
             note_path=note_path,
             metadata=metadata,
             note_text=note_text,
+            known_labels=known_labels or [],
             known_label_aliases=known_label_aliases,
             folder_label_map=folder_label_map,
         )
@@ -805,6 +902,7 @@ def collect_targeted_manual_feedback(
             note_path=note_path,
             metadata=metadata,
             note_text=note_text,
+            known_labels=known_labels or [],
             known_label_aliases=known_label_aliases,
             folder_label_map=folder_label_map,
         )
