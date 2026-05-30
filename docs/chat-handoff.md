@@ -97,6 +97,14 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   now rewrites correctly to:
   `01 Classified/receipt/03182023_You for Shopping at Lowe’s your new purchase! - receipt.md`
   with `primary_label="receipt"` and `confidence=1.0`
+- generated notes now also persist `source_parser` and `hybrid_live_source`
+  frontmatter for future manual-feedback export; a live receipt reclassification
+  on 2026-05-29 AKDT confirmed:
+  - `source_parser="pdf-ocr-tesseract"`
+  - `hybrid_live_source="manual-correction-override"`
+- the shadow worker now syncs manual note feedback before running its
+  retrain/update pass, and manual-feedback rows with real parser context can
+  now contribute to `force_inline_llm_for` heuristic gating updates
 - rerunning the shadow-worker after that live rewrite did not append any newer
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
@@ -122,6 +130,9 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 
 - prove the stronger manual-correction override on more than the single live
   receipt example
+- verify the new parser-aware heuristic-learning path on multiple real manual
+  corrections so `force_inline_llm_for` picks up at least one meaningful
+  parser-plus-hint pattern from user curation
 - finish proving the fixed targeted batch helper end to end on the compute-only
   cloudsync host; the original `service "postgres" is not running` failure is
   fixed in repo, but the workstation-timed live helper run still needs one
