@@ -930,12 +930,15 @@ def resolve_hybrid_document_decision(
     ollama_url: str,
     model: str,
     max_chars: int,
+    *,
+    reviewed_source_path: str | Path | None = None,
     lightgbm_model_path: Optional[Path] = None,
     gating_config: Optional[Dict[str, Any]] = None,
     timing: Optional[Dict[str, Any]] = None,
     extraction_metadata: Optional[Dict[str, Any]] = None,
 ) -> tuple[Dict[str, Any], Dict[str, Any]]:
     extraction_metadata = dict(extraction_metadata or {})
+    reviewed_source_path_text = str(reviewed_source_path or source_path).strip()
     retrieval_metadata = build_retrieval_metadata(
         source_path=source_path,
         text=markdown,
@@ -950,12 +953,12 @@ def resolve_hybrid_document_decision(
     )
 
     reviewed_override = find_reviewed_label_override(
-        source_path=source_path,
+        source_path=reviewed_source_path_text,
         filename=source_path.name,
         limit=1500,
     )
-    reviewed_source_path = str((reviewed_override or {}).get("source_path", "") or "").strip()
-    if reviewed_override and reviewed_source_path == str(source_path):
+    override_source_path = str((reviewed_override or {}).get("source_path", "") or "").strip()
+    if reviewed_override and override_source_path == reviewed_source_path_text:
         decision = {
             "use_inline_llm": False,
             "live_source": "manual-correction-override",
@@ -1049,6 +1052,7 @@ def resolve_hybrid_document_decision(
         classification = classify_markdown(
             markdown=markdown,
             source_path=source_path,
+            reviewed_source_path=reviewed_source_path_text,
             categories=categories,
             ollama_url=ollama_url,
             model=model,
@@ -1106,6 +1110,7 @@ def process_shadow_queue_command(
             source_path = Path(str(job.get("source_path", "")))
             classification, _, _ = classify_image(
                 source_path=source_path,
+                reviewed_source_path=str(job.get("source_path", "") or source_path),
                 categories=categories,
                 ollama_url=ollama_url,
                 model=model,
@@ -1123,6 +1128,7 @@ def process_shadow_queue_command(
         classification = classify_markdown(
             markdown=str(job.get("markdown", "")),
             source_path=Path(str(job.get("filename", "shadow-document"))),
+            reviewed_source_path=str(job.get("source_path", "") or job.get("filename", "shadow-document")),
             categories=categories,
             ollama_url=ollama_url,
             model=model,
@@ -1290,6 +1296,8 @@ def classify_markdown(
     ollama_url: str,
     model: str,
     max_chars: int,
+    *,
+    reviewed_source_path: str | Path | None = None,
     timing: Optional[Dict[str, Any]] = None,
     heuristic_hints: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -1309,7 +1317,7 @@ def classify_markdown(
         extension=ext,
         content=clipped,
         is_image=False,
-        source_path=source_path,
+        source_path=reviewed_source_path or source_path,
     )
 
     prompt = f"""
@@ -1475,6 +1483,8 @@ def classify_image(
     model: str,
     vision_model: str,
     max_chars: int,
+    *,
+    reviewed_source_path: str | Path | None = None,
     gating_config: Optional[Dict[str, Any]] = None,
     heuristic_rules: Optional[Dict[str, Any]] = None,
     timing: Optional[Dict[str, Any]] = None,
@@ -1511,6 +1521,7 @@ def classify_image(
         )
         classification, hybrid_meta = resolve_hybrid_document_decision(
             source_path=source_path,
+            reviewed_source_path=reviewed_source_path,
             markdown=ocr_text,
             parser_name=parser_name,
             categories=categories,
@@ -2012,6 +2023,7 @@ def main() -> int:
                 if ext in IMAGE_EXTENSIONS and not args.no_vision:
                     classification, hybrid_meta, markdown = classify_image(
                         source_path=source_path,
+                        reviewed_source_path=args.canonical_source_path or None,
                         categories=categories,
                         ollama_url=args.ollama_url,
                         model=args.model,
@@ -2059,6 +2071,7 @@ def main() -> int:
                     )
                     classification, hybrid_meta = resolve_hybrid_document_decision(
                         source_path=source_path,
+                        reviewed_source_path=args.canonical_source_path or None,
                         markdown=markdown,
                         parser_name=parser_name,
                         categories=categories,
@@ -2098,6 +2111,7 @@ def main() -> int:
                     timing["clipped_markdown_chars"] = len(markdown[:args.max_chars])
                     classification, hybrid_meta = resolve_hybrid_document_decision(
                         source_path=source_path,
+                        reviewed_source_path=args.canonical_source_path or None,
                         markdown=markdown,
                         parser_name=parser_name,
                         categories=categories,

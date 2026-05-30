@@ -266,3 +266,62 @@ def test_classify_markdown_passes_source_path_to_relevant_examples(tmp_path: Pat
 
     assert result["primary_label"] == "receipt"
     assert captured["source_path"] == source_path
+
+
+def test_resolve_hybrid_document_decision_uses_canonical_source_path_for_reviewed_override(
+    tmp_path: Path,
+    monkeypatch,
+):
+    source_path = tmp_path / "mounted-receipt.pdf"
+    source_path.write_bytes(b"%PDF-1.7 fake")
+    canonical_source_path = "/srv/cloud-vault/mirrors/icloud/Scanned/mounted-receipt.pdf"
+
+    monkeypatch.setattr(classifier_module, "build_retrieval_metadata", lambda **_: {})
+    monkeypatch.setattr(
+        classifier_module,
+        "select_candidate_categories",
+        lambda **_: ["receipt", "financial", "needs-review"],
+    )
+    monkeypatch.setattr(
+        classifier_module,
+        "find_reviewed_label_override",
+        lambda **_: {
+            "source_path": canonical_source_path,
+            "correct_label": "receipt",
+            "secondary_labels": ["financial"],
+            "summary": "Manual correction on canonical mirror path.",
+            "review_status": "manual-note-move",
+            "feedback_strength": "strong",
+        },
+        raising=False,
+    )
+
+    llm_calls = {"count": 0}
+
+    def _unexpected_inline_llm(**_kwargs):
+        llm_calls["count"] += 1
+        return {
+            "primary_label": "financial",
+            "secondary_labels": [],
+            "confidence": 0.4,
+            "summary": "Should not be used.",
+            "reason": "inline llm",
+        }
+
+    monkeypatch.setattr(classifier_module, "classify_markdown", _unexpected_inline_llm)
+
+    classification, hybrid_meta = classifier_module.resolve_hybrid_document_decision(
+        source_path=source_path,
+        reviewed_source_path=canonical_source_path,
+        markdown="Home improvement store receipt total amount paid by card.",
+        parser_name="pdftotext",
+        categories=["receipt", "financial", "needs-review"],
+        heuristic_result={"primary_label": "financial", "confidence": 0.91},
+        ollama_url="http://example.invalid",
+        model="qwen2.5:3b",
+        max_chars=4000,
+    )
+
+    assert llm_calls["count"] == 0
+    assert classification["primary_label"] == "receipt"
+    assert hybrid_meta["decision"]["live_source"] == "manual-correction-override"
