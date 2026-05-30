@@ -520,6 +520,15 @@ def read_jsonl(path: Path, limit: Optional[int] = None) -> list[Dict[str, Any]]:
     return rows
 
 
+def _manual_feedback_row_is_effective(item: Dict[str, Any]) -> bool:
+    review_status = str(item.get("review_status", "") or "").strip().lower()
+    correct_label = str(item.get("correct_label") or item.get("primary_label") or item.get("label") or "").strip()
+    old_label = str(item.get("old_label", "") or "").strip()
+    if review_status == "manual-note-move" and correct_label and old_label and correct_label == old_label:
+        return False
+    return True
+
+
 def build_bootstrap_feedback_rows(
     *,
     corrections_path: Path = CORRECTIONS_PATH,
@@ -533,6 +542,8 @@ def build_bootstrap_feedback_rows(
         ("manual-obsidian-note", manual_note_feedback_path),
     ]:
         for item in read_jsonl(path, limit=1000):
+            if source_name == "manual-obsidian-note" and not _manual_feedback_row_is_effective(item):
+                continue
             accepted_primary = str(
                 item.get("correct_label") or item.get("primary_label") or item.get("label") or ""
             ).strip()

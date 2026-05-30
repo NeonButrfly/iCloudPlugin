@@ -435,6 +435,10 @@ Self-training loop:
   - those enriched manual-feedback rows now participate in heuristic
     fast-path learning by adding `force_inline_llm_for` rules when repeated
     human corrections show a parser plus heuristic-hint combination is unsafe
+  - historical generated-note rows where `correct_label == old_label` are now
+    ignored by bootstrap feedback import, so stale no-op rewrites do not count
+    as teacher corrections for readiness, LightGBM retraining, or heuristic
+    gating updates
   - `CLASSIFICATION_TARGETED_REQUEUE_ENABLED` and
     `CLASSIFICATION_TARGETED_REQUEUE_LIMIT` bound this behavior
   - set `CLASSIFICATION_BACKFILL_ENABLED=false` when you want a bounded worker

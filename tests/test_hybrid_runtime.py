@@ -322,6 +322,55 @@ def test_build_bootstrap_feedback_rows_preserves_manual_feedback_parser_and_heur
     assert rows[0]["teacher_suggests_correction"] is True
 
 
+def test_build_bootstrap_feedback_rows_skips_noop_manual_note_moves(tmp_path: Path):
+    manual_note_feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    manual_note_feedback_path.write_text(
+        "".join(
+            [
+                json.dumps(
+                    {
+                        "source_path": "/srv/cloud-vault/mirrors/icloud/Scanned/receipt.pdf",
+                        "filename": "receipt.pdf",
+                        "correct_label": "receipt",
+                        "old_label": "financial",
+                        "heuristic_primary": "unknown",
+                        "parser": "pdf-ocr-tesseract",
+                        "review_status": "manual-note-move",
+                        "feedback_strength": "strong",
+                        "summary": "Real correction",
+                    }
+                )
+                + "\n",
+                json.dumps(
+                    {
+                        "source_path": "/srv/cloud-vault/mirrors/google1/Aetna.docx",
+                        "filename": "Aetna.docx",
+                        "correct_label": "medical",
+                        "old_label": "medical",
+                        "heuristic_primary": "medical",
+                        "parser": "docx-xml",
+                        "review_status": "manual-note-move",
+                        "feedback_strength": "strong",
+                        "summary": "No-op generated rewrite",
+                    }
+                )
+                + "\n",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    rows = hybrid_runtime.build_bootstrap_feedback_rows(
+        corrections_path=tmp_path / "corrections.jsonl",
+        examples_path=tmp_path / "examples.jsonl",
+        manual_note_feedback_path=manual_note_feedback_path,
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["filename"] == "receipt.pdf"
+    assert rows[0]["teacher_suggests_correction"] is True
+
+
 def test_apply_disagreement_updates_uses_manual_feedback_corrections(tmp_path: Path):
     gating_path = tmp_path / "hybrid-gating.json"
     rules_path = tmp_path / "heuristic-rules.json"
