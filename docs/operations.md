@@ -438,6 +438,11 @@ Self-training loop:
   - generated notes now persist the original source parser plus heuristic hint
     in frontmatter, and the shadow worker exports those fields back into
     strong manual-feedback rows before running its retrain/update pass
+  - if an older generated note move is missing that classifier-context
+    frontmatter and no longer has recoverable state payloads, the manual-note
+    export now derives parser and heuristic-hint context from the live source
+    file itself so the correction can still train LightGBM and heuristic
+    gating instead of falling back to `obsidian-generated-note`
   - those enriched manual-feedback rows now participate in heuristic
     fast-path learning by adding `force_inline_llm_for` rules when repeated
     human corrections show a parser plus heuristic-hint combination is unsafe

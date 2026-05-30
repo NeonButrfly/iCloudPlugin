@@ -107,6 +107,11 @@
   `hybrid_live_source` from stored classification-state payloads during the
   bounded vault reconciliation pass so existing manual note moves can start
   contributing richer training signals without being recreated.
+- Legacy-feedback note: if a moved generated note still lacks that classifier
+  context and there is no matching state payload left to recover, the
+  manual-note feedback export should derive parser and heuristic-hint context
+  from the live source file itself so the correction still teaches LightGBM
+  and the heuristic gate.
 - Bootstrap-noise note: generated-note history rows where `correct_label` already matched `old_label` should not count as reviewed corrections during bootstrap import, otherwise stale no-op rewrites can inflate readiness and teach the heuristic gate from noise instead of real user corrections.
 - Operator-control note: bounded cloudsync classification runs can now set
   `CLASSIFICATION_BACKFILL_ENABLED=false` or use

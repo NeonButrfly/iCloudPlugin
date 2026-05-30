@@ -127,6 +127,12 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - the remaining `19` split cleanly into:
     - `7` notes whose matching `classification_state` rows are still `queued`
     - `12` notes with no surviving `classification_state` row to recover from
+- after `feat: derive legacy feedback context from source files`, a live
+  `shadow-worker` smoke run on 2026-05-29 AKDT also proved that a moved legacy
+  generated note with no stored classifier context now exports derived
+  `parser` and `heuristic_primary` values directly from the source file itself
+  (`plain-text` + `legal` in the smoke case) instead of falling back to
+  `obsidian-generated-note`
 - rerunning the shadow-worker after that live rewrite did not append any newer
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
