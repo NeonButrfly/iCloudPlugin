@@ -121,6 +121,12 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   frontmatter in older generated notes from stored classification-state
   payloads, so pre-existing manual note moves can export richer training
   signals without recreating the note first
+- a bounded live reconciliation pass on 2026-05-29 AKDT repaired `24` out of
+  `25` completed-state notes scanned and reduced generated notes missing that
+  newer classifier-context frontmatter from `42` to `19`
+  - the remaining `19` split cleanly into:
+    - `7` notes whose matching `classification_state` rows are still `queued`
+    - `12` notes with no surviving `classification_state` row to recover from
 - rerunning the shadow-worker after that live rewrite did not append any newer
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
@@ -149,6 +155,10 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - verify the new parser-aware heuristic-learning path on multiple real manual
   corrections so `force_inline_llm_for` picks up at least one meaningful
   parser-plus-hint pattern from user curation
+- decide how to backfill richer classifier context for the remaining legacy
+  generated notes that still lack `source_parser` / `heuristic_primary_hint` /
+  `hybrid_live_source` because their state rows are either still queued or are
+  missing entirely
 - finish proving the fixed targeted batch helper end to end on the compute-only
   cloudsync host; the original `service "postgres" is not running` failure is
   fixed in repo, but the workstation-timed live helper run still needs one
