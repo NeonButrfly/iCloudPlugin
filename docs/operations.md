@@ -443,6 +443,10 @@ Self-training loop:
     export now derives parser and heuristic-hint context from the live source
     file itself so the correction can still train LightGBM and heuristic
     gating instead of falling back to `obsidian-generated-note`
+  - fresh approved manual-note rows now bypass the generic
+    `auto_retrain_min_new_rows` gate so a real new manual correction can force
+    a LightGBM retrain even when the broader teacher corpus only grew by a
+    couple of rows
   - those enriched manual-feedback rows now participate in heuristic
     fast-path learning by adding `force_inline_llm_for` rules when repeated
     human corrections show a parser plus heuristic-hint combination is unsafe

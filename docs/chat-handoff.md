@@ -133,6 +133,20 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   `parser` and `heuristic_primary` values directly from the source file itself
   (`plain-text` + `legal` in the smoke case) instead of falling back to
   `obsidian-generated-note`
+- after `fix: retrain from fresh manual feedback`, a live `shadow-worker` pass
+  on 2026-05-29 AKDT retrained LightGBM immediately from `2` fresh manual
+  teacher rows even though the broader corpus growth was still below the old
+  `min_new_rows_since_last_train` gate
+  - resulting live retrain report:
+    - `retrained=true`
+    - `training_rows=542`
+    - `new_teacher_rows=2`
+    - `new_manual_teacher_rows=2`
+    - `trained_at=2026-05-30T06:35:42Z`
+  - live heuristic rules still did **not** expand beyond
+    `pdftotext|unknown`; current manual-note feedback artifact only contains
+    one effective strong generated-note move pair, so the heuristic-update
+    path is now code-ready but still signal-limited in live data
 - rerunning the shadow-worker after that live rewrite did not append any newer
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
