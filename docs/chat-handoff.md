@@ -102,6 +102,17 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   on 2026-05-29 AKDT confirmed:
   - `source_parser="pdf-ocr-tesseract"`
   - `hybrid_live_source="manual-correction-override"`
+- `fix: ignore stale no-op bootstrap feedback` was deployed live on
+  2026-05-29 AKDT, and a forced LightGBM retrain then rebuilt the model from
+  the cleaned teacher set:
+  - `teacher_reviewed_rows=565`
+  - `teacher_approved_rows=540`
+  - `feedback_sources.manual-obsidian-note=4`
+  - `feedback_sources.reviewed-example=500`
+  - `feedback_sources.shadow-qwen=36`
+  - LightGBM `training_rows=540`
+  - LightGBM `class_count=18`
+  - LightGBM `trained_at=2026-05-30T05:58:03Z`
 - the shadow worker now syncs manual note feedback before running its
   retrain/update pass, and manual-feedback rows with real parser context can
   now contribute to `force_inline_llm_for` heuristic gating updates
