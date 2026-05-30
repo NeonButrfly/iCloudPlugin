@@ -55,8 +55,16 @@ def test_cloudsync_targeted_batch_helper_restores_queue_state():
 
     assert "DEFER_PREFIX" in script_text
     assert "FOCUS_PREFIX" in script_text
+    assert 'POSTGRES_HOST="${POSTGRES_HOST:-postgres}"' in script_text
+    assert 'POSTGRES_PORT="${POSTGRES_PORT:-5432}"' in script_text
+    assert 'POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-change-me}"' in script_text
     assert "next_attempt_at" in script_text
     assert "trap cleanup EXIT" in script_text
+    assert "load_env_file()" in script_text
+    assert "postgres_service_running()" in script_text
+    assert "docker run --rm \\" in script_text
+    assert "--network host \\" in script_text
+    assert 'postgres:16 \\' in script_text
     assert "CLASSIFICATION_SUBMISSION_CONCURRENCY" in script_text
     assert "run --rm --no-deps" in script_text
     assert "RUN_LIVE_SUMMARY" in script_text

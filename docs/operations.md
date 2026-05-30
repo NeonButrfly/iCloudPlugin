@@ -259,6 +259,9 @@ while shifting the expensive API and refresh worker load onto `tichuml1`.
   - when `--summary-json` is provided, the helper also writes a machine-readable
     artifact with before/after counts, queue previews, recent completions, and
     timeout status for the bounded run
+  - on the compute-only `tichuml1` deployment, the helper now talks to the
+    configured remote Postgres through a disposable `postgres:16` client
+    container instead of requiring a local compose `postgres` service
 
 - if a bounded run is interrupted, or a long file is intentionally stopped
   mid-pass, recover stale `running` jobs before the next batch:

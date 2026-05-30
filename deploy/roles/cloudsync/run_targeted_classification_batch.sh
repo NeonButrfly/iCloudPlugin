@@ -8,7 +8,10 @@ ENV_FILE="${ENV_FILE:-${REPO_ROOT}/.env}"
 COMPOSE_FILE="${COMPOSE_FILE:-${REPO_ROOT}/deploy/roles/cloudsync/docker-compose.yml}"
 CLASSIFICATION_SERVICE="${CLASSIFICATION_SERVICE:-classification-worker}"
 POSTGRES_SERVICE="${POSTGRES_SERVICE:-postgres}"
+POSTGRES_HOST="${POSTGRES_HOST:-postgres}"
+POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 POSTGRES_USER="${POSTGRES_USER:-icloud}"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-change-me}"
 POSTGRES_DB="${POSTGRES_DB:-icloud_index}"
 
 FOCUS_PREFIX="${FOCUS_PREFIX:-}"
@@ -104,16 +107,48 @@ docker_compose() {
     "$@"
 }
 
+load_env_file() {
+  if [[ ! -f "${ENV_FILE}" ]]; then
+    return 0
+  fi
+
+  set -a
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
+  set +a
+}
+
+postgres_service_running() {
+  docker_compose ps --status running --services 2>/dev/null | grep -qx "${POSTGRES_SERVICE}"
+}
+
+psql_base_command() {
+  if postgres_service_running; then
+    docker_compose exec -T "${POSTGRES_SERVICE}" \
+      psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" "$@"
+    return 0
+  fi
+
+  docker run --rm \
+    --network host \
+    -e "PGPASSWORD=${POSTGRES_PASSWORD}" \
+    postgres:16 \
+    psql \
+    -h "${POSTGRES_HOST}" \
+    -p "${POSTGRES_PORT}" \
+    -U "${POSTGRES_USER}" \
+    -d "${POSTGRES_DB}" \
+    "$@"
+}
+
 psql_exec() {
   local sql="$1"
-  docker_compose exec -T "${POSTGRES_SERVICE}" \
-    psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "${sql}"
+  psql_base_command -c "${sql}"
 }
 
 psql_json() {
   local sql="$1"
-  docker_compose exec -T "${POSTGRES_SERVICE}" \
-    psql -t -A -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "${sql}"
+  psql_base_command -t -A -c "${sql}"
 }
 
 recent_completed_where_clause() {
@@ -529,6 +564,7 @@ main() {
   require_command docker
   [[ -f "${ENV_FILE}" ]] || fail "Missing env file: ${ENV_FILE}"
   [[ -f "${COMPOSE_FILE}" ]] || fail "Missing compose file: ${COMPOSE_FILE}"
+  load_env_file
 
   assert_safe_sql_literal "${FOCUS_PREFIX}"
   assert_safe_sql_literal "${DEFER_PREFIX}"
