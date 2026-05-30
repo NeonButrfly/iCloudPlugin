@@ -2188,7 +2188,7 @@ def main() -> int:
                     canonical_source_hash=args.canonical_source_hash or None,
                     last_seen_filename=args.last_seen_filename or None,
                     source_parser=str(timing.get("parser", "") or ""),
-                    heuristic_primary_hint=str((heuristic_classification or {}).get("primary_label", "") or ""),
+                    heuristic_primary_hint=str((heuristic_classification or {}).get("primary_label", "") or "unknown"),
                     hybrid_live_source=str(((hybrid_meta or {}).get("decision") or {}).get("live_source", "") or ""),
                 )
                 timing["note_write_ms"] = elapsed_ms(note_started_at)

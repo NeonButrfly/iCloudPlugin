@@ -325,3 +325,39 @@ def test_resolve_hybrid_document_decision_uses_canonical_source_path_for_reviewe
     assert llm_calls["count"] == 0
     assert classification["primary_label"] == "receipt"
     assert hybrid_meta["decision"]["live_source"] == "manual-correction-override"
+
+
+def test_manual_override_notes_persist_unknown_heuristic_hint_when_fast_path_has_no_label(tmp_path: Path):
+    from apps.classifier.classify_to_obsidian import ensure_vault, write_obsidian_note
+
+    vault = tmp_path / "vault"
+    source_path = tmp_path / "receipt.pdf"
+    source_path.write_bytes(b"receipt")
+    ensure_vault(vault)
+
+    note_path = write_obsidian_note(
+        vault=vault,
+        source_path=source_path,
+        file_hash="hash",
+        markdown="Receipt preview",
+        classification={
+            "primary_label": "receipt",
+            "secondary_labels": [],
+            "confidence": 1.0,
+            "summary": "Receipt summary.",
+            "reason": "Manual override won.",
+            "sensitive_flags": ["financial"],
+            "recommended_action": "keep",
+            "file_date_guess": "unknown",
+            "language": "English",
+        },
+        attach_originals=False,
+        canonical_source_path="/srv/cloud-vault/mirrors/icloud/Scanned/receipt.pdf",
+        source_parser="pdf-ocr-tesseract",
+        heuristic_primary_hint="unknown",
+        hybrid_live_source="manual-correction-override",
+    )
+
+    note_text = note_path.read_text(encoding="utf-8")
+
+    assert 'heuristic_primary_hint: "unknown"' in note_text
