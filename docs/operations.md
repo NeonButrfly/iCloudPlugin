@@ -210,6 +210,12 @@ it successfully.
     into `CLASSIFIER_SOURCE_ROOT` before trying to re-parse the source file, so
     legacy moved notes can recover parser context inside the classifier
     container instead of falling back to `obsidian-generated-note`
+  - manual generated-note moves are now also treated as effective reviewed
+    feedback when the primary label stays the same but the folder move adds or
+    changes meaningful secondary labels such as `medical/appeals`
+  - exact reviewed overrides now prefer a same-source correction over a newer
+    same-filename row from the reviewed corpus, which matters for common names
+    like `Appeal.docx`
 - on `kayraspi`, ad hoc `docker compose` runs for the `cloudsync` role should
   use the live project name explicitly:
   - use `-p icloudplugin`

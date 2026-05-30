@@ -126,7 +126,18 @@
   parser-plus-hint family should eventually add a live
   `force_inline_llm_for` rule; as of 2026-05-29 AKDT this is now proven for
   `pdf-ocr-tesseract|unknown`.
+- Non-PDF heuristic-proof note: as of 2026-05-29 AKDT the same live proof now
+  also exists for `docx-xml|unknown` after three real appeal-style Word
+  documents were manually moved out of `medical`, which added the live forced
+  rule `docx-xml|unknown`, retrained LightGBM, and allowed a later reclassify
+  of `Appeal.docx` to land in `medical/appeals` via
+  `manual-correction-override`.
 - Bootstrap-noise note: generated-note history rows where `correct_label` already matched `old_label` should not count as reviewed corrections during bootstrap import, otherwise stale no-op rewrites can inflate readiness and teach the heuristic gate from noise instead of real user corrections.
+- Secondary-label note: manual generated-note moves must also count when the
+  primary label stays the same but the user adds a meaningful secondary label
+  through folder structure, for example moving a note into
+  `medical/appeals`; otherwise Obsidian curation cannot teach the runtime about
+  richer category structure.
 - Operator-control note: bounded cloudsync classification runs can now set
   `CLASSIFICATION_BACKFILL_ENABLED=false` or use
   `run_targeted_classification_batch.sh --targeted-feedback-only` to process

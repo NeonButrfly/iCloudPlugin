@@ -177,6 +177,43 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `hybrid_live_source=""`
   - before that fix, the same helper path was falling back to
     `parser="obsidian-generated-note"` for those legacy-style canonical paths
+- after three real manual moves on 2026-05-29 AKDT in the `docx-xml|unknown`
+  family:
+  - `Appeal.docx` -> `02 Needs Review/appeal/...`
+  - `2024-08-27 Kay Myers Internal Appeal Draft.docx` -> `02 Needs Review/appeal/...`
+  - `2023.GAS.Appeal.Template.and.Instructions.Final.docx` ->
+    `02 Needs Review/appeal-template/...`
+  the live manual-feedback artifact gained three new strong manual-note rows,
+  all with:
+  - `parser="docx-xml"`
+  - `heuristic_primary="unknown"`
+  - `hybrid_live_source="inline-llm"`
+  - `old_label="medical"`
+  and the classifier runtime then proved a second live heuristic-learning
+  family beyond PDFs:
+  - `force_inline_llm_for` now includes `docx-xml|unknown`
+  - LightGBM retrained live to `training_rows=553`
+  - readiness stayed green with `feedback_sources.manual-obsidian-note=13`
+- after `fix: prefer exact manual override over filename collisions`, exact
+  same-source reviewed feedback now beats newer reviewed-example rows that only
+  share a filename; this fixed a real live `Appeal.docx` collision where a
+  different reviewed example had been masking the manual correction
+- after `feat: learn secondary label moves from vault curation`, generated-note
+  manual feedback now remains effective when the primary label stays the same
+  but the folder move adds a meaningful secondary label such as
+  `medical/appeals`
+- live proof on 2026-05-29 AKDT:
+  - moved `Appeal - medical.md` into
+    `01 Classified/medical/appeals/Appeal - medical - appeals.md`
+  - ran manual-note sync to export the new same-primary secondary-label
+    correction row
+  - reran direct classification for `/srv/cloud-vault/mirrors/google1/Appeal.docx`
+  - resulting note now lands at:
+    `01 Classified/medical/appeals/Appeal - medical - appeals.md`
+  - verified frontmatter now shows:
+    - `primary_label="medical"`
+    - `secondary_labels=["appeal"]`
+    - `hybrid_live_source="manual-correction-override"`
 - rerunning the shadow-worker after that live rewrite did not append any newer
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
@@ -208,7 +245,7 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   `pdf-ocr-tesseract|unknown`; broader coverage still open)
 - prove the same live learning loop across at least one non-PDF parser family
   now that canonical mirror-path translation into the classifier source mount
-  is live
+  is live (now proven for `docx-xml|unknown`; other families still open)
 - decide how to backfill richer classifier context for the remaining legacy
   generated notes that still lack `source_parser` / `heuristic_primary_hint` /
   `hybrid_live_source` because their state rows are either still queued or are
