@@ -132,6 +132,12 @@
   rule `docx-xml|unknown`, retrained LightGBM, and allowed a later reclassify
   of `Appeal.docx` to land in `medical/appeals` via
   `manual-correction-override`.
+- Plain-text heuristic-proof note: as of 2026-05-30 AKDT the same live proof
+  now also exists for `plain-text|unknown` after three real text files were
+  manually moved into `technical`, which added the live forced rule
+  `plain-text|unknown`, retrained LightGBM again, and allowed a later
+  reclassify of `twilio_2FA_recovery_code.txt` to land in `technical` via
+  `manual-correction-override`.
 - Bootstrap-noise note: generated-note history rows where `correct_label` already matched `old_label` should not count as reviewed corrections during bootstrap import, otherwise stale no-op rewrites can inflate readiness and teach the heuristic gate from noise instead of real user corrections.
 - Secondary-label note: manual generated-note moves must also count when the
   primary label stays the same but the user adds a meaningful secondary label

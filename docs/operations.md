@@ -216,6 +216,11 @@ it successfully.
   - exact reviewed overrides now prefer a same-source correction over a newer
     same-filename row from the reviewed corpus, which matters for common names
     like `Appeal.docx`
+  - this feedback loop is now proven live across three parser-plus-hint
+    families:
+    - `pdf-ocr-tesseract|unknown`
+    - `docx-xml|unknown`
+    - `plain-text|unknown`
 - on `kayraspi`, ad hoc `docker compose` runs for the `cloudsync` role should
   use the live project name explicitly:
   - use `-p icloudplugin`

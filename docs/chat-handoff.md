@@ -214,6 +214,23 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `primary_label="medical"`
     - `secondary_labels=["appeal"]`
     - `hybrid_live_source="manual-correction-override"`
+- after three additional real manual moves on 2026-05-30 AKDT in the
+  `plain-text|unknown` family:
+  - `google-drive-submission-test.txt` moved from `financial` to `technical`
+  - `GE76_Raider_11UE(20230913).txt` moved from `letter` to `technical`
+  - `twilio_2FA_recovery_code.txt` moved from `medical` to `technical`
+  the live runtime then proved a third heuristic-learning family:
+  - `force_inline_llm_for` now includes `plain-text|unknown`
+  - LightGBM retrained live again to `training_rows=624`
+  - readiness remained green with `feedback_sources.manual-obsidian-note=79`
+- live downstream proof on 2026-05-30 AKDT:
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/icloud/untitled folder/Downloads/twilio_2FA_recovery_code.txt`
+  - resulting note now lands at:
+    `01 Classified/technical/twilio_2FA_recovery_code - technical.md`
+  - verified frontmatter now shows:
+    - `primary_label="technical"`
+    - `hybrid_live_source="manual-correction-override"`
 - rerunning the shadow-worker after that live rewrite did not append any newer
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
@@ -245,7 +262,8 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   `pdf-ocr-tesseract|unknown`; broader coverage still open)
 - prove the same live learning loop across at least one non-PDF parser family
   now that canonical mirror-path translation into the classifier source mount
-  is live (now proven for `docx-xml|unknown`; other families still open)
+  is live (now proven for `docx-xml|unknown` and `plain-text|unknown`; other
+  families still open)
 - decide how to backfill richer classifier context for the remaining legacy
   generated notes that still lack `source_parser` / `heuristic_primary_hint` /
   `hybrid_live_source` because their state rows are either still queued or are
