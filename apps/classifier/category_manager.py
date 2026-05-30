@@ -157,6 +157,7 @@ def find_reviewed_label_override(
     if not rows:
         return None
 
+    filename_fallback: Dict[str, Any] | None = None
     for item in reversed(rows):
         if not _row_is_effective_override(item):
             continue
@@ -169,9 +170,14 @@ def find_reviewed_label_override(
         ).strip()
         if source_text and item_source_path and item_source_path == source_text:
             return item
-        if filename_text and item_filename and item_filename == filename_text:
-            return item
-    return None
+        if (
+            filename_fallback is None
+            and filename_text
+            and item_filename
+            and item_filename == filename_text
+        ):
+            filename_fallback = item
+    return filename_fallback
 
 
 def load_relevant_examples(
