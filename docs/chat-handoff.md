@@ -160,6 +160,23 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `teacher_approved_rows=546`
     - `feedback_sources.manual-obsidian-note=10`
     - `real_ingestion_allowed=true`
+- after `fix: translate canonical feedback sources into classifier mount`, the
+  live classifier role on `tichuml1` now also preserves parser recovery for
+  canonical mirror paths that are only host-visible through the shared source
+  mount:
+  - `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors` is now passed into the
+    classifier API and shadow-worker roles alongside `CLASSIFIER_SOURCE_ROOT`
+  - a live probe inside `cloud-vault-classifier-shadow-worker` on
+    2026-05-29 AKDT confirmed both
+    `/srv/cloud-vault/mirrors/google1/Codex-Multi-Drive-Probe/google-drive-submission-test.txt`
+    and
+    `/mnt/cloud-vault/mirrors/google1/Codex-Multi-Drive-Probe/google-drive-submission-test.txt`
+    now resolve to the mounted source tree and return:
+    - `parser="plain-text"`
+    - `heuristic_primary="unknown"`
+    - `hybrid_live_source=""`
+  - before that fix, the same helper path was falling back to
+    `parser="obsidian-generated-note"` for those legacy-style canonical paths
 - rerunning the shadow-worker after that live rewrite did not append any newer
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
@@ -189,6 +206,9 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   corrections so `force_inline_llm_for` picks up at least one meaningful
   parser-plus-hint pattern from user curation (now proven for
   `pdf-ocr-tesseract|unknown`; broader coverage still open)
+- prove the same live learning loop across at least one non-PDF parser family
+  now that canonical mirror-path translation into the classifier source mount
+  is live
 - decide how to backfill richer classifier context for the remaining legacy
   generated notes that still lack `source_parser` / `heuristic_primary_hint` /
   `hybrid_live_source` because their state rows are either still queued or are

@@ -202,6 +202,14 @@ it successfully.
   - `CLASSIFIER_SOURCE_ROOT` is the in-container mount path, default `/source`
   - on `tichuml1`, this host mount should usually point at the shared mirror
     path under `/mnt/cloud-vault/mirrors`
+  - keep `ICLOUD_MIRROR_ROOT` aligned with the canonical note paths,
+    typically `/srv/cloud-vault/mirrors`, even when the host-visible mount
+    comes from `/mnt/cloud-vault/mirrors`
+  - manual generated-note feedback now translates canonical mirror paths such
+    as `/srv/cloud-vault/mirrors/...` and `/mnt/cloud-vault/mirrors/...` back
+    into `CLASSIFIER_SOURCE_ROOT` before trying to re-parse the source file, so
+    legacy moved notes can recover parser context inside the classifier
+    container instead of falling back to `obsidian-generated-note`
 - on `kayraspi`, ad hoc `docker compose` runs for the `cloudsync` role should
   use the live project name explicitly:
   - use `-p icloudplugin`

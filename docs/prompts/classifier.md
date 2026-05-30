@@ -112,6 +112,12 @@
   manual-note feedback export should derive parser and heuristic-hint context
   from the live source file itself so the correction still teaches LightGBM
   and the heuristic gate.
+- Canonical-path note: when generated notes store canonical mirror paths such
+  as `/srv/cloud-vault/mirrors/...`, the classifier-side manual-feedback pass
+  must translate those paths back into its mounted source root (for example
+  `/source/...`) before trying to re-parse the file; otherwise legacy moved
+  notes on compute-only deployments fall back to `obsidian-generated-note`
+  even though the source file is mounted and available.
 - Manual-retrain note: fresh approved manual-note corrections should be able to
   trigger a LightGBM retrain even when they do not satisfy the generic
   `min_new_rows_since_last_train` threshold by themselves; otherwise a real

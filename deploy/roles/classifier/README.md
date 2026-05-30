@@ -35,3 +35,11 @@ Operational defaults:
   decisions unless an operator explicitly enables it
 - `CLASSIFIER_API_WORKERS=4` so health and metadata endpoints can still respond
   while concurrent long classification requests are running
+- keep `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors` aligned with the
+  canonical source paths stored in generated notes, even when the host-mounted
+  mirror tree comes from `/mnt/cloud-vault/mirrors`
+- keep `CLASSIFIER_SOURCE_MOUNT_SOURCE` pointed at the host-visible mirror tree
+  and `CLASSIFIER_SOURCE_ROOT` at the in-container mount path (default
+  `/source`); the shadow worker now translates canonical mirror paths from
+  generated notes back into that mounted source root during manual-feedback
+  export
