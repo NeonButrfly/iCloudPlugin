@@ -116,6 +116,11 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - the shadow worker now syncs manual note feedback before running its
   retrain/update pass, and manual-feedback rows with real parser context can
   now contribute to `force_inline_llm_for` heuristic gating updates
+- the bounded vault reconciliation pass now also backfills missing
+  `source_parser`, `heuristic_primary_hint`, and `hybrid_live_source`
+  frontmatter in older generated notes from stored classification-state
+  payloads, so pre-existing manual note moves can export richer training
+  signals without recreating the note first
 - rerunning the shadow-worker after that live rewrite did not append any newer
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the

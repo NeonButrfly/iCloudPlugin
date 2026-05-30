@@ -25,6 +25,9 @@ OWNED_FRONTMATTER_FIELDS = (
     "compatibility_attachment_path",
     "source_link",
     "attachment",
+    "source_parser",
+    "heuristic_primary_hint",
+    "hybrid_live_source",
 )
 
 
@@ -158,6 +161,111 @@ def _update_frontmatter_fields(note_text: str, updates: dict[str, str]) -> str:
     return "\n".join(lines) + ("\n" if note_text.endswith("\n") else "")
 
 
+def _first_non_empty_string(*values: object) -> str:
+    for value in values:
+        if isinstance(value, str):
+            cleaned = value.strip()
+            if cleaned:
+                return cleaned
+    return ""
+
+
+def _extract_nested_string(payload: dict[str, object], *path: str) -> str:
+    current: object = payload
+    for part in path:
+        if not isinstance(current, dict):
+            return ""
+        current = current.get(part)
+    return _first_non_empty_string(current)
+
+
+def _build_state_note_metadata(
+    state: ClassificationState,
+    *,
+    manifest_record: dict[str, object],
+) -> dict[str, str]:
+    response_payload = _parse_json_object(state.response_payload_json)
+    response_record = response_payload.get("record")
+    if not isinstance(response_record, dict):
+        response_record = {}
+
+    source_parser = _first_non_empty_string(
+        manifest_record.get("source_parser"),
+        response_record.get("source_parser"),
+        _extract_nested_string(manifest_record, "timing", "parser"),
+        _extract_nested_string(response_record, "timing", "parser"),
+    )
+    hybrid_live_source = _first_non_empty_string(
+        manifest_record.get("hybrid_live_source"),
+        response_record.get("hybrid_live_source"),
+        _extract_nested_string(manifest_record, "timing", "hybrid_live_source"),
+        _extract_nested_string(response_record, "timing", "hybrid_live_source"),
+        _extract_nested_string(manifest_record, "hybrid", "decision", "live_source"),
+        _extract_nested_string(response_record, "hybrid", "decision", "live_source"),
+    )
+    heuristic_primary_hint = _first_non_empty_string(
+        manifest_record.get("heuristic_primary_hint"),
+        response_record.get("heuristic_primary_hint"),
+        _extract_nested_string(manifest_record, "timing", "heuristic_primary_hint"),
+        _extract_nested_string(response_record, "timing", "heuristic_primary_hint"),
+    )
+    if not heuristic_primary_hint and hybrid_live_source == "heuristic-fast-path":
+        heuristic_primary_hint = _first_non_empty_string(
+            _extract_nested_string(manifest_record, "hybrid", "decision", "selected_primary_hint"),
+            _extract_nested_string(response_record, "hybrid", "decision", "selected_primary_hint"),
+            _extract_nested_string(manifest_record, "classification", "primary_label"),
+            _extract_nested_string(response_record, "classification", "primary_label"),
+            _first_non_empty_string(state.primary_label),
+        )
+    if not heuristic_primary_hint and source_parser:
+        heuristic_primary_hint = "unknown"
+
+    return {
+        "canonical_source_path": _first_non_empty_string(
+            manifest_record.get("canonical_source_path"),
+            response_record.get("canonical_source_path"),
+        ),
+        "canonical_source_hash": _first_non_empty_string(
+            manifest_record.get("canonical_source_hash"),
+            response_record.get("canonical_source_hash"),
+        ),
+        "last_seen_filename": _first_non_empty_string(
+            manifest_record.get("last_seen_filename"),
+            response_record.get("last_seen_filename"),
+        ),
+        "attachment_mode": _first_non_empty_string(
+            manifest_record.get("attachment_mode"),
+            response_record.get("attachment_mode"),
+        ),
+        "compatibility_attachment_path": _first_non_empty_string(
+            manifest_record.get("compatibility_attachment_path"),
+            response_record.get("compatibility_attachment_path"),
+        ),
+        "source_link": _first_non_empty_string(
+            manifest_record.get("source_link"),
+            response_record.get("source_link"),
+        ),
+        "source_parser": source_parser,
+        "heuristic_primary_hint": heuristic_primary_hint,
+        "hybrid_live_source": hybrid_live_source,
+    }
+
+
+def _merge_note_metadata(
+    note_metadata: dict[str, str],
+    *,
+    state_metadata: dict[str, str],
+) -> dict[str, str]:
+    merged = dict(note_metadata)
+    for field_name, state_value in state_metadata.items():
+        if field_name in note_metadata and str(note_metadata.get(field_name, "")).strip():
+            continue
+        if not state_value:
+            continue
+        merged[field_name] = state_value
+    return merged
+
+
 def _build_canonical_source_link(canonical_source_path: str | None, display_name: str) -> str:
     if not canonical_source_path:
         return ""
@@ -233,6 +341,9 @@ def _repair_note_links(note_text: str, metadata: dict[str, str]) -> tuple[str, b
             "compatibility_attachment_path": compatibility_attachment_path,
             "source_link": source_link,
             "attachment": attachment_value,
+            "source_parser": metadata.get("source_parser", ""),
+            "heuristic_primary_hint": metadata.get("heuristic_primary_hint", ""),
+            "hybrid_live_source": metadata.get("hybrid_live_source", ""),
         },
     )
 
@@ -918,6 +1029,10 @@ def run_vault_reconciliation_once(
                 metadata, _, _ = parsed
 
         manifest_record = _parse_json_object(state.classifier_manifest_record)
+        state_metadata = _build_state_note_metadata(
+            state,
+            manifest_record=manifest_record,
+        )
         file_record = session.get(FileRecord, state.file_id)
         fallback_source_path = ""
         fallback_last_seen_filename = ""
@@ -967,6 +1082,10 @@ def run_vault_reconciliation_once(
 
         active_note_path = preferred_note_path or note_path
         active_metadata = preferred_metadata if preferred_note_path is not None else metadata
+        active_metadata = _merge_note_metadata(
+            active_metadata,
+            state_metadata=state_metadata,
+        )
         if active_note_path is None or not active_note_path.exists() or not active_note_path.is_file():
             result["skipped"] += 1
             continue

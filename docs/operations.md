@@ -177,6 +177,12 @@ it successfully.
   - `source_link`
   - `attachment`
   - the rendered `## Original File` section
+- that same bounded reconciliation pass now also backfills missing
+  classifier-context frontmatter in older generated notes from stored
+  classification state, including:
+  - `source_parser`
+  - `heuristic_primary_hint`
+  - `hybrid_live_source`
 - the canonical vault root for that role is now `/srv/cloud-vault/document-vault`
 - the old `/srv/cloud-vault/local-doc-classifier-vault` name is a compatibility
   symlink during the soak period
