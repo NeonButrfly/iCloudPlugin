@@ -132,6 +132,15 @@ def read_jsonl(path: Path, limit: int = 200) -> List[Dict[str, Any]]:
             pass
     return rows
 
+
+def _row_is_effective_override(item: Dict[str, Any]) -> bool:
+    review_status = str(item.get("review_status", "") or "").strip().lower()
+    correct_label = str(item.get("correct_label") or item.get("primary_label") or item.get("label") or "").strip().lower()
+    old_label = str(item.get("old_label", "") or "").strip().lower()
+    if review_status == "manual-note-move" and correct_label and old_label and correct_label == old_label:
+        return False
+    return True
+
 def find_reviewed_label_override(
     *,
     source_path: str | Path | None = None,
@@ -149,6 +158,8 @@ def find_reviewed_label_override(
         return None
 
     for item in reversed(rows):
+        if not _row_is_effective_override(item):
+            continue
         item_source_path = str(item.get("source_path", "") or "").strip()
         item_filename = str(
             item.get("filename")

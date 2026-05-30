@@ -483,6 +483,8 @@ def _manual_feedback_entry(
         if not correct_label:
             return None
         old_label = explicit_primary or "unknown"
+        if old_label and correct_label == old_label:
+            return None
         secondary_labels = [
             str(item).strip()
             for item in ((folder_hint or {}).get("secondary_labels", []) or [])

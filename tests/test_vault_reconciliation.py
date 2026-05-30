@@ -629,3 +629,43 @@ def test_sync_manual_note_feedback_skips_generated_note_when_path_still_matches_
 
     assert result == {"scanned": 1, "exported": 0, "unchanged": 1}
     assert not feedback_path.exists()
+
+
+def test_sync_manual_note_feedback_skips_generated_note_move_when_label_is_unchanged(
+    tmp_path: Path,
+):
+    from icloud_index_service.services.vault_reconciliation import sync_manual_note_feedback
+
+    vault_root = tmp_path / "vault"
+    note_path = vault_root / "02 Needs Review" / "financial" / "receipt - financial.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'type: "classified-document"',
+                'primary_label: "financial"',
+                'secondary_labels: []',
+                'recommended_action: "keep"',
+                'canonical_source_path: "/srv/cloud-vault/mirrors/icloud/Scanned/receipt.pdf"',
+                "---",
+                "",
+                "# receipt.pdf",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    state_path = tmp_path / "manual-note-sync-state.json"
+
+    result = sync_manual_note_feedback(
+        vault_root,
+        feedback_path=feedback_path,
+        state_path=state_path,
+        known_labels=["financial", "receipt", "markdown-note"],
+    )
+
+    assert result == {"scanned": 1, "exported": 0, "unchanged": 1}
+    assert not feedback_path.exists()
