@@ -542,7 +542,18 @@ def _manual_feedback_row_is_effective(item: Dict[str, Any]) -> bool:
     correct_label = str(item.get("correct_label") or item.get("primary_label") or item.get("label") or "").strip()
     old_label = str(item.get("old_label", "") or "").strip()
     if review_status == "manual-note-move" and correct_label and old_label and correct_label == old_label:
-        return False
+        secondary_labels = {
+            str(value).strip().lower()
+            for value in (item.get("secondary_labels", []) or [])
+            if str(value).strip()
+        }
+        old_secondary_labels = {
+            str(value).strip().lower()
+            for value in (item.get("old_secondary_labels", []) or [])
+            if str(value).strip()
+        }
+        if secondary_labels == old_secondary_labels:
+            return False
     return True
 
 

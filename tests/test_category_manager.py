@@ -98,3 +98,37 @@ def test_find_reviewed_label_override_prefers_exact_source_over_newer_filename_c
     assert override is not None
     assert override["source_path"] == source_path
     assert override["correct_label"] == "appeal"
+
+
+def test_find_reviewed_label_override_keeps_same_primary_secondary_label_correction(tmp_path, monkeypatch):
+    from apps.classifier import category_manager
+
+    source_path = "/srv/cloud-vault/mirrors/google1/Appeal.docx"
+    manual_feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    manual_feedback_path.write_text(
+        json.dumps(
+            {
+                "source_path": source_path,
+                "filename": "Appeal.docx",
+                "correct_label": "medical",
+                "old_label": "medical",
+                "secondary_labels": ["appeal"],
+                "old_secondary_labels": [],
+                "review_status": "manual-note-move",
+                "feedback_strength": "strong",
+                "recorded_at": "2026-05-29T23:40:00-08:00",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(category_manager, "MANUAL_NOTE_FEEDBACK_FILE", manual_feedback_path)
+    monkeypatch.setattr(category_manager, "CORRECTIONS_FILE", tmp_path / "corrections.jsonl")
+    monkeypatch.setattr(category_manager, "EXAMPLES_FILE", tmp_path / "examples.jsonl")
+
+    override = category_manager.find_reviewed_label_override(source_path=source_path)
+
+    assert override is not None
+    assert override["correct_label"] == "medical"
+    assert override["secondary_labels"] == ["appeal"]

@@ -695,6 +695,72 @@ def test_sync_manual_note_feedback_exports_generated_note_move_as_correction(
     assert rows[0]["heuristic_primary"] == "unknown"
 
 
+def test_sync_manual_note_feedback_exports_generated_note_secondary_label_move(
+    tmp_path: Path,
+):
+    from icloud_index_service.services.vault_reconciliation import sync_manual_note_feedback
+
+    vault_root = tmp_path / "vault"
+    note_path = vault_root / "01 Classified" / "medical" / "appeals" / "botox - medical.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'type: "classified-document"',
+                'primary_label: "medical"',
+                'secondary_labels: []',
+                'recommended_action: "retain"',
+                'source_parser: "pdf-ocr-tesseract"',
+                'heuristic_primary_hint: "unknown"',
+                'canonical_source_path: "/srv/cloud-vault/mirrors/icloud/Scanned/botox.pdf"',
+                "---",
+                "",
+                "# botox.pdf",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    state_path = tmp_path / "manual-note-sync-state.json"
+    folder_map_path = tmp_path / "vault-folder-labels.json"
+    folder_map_path.write_text(
+        json.dumps(
+            {
+                "medical/appeals": {
+                    "primary_label": "medical",
+                    "secondary_labels": ["appeal"],
+                }
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = sync_manual_note_feedback(
+        vault_root,
+        feedback_path=feedback_path,
+        state_path=state_path,
+        known_labels=["medical", "appeal", "markdown-note"],
+        folder_label_map_path=folder_map_path,
+    )
+
+    rows = [
+        json.loads(line)
+        for line in feedback_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert result == {"scanned": 1, "exported": 1, "unchanged": 0}
+    assert rows[0]["correct_label"] == "medical"
+    assert rows[0]["old_label"] == "medical"
+    assert rows[0]["secondary_labels"] == ["appeal"]
+    assert rows[0]["old_secondary_labels"] == []
+
+
 def test_sync_manual_note_feedback_derives_missing_generated_note_context_from_source(
     tmp_path: Path,
 ):

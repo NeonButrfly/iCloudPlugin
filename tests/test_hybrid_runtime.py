@@ -444,6 +444,43 @@ def test_build_bootstrap_feedback_rows_skips_noop_manual_note_moves(tmp_path: Pa
     assert rows[0]["teacher_suggests_correction"] is True
 
 
+def test_build_bootstrap_feedback_rows_keeps_same_primary_secondary_label_manual_moves(tmp_path: Path):
+    manual_note_feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    manual_note_feedback_path.write_text(
+        json.dumps(
+            {
+                "source_path": "/srv/cloud-vault/mirrors/google1/Appeal.docx",
+                "filename": "Appeal.docx",
+                "correct_label": "medical",
+                "old_label": "medical",
+                "secondary_labels": ["appeal"],
+                "old_secondary_labels": [],
+                "heuristic_primary": "unknown",
+                "parser": "docx-xml",
+                "review_status": "manual-note-move",
+                "feedback_strength": "strong",
+                "summary": "Manual move into medical appeals.",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    rows = hybrid_runtime.build_bootstrap_feedback_rows(
+        corrections_path=tmp_path / "corrections.jsonl",
+        examples_path=tmp_path / "examples.jsonl",
+        manual_note_feedback_path=manual_note_feedback_path,
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["feedback_source"] == "manual-obsidian-note"
+    assert rows[0]["parser"] == "docx-xml"
+    assert rows[0]["heuristic_primary"] == "unknown"
+    assert rows[0]["live_primary"] == "medical"
+    assert rows[0]["taxonomy_candidates"] == ["appeal"]
+    assert rows[0]["teacher_suggests_correction"] is True
+
+
 def test_apply_disagreement_updates_uses_manual_feedback_corrections(tmp_path: Path):
     gating_path = tmp_path / "hybrid-gating.json"
     rules_path = tmp_path / "heuristic-rules.json"

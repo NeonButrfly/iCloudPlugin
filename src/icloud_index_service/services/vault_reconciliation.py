@@ -529,6 +529,18 @@ def _extract_frontmatter_list(note_text: str, field_name: str) -> list[str]:
     return []
 
 
+def _normalized_label_list(values: list[str]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        token = _normalize_folder_token(str(value).strip())
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        normalized.append(token)
+    return normalized
+
+
 def _expected_generated_category_parts(note_text: str, metadata: dict[str, str]) -> list[str]:
     primary_label = str(metadata.get("primary_label", "")).strip().lower()
     secondary_labels = [item.lower() for item in _extract_frontmatter_list(note_text, "secondary_labels")]
@@ -642,18 +654,23 @@ def _manual_feedback_entry(
         if not correct_label:
             return None
         old_label = explicit_primary or "unknown"
-        if old_label and correct_label == old_label:
-            return None
         generated_context = _derive_generated_note_feedback_context(
             source_path_text=source_path,
             metadata=metadata,
             known_labels=known_labels,
         )
+        old_secondary_labels = [str(item).strip() for item in explicit_secondary if str(item).strip()]
         secondary_labels = [
             str(item).strip()
             for item in ((folder_hint or {}).get("secondary_labels", []) or [])
             if str(item).strip()
         ]
+        if (
+            old_label
+            and correct_label == old_label
+            and _normalized_label_list(secondary_labels) == _normalized_label_list(old_secondary_labels)
+        ):
+            return None
         review_status = "manual-note-move"
         note_summary = f"manual-note-move:{relative_path.as_posix()}"
         return {
@@ -664,6 +681,7 @@ def _manual_feedback_entry(
             "correct_label": correct_label,
             "old_label": old_label,
             "secondary_labels": secondary_labels,
+            "old_secondary_labels": old_secondary_labels,
             "summary": summary,
             "note": note_summary,
             "parser": str(generated_context.get("parser", "")).strip() or "obsidian-generated-note",
