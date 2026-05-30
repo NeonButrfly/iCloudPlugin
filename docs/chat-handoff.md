@@ -75,6 +75,13 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - `tichuml1` classifier health is OK
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
   compute-only cutover; the old service and worker are stopped there
+- a pause was requested for the current aggregate background scan so manual
+  feedback-learning work can proceed without more crawl churn
+- public `clouddrive.neonbutterfly.net/refresh/status` has been flat at
+  `items_seen=13000` and `frontier_length=23934` since that pause request
+- direct SSH reachability from the workstation to both `kayraspi` and
+  `tichuml1` timed out during the pause attempt, so host-level confirmation of
+  the worker stop is still pending
 - `classification-worker` on `kayraspi` is intentionally stopped after reset
 - aggregate mirror indexing has picked up both `google1` and `google2`
 - `document-vault` is the canonical local Obsidian vault
@@ -94,6 +101,8 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - retire/archive the old standalone `local-doc-classifier` checkout after safe soak period
 - optionally move cloudsync Postgres off `kayraspi` later if the compute-only
   cutover soaks cleanly
+- finish an explicit host-level stop of the current background scan once direct
+  reachability to `kayraspi` or `tichuml1` recovers
 
 ## Recent Commits That Matter
 
