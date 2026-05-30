@@ -762,6 +762,82 @@ def test_sync_manual_note_feedback_derives_missing_generated_note_context_from_s
     assert rows[0]["heuristic_primary"] == "legal"
 
 
+@pytest.mark.parametrize(
+    "canonical_source_path",
+    [
+        "/srv/cloud-vault/mirrors/google1/Docs/Appeal.txt",
+        "/mnt/cloud-vault/mirrors/google1/Docs/Appeal.txt",
+    ],
+)
+def test_sync_manual_note_feedback_translates_canonical_mirror_path_into_classifier_source_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    canonical_source_path: str,
+):
+    from icloud_index_service.services.vault_reconciliation import sync_manual_note_feedback
+
+    vault_root = tmp_path / "vault"
+    source_root = tmp_path / "source"
+    source_path = source_root / "google1" / "Docs" / "Appeal.txt"
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_text(
+        "\n".join(
+            [
+                "Appeal Request",
+                "This appeal concerns denied coverage and requested review.",
+                "Insurance carrier response attached.",
+                "Please reconsider the original determination.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    note_path = vault_root / "01 Classified" / "appeal" / "Appeal - insurance.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'type: "classified-document"',
+                'primary_label: "insurance"',
+                'secondary_labels: []',
+                'recommended_action: "retain"',
+                f'canonical_source_path: "{canonical_source_path}"',
+                "---",
+                "",
+                "# Appeal.txt",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("CLASSIFIER_SOURCE_ROOT", str(source_root))
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", "/srv/cloud-vault/mirrors")
+
+    feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    state_path = tmp_path / "manual-note-sync-state.json"
+
+    result = sync_manual_note_feedback(
+        vault_root,
+        feedback_path=feedback_path,
+        state_path=state_path,
+        known_labels=["appeal", "insurance", "markdown-note"],
+    )
+
+    rows = [
+        json.loads(line)
+        for line in feedback_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert result == {"scanned": 1, "exported": 1, "unchanged": 0}
+    assert rows[0]["correct_label"] == "appeal"
+    assert rows[0]["old_label"] == "insurance"
+    assert rows[0]["parser"] == "plain-text"
+    assert rows[0]["heuristic_primary"] == "unknown"
+
+
 def test_sync_manual_note_feedback_reexports_when_legacy_state_fingerprint_lacks_context_fields(
     tmp_path: Path,
 ):

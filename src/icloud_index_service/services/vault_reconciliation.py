@@ -88,6 +88,52 @@ def _resolve_vault_root() -> Path | None:
     return vault_root_path
 
 
+def _candidate_canonical_mirror_roots() -> list[PurePosixPath]:
+    candidates: list[PurePosixPath] = []
+    for raw_value in (
+        os.getenv("ICLOUD_MIRROR_ROOT", ""),
+        "/srv/cloud-vault/mirrors",
+        "/mnt/cloud-vault/mirrors",
+    ):
+        cleaned = str(raw_value).strip().replace("\\", "/").rstrip("/")
+        if not cleaned:
+            continue
+        candidate = PurePosixPath(cleaned)
+        if candidate not in candidates:
+            candidates.append(candidate)
+    return candidates
+
+
+def _resolve_generated_note_source_path(source_path_text: str) -> Path | None:
+    cleaned = str(source_path_text).strip()
+    if not cleaned:
+        return None
+
+    direct_path = Path(cleaned)
+    if direct_path.exists() and direct_path.is_file():
+        return direct_path
+
+    source_root_text = (os.getenv("CLASSIFIER_SOURCE_ROOT") or "").strip()
+    if not source_root_text:
+        return None
+
+    source_root = Path(source_root_text)
+    if not source_root.exists() or not source_root.is_dir():
+        return None
+
+    normalized = cleaned.replace("\\", "/")
+    source_posix = PurePosixPath(normalized)
+    for canonical_root in _candidate_canonical_mirror_roots():
+        try:
+            relative_path = source_posix.relative_to(canonical_root)
+        except ValueError:
+            continue
+        candidate = (source_root / Path(*relative_path.parts)).resolve()
+        if candidate.exists() and candidate.is_file():
+            return candidate
+    return None
+
+
 def _resolve_note_path(note_path_value: str, vault_root: Path) -> Path:
     if note_path_value.startswith("/vault/"):
         relative_parts = PurePosixPath(note_path_value).parts[2:]
@@ -686,8 +732,8 @@ def _derive_generated_note_feedback_context(
             "hybrid_live_source": existing_live_source,
         }
 
-    source_path = Path(source_path_text)
-    if not source_path.exists() or not source_path.is_file():
+    source_path = _resolve_generated_note_source_path(source_path_text)
+    if source_path is None:
         return {
             "parser": existing_parser or "obsidian-generated-note",
             "heuristic_primary": existing_heuristic or "unknown",
