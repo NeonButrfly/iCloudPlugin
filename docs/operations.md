@@ -450,6 +450,11 @@ Self-training loop:
   - those enriched manual-feedback rows now participate in heuristic
     fast-path learning by adding `force_inline_llm_for` rules when repeated
     human corrections show a parser plus heuristic-hint combination is unsafe
+  - live proof on 2026-05-29 AKDT: four real generated-note moves in the
+    `pdf-ocr-tesseract|unknown` family caused the runtime to append strong
+    manual-feedback rows, retrain LightGBM from `542 -> 546` teacher-approved
+    rows, and grow `force_inline_llm_for` to include
+    `pdf-ocr-tesseract|unknown`
   - historical generated-note rows where `correct_label == old_label` are now
     ignored by bootstrap feedback import, so stale no-op rewrites do not count
     as teacher corrections for readiness, LightGBM retraining, or heuristic

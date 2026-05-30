@@ -147,6 +147,19 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     `pdftotext|unknown`; current manual-note feedback artifact only contains
     one effective strong generated-note move pair, so the heuristic-update
     path is now code-ready but still signal-limited in live data
+- after four additional real generated-note moves on 2026-05-29 AKDT in the
+  `pdf-ocr-tesseract|unknown` family, the live `shadow-worker` finally proved
+  the heuristic-learning path end to end:
+  - strong manual-note rows grew from `1` to `5`
+  - LightGBM retrained again from `542` to `546` approved teacher rows
+  - live heuristic rules now include:
+    - `pdftotext|unknown`
+    - `pdf-ocr-tesseract|unknown`
+  - readiness remained green with:
+    - `teacher_reviewed_rows=571`
+    - `teacher_approved_rows=546`
+    - `feedback_sources.manual-obsidian-note=10`
+    - `real_ingestion_allowed=true`
 - rerunning the shadow-worker after that live rewrite did not append any newer
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
@@ -174,7 +187,8 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   receipt example
 - verify the new parser-aware heuristic-learning path on multiple real manual
   corrections so `force_inline_llm_for` picks up at least one meaningful
-  parser-plus-hint pattern from user curation
+  parser-plus-hint pattern from user curation (now proven for
+  `pdf-ocr-tesseract|unknown`; broader coverage still open)
 - decide how to backfill richer classifier context for the remaining legacy
   generated notes that still lack `source_parser` / `heuristic_primary_hint` /
   `hybrid_live_source` because their state rows are either still queued or are

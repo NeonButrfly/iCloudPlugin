@@ -116,6 +116,10 @@
   trigger a LightGBM retrain even when they do not satisfy the generic
   `min_new_rows_since_last_train` threshold by themselves; otherwise a real
   user correction can be recorded but not acted on promptly.
+- Heuristic-proof note: repeated real manual generated-note moves in the same
+  parser-plus-hint family should eventually add a live
+  `force_inline_llm_for` rule; as of 2026-05-29 AKDT this is now proven for
+  `pdf-ocr-tesseract|unknown`.
 - Bootstrap-noise note: generated-note history rows where `correct_label` already matched `old_label` should not count as reviewed corrections during bootstrap import, otherwise stale no-op rewrites can inflate readiness and teach the heuristic gate from noise instead of real user corrections.
 - Operator-control note: bounded cloudsync classification runs can now set
   `CLASSIFICATION_BACKFILL_ENABLED=false` or use
