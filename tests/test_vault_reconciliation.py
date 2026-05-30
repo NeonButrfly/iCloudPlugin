@@ -762,6 +762,89 @@ def test_sync_manual_note_feedback_derives_missing_generated_note_context_from_s
     assert rows[0]["heuristic_primary"] == "legal"
 
 
+def test_sync_manual_note_feedback_reexports_when_legacy_state_fingerprint_lacks_context_fields(
+    tmp_path: Path,
+):
+    from icloud_index_service.services.vault_reconciliation import sync_manual_note_feedback
+
+    vault_root = tmp_path / "vault"
+    source_path = tmp_path / "sources" / "agreement.txt"
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_text(
+        "\n".join(
+            [
+                "Service Agreement",
+                "Scope of services",
+                "Term and termination",
+                "Confidentiality",
+                "Payment terms",
+                "Limitation of liability",
+                "Governing law",
+                "Parties",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    note_path = vault_root / "01 Classified" / "legal" / "agreement - legal.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'type: "classified-document"',
+                'primary_label: "financial"',
+                'secondary_labels: []',
+                'recommended_action: "retain"',
+                f'canonical_source_path: "{source_path.as_posix()}"',
+                "---",
+                "",
+                "# agreement.txt",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    state_path = tmp_path / "manual-note-sync-state.json"
+    legacy_fingerprint = (
+        f"{note_path.resolve().as_posix()}:"
+        f"{note_path.stat().st_mtime_ns}:"
+        f"{note_path.stat().st_size}:"
+        "legal:"
+        "manual-note-move"
+    )
+    state_path.write_text(
+        json.dumps(
+            {
+                f"generated:{source_path.as_posix()}": legacy_fingerprint,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = sync_manual_note_feedback(
+        vault_root,
+        feedback_path=feedback_path,
+        state_path=state_path,
+        known_labels=["legal", "financial", "markdown-note"],
+    )
+
+    rows = [
+        json.loads(line)
+        for line in feedback_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert result == {"scanned": 1, "exported": 1, "unchanged": 0}
+    assert rows[0]["parser"] == "plain-text"
+    assert rows[0]["heuristic_primary"] == "legal"
+
+
 def test_sync_manual_note_feedback_skips_generated_note_when_path_still_matches_default(
     tmp_path: Path,
 ):

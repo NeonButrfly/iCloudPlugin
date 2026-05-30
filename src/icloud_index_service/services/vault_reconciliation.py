@@ -759,6 +759,23 @@ def _derive_generated_note_feedback_context(
     }
 
 
+def _manual_feedback_fingerprint(
+    *,
+    note_path: Path,
+    feedback_entry: dict[str, object],
+) -> str:
+    return (
+        f"{note_path.as_posix()}:"
+        f"{note_path.stat().st_mtime_ns}:"
+        f"{note_path.stat().st_size}:"
+        f"{feedback_entry.get('correct_label', '')}:"
+        f"{feedback_entry.get('review_status', '')}:"
+        f"{feedback_entry.get('parser', '')}:"
+        f"{feedback_entry.get('heuristic_primary', '')}:"
+        f"{feedback_entry.get('hybrid_live_source', '')}"
+    )
+
+
 def _iter_manual_notes(vault_root: Path) -> list[tuple[Path, dict[str, str], str]]:
     notes: list[tuple[Path, dict[str, str], str]] = []
     for note_path in vault_root.rglob("*.md"):
@@ -850,12 +867,9 @@ def sync_manual_note_feedback(
             continue
 
         state_key = str(feedback_entry.pop("state_key"))
-        fingerprint = (
-            f"{note_path.as_posix()}:"
-            f"{note_path.stat().st_mtime_ns}:"
-            f"{note_path.stat().st_size}:"
-            f"{feedback_entry.get('correct_label', '')}:"
-            f"{feedback_entry.get('review_status', '')}"
+        fingerprint = _manual_feedback_fingerprint(
+            note_path=note_path,
+            feedback_entry=feedback_entry,
         )
         if existing_state.get(state_key) == fingerprint:
             result["unchanged"] += 1
