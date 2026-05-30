@@ -138,6 +138,15 @@
   `plain-text|unknown`, retrained LightGBM again, and allowed a later
   reclassify of `twilio_2FA_recovery_code.txt` to land in `technical` via
   `manual-correction-override`.
+- Spreadsheet heuristic-proof note: as of 2026-05-30 AKDT the same live proof
+  now also exists for `spreadsheet-openpyxl|spreadsheet` after three real
+  spreadsheet notes were manually moved from the generic `spreadsheet` bucket
+  into `technical`, `financial`, and `medical/appeals`, which added the live
+  forced rule `spreadsheet-openpyxl|spreadsheet`, retrained LightGBM from
+  `631` to `641` approved teacher rows, and allowed later reclassifies of
+  `MDM Enrollment DNS and Ports.xlsx`, `capital_gains_2024.xlsx`, and
+  `Actions Taken.xlsx` to land in those corrected folders via
+  `manual-correction-override`.
 - Bootstrap-noise note: generated-note history rows where `correct_label` already matched `old_label` should not count as reviewed corrections during bootstrap import, otherwise stale no-op rewrites can inflate readiness and teach the heuristic gate from noise instead of real user corrections.
 - Secondary-label note: manual generated-note moves must also count when the
   primary label stays the same but the user adds a meaningful secondary label

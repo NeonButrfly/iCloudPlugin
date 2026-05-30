@@ -231,6 +231,35 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - verified frontmatter now shows:
     - `primary_label="technical"`
     - `hybrid_live_source="manual-correction-override"`
+- after three additional real manual moves on 2026-05-30 AKDT in the
+  `spreadsheet-openpyxl|spreadsheet` family:
+  - `MDM Enrollment DNS and Ports.xlsx` moved from `spreadsheet` to
+    `technical`
+  - `capital_gains_2024.xlsx` moved from `spreadsheet` to `financial`
+  - `Actions Taken.xlsx` moved from `spreadsheet` to `medical/appeals`
+  the live runtime then proved a fourth heuristic-learning family:
+  - `force_inline_llm_for` now includes `spreadsheet-openpyxl|spreadsheet`
+  - LightGBM retrained live from `631` to `641` approved teacher rows
+  - readiness remained green with:
+    - `teacher_reviewed_rows=683`
+    - `teacher_approved_rows=641`
+    - `feedback_sources.manual-obsidian-note=89`
+    - `real_ingestion_allowed=true`
+- live downstream proof on 2026-05-30 AKDT:
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/google1/MDM Enrollment DNS and Ports.xlsx`
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/google1/capital_gains_2024.xlsx`
+  - reran direct classification for
+    `/srv/cloud-vault/mirrors/google1/FFS/Actions Taken.xlsx`
+  - resulting notes now land at:
+    - `01 Classified/technical/MDM Enrollment DNS and Ports - technical.md`
+    - `01 Classified/financial/capital_gains_2024 - financial.md`
+    - `01 Classified/medical/appeals/Actions Taken - medical - appeals.md`
+  - verified frontmatter on each now shows:
+    - `source_parser="spreadsheet-openpyxl"`
+    - `heuristic_primary_hint="spreadsheet"`
+    - `hybrid_live_source="manual-correction-override"`
 - rerunning the shadow-worker after that live rewrite did not append any newer
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
@@ -262,8 +291,8 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   `pdf-ocr-tesseract|unknown`; broader coverage still open)
 - prove the same live learning loop across at least one non-PDF parser family
   now that canonical mirror-path translation into the classifier source mount
-  is live (now proven for `docx-xml|unknown` and `plain-text|unknown`; other
-  families still open)
+  is live (now proven for `docx-xml|unknown`, `plain-text|unknown`, and
+  `spreadsheet-openpyxl|spreadsheet`; other families still open)
 - decide how to backfill richer classifier context for the remaining legacy
   generated notes that still lack `source_parser` / `heuristic_primary_hint` /
   `hybrid_live_source` because their state rows are either still queued or are

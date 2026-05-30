@@ -216,11 +216,12 @@ it successfully.
   - exact reviewed overrides now prefer a same-source correction over a newer
     same-filename row from the reviewed corpus, which matters for common names
     like `Appeal.docx`
-  - this feedback loop is now proven live across three parser-plus-hint
+  - this feedback loop is now proven live across four parser-plus-hint
     families:
     - `pdf-ocr-tesseract|unknown`
     - `docx-xml|unknown`
     - `plain-text|unknown`
+    - `spreadsheet-openpyxl|spreadsheet`
 - on `kayraspi`, ad hoc `docker compose` runs for the `cloudsync` role should
   use the live project name explicitly:
   - use `-p icloudplugin`
@@ -474,6 +475,20 @@ Self-training loop:
     manual-feedback rows, retrain LightGBM from `542 -> 546` teacher-approved
     rows, and grow `force_inline_llm_for` to include
     `pdf-ocr-tesseract|unknown`
+  - live proof on 2026-05-30 AKDT: three real spreadsheet note moves in the
+    `spreadsheet-openpyxl|spreadsheet` family moved:
+    - `MDM Enrollment DNS and Ports.xlsx` from `spreadsheet` to `technical`
+    - `capital_gains_2024.xlsx` from `spreadsheet` to `financial`
+    - `Actions Taken.xlsx` from `spreadsheet` to `medical/appeals`
+    the live shadow-worker then exported `4` fresh manual-note rows, retrained
+    LightGBM from `631 -> 641` approved teacher rows, and grew
+    `force_inline_llm_for` to include `spreadsheet-openpyxl|spreadsheet`
+  - live downstream proof on 2026-05-30 AKDT: rerunning direct classification
+    for those same spreadsheet sources then landed them at:
+    - `01 Classified/technical/MDM Enrollment DNS and Ports - technical.md`
+    - `01 Classified/financial/capital_gains_2024 - financial.md`
+    - `01 Classified/medical/appeals/Actions Taken - medical - appeals.md`
+    with `hybrid_live_source="manual-correction-override"`
   - historical generated-note rows where `correct_label == old_label` are now
     ignored by bootstrap feedback import, so stale no-op rewrites do not count
     as teacher corrections for readiness, LightGBM retraining, or heuristic
