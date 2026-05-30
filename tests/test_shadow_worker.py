@@ -6,6 +6,8 @@ from apps.classifier import shadow_worker
 
 
 def test_run_shadow_worker_once_includes_manual_note_sync(monkeypatch, tmp_path: Path):
+    call_order: list[str] = []
+
     class FakeSettings:
         ollama_url = "http://ollama:11434"
         vault_root = tmp_path / "vault"
@@ -18,12 +20,12 @@ def test_run_shadow_worker_once_includes_manual_note_sync(monkeypatch, tmp_path:
     monkeypatch.setattr(
         shadow_worker,
         "process_shadow_queue_command",
-        lambda **kwargs: {"processed": 2},
+        lambda **kwargs: call_order.append("shadow") or {"processed": 2},
     )
     monkeypatch.setattr(
         shadow_worker,
         "sync_manual_note_feedback",
-        lambda vault_root, *, feedback_path, state_path, known_labels, folder_label_map_path: {
+        lambda vault_root, *, feedback_path, state_path, known_labels, folder_label_map_path: call_order.append("manual") or {
             "scanned": 3,
             "exported": 1,
             "unchanged": 2,
@@ -38,3 +40,4 @@ def test_run_shadow_worker_once_includes_manual_note_sync(monkeypatch, tmp_path:
         "exported": 1,
         "unchanged": 2,
     }
+    assert call_order == ["manual", "shadow"]

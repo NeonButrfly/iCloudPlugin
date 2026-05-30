@@ -569,7 +569,12 @@ def build_bootstrap_feedback_rows(
                     "filename": filename,
                     "extension": extension,
                     "parser": str(item.get("parser", "")),
-                    "heuristic_primary": str(item.get("old_label") or accepted_primary or "unknown"),
+                    "heuristic_primary": str(
+                        item.get("heuristic_primary")
+                        or item.get("old_label")
+                        or accepted_primary
+                        or "unknown"
+                    ),
                     "live_primary": accepted_primary,
                     "shadow_primary": accepted_primary,
                     "taxonomy_candidates": item.get("secondary_labels", []) or [],
@@ -702,6 +707,7 @@ def process_shadow_queue_once(
 
 def apply_disagreement_updates(
     comparisons: list[Dict[str, Any]],
+    feedback_rows: list[Dict[str, Any]] | None = None,
     gating_path: Path = HYBRID_GATING_PATH,
     rules_path: Path = HEURISTIC_RULES_PATH,
 ) -> Dict[str, Any]:
@@ -714,6 +720,20 @@ def apply_disagreement_updates(
         if not item.get("disagreement"):
             continue
         key = f"{item.get('parser', 'unknown')}|{item.get('heuristic_primary', 'unknown')}"
+        counts[key] = counts.get(key, 0) + 1
+
+    for item in feedback_rows or []:
+        if str(item.get("feedback_source", "")).strip() != "manual-obsidian-note":
+            continue
+        if not item.get("teacher_suggests_correction"):
+            continue
+        parser = str(item.get("parser", "") or "").strip()
+        heuristic_primary = str(item.get("heuristic_primary", "") or "").strip()
+        if not parser or parser.startswith("obsidian"):
+            continue
+        if not heuristic_primary:
+            continue
+        key = f"{parser}|{heuristic_primary}"
         counts[key] = counts.get(key, 0) + 1
 
     forced = set(rules.get("force_inline_llm_for", []) or [])
@@ -846,9 +866,13 @@ def run_autonomous_shadow_cycle(
         max_jobs=batch_size,
     )
     comparisons = read_jsonl(comparisons_path, limit=max(batch_size * 8, 200))
+    feedback_rows = build_feedback_rows(comparisons_path=comparisons_path)
 
     if bool(gating.get("auto_threshold_update_enabled", True)):
-        updates = apply_disagreement_updates(comparisons=comparisons)
+        updates = apply_disagreement_updates(
+            comparisons=comparisons,
+            feedback_rows=feedback_rows,
+        )
     else:
         updates = {
             "updated": False,

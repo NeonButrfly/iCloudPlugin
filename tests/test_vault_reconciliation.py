@@ -556,6 +556,8 @@ def test_sync_manual_note_feedback_exports_generated_note_move_as_correction(
                 'primary_label: "medical"',
                 'secondary_labels: []',
                 'recommended_action: "retain"',
+                'source_parser: "pdf-ocr-tesseract"',
+                'heuristic_primary_hint: "unknown"',
                 'canonical_source_path: "/srv/cloud-vault/mirrors/icloud/Scanned/botox.pdf"',
                 "---",
                 "",
@@ -588,7 +590,8 @@ def test_sync_manual_note_feedback_exports_generated_note_move_as_correction(
     assert rows[0]["old_label"] == "medical"
     assert rows[0]["review_status"] == "manual-note-move"
     assert rows[0]["feedback_strength"] == "strong"
-    assert rows[0]["parser"] == "obsidian-generated-note"
+    assert rows[0]["parser"] == "pdf-ocr-tesseract"
+    assert rows[0]["heuristic_primary"] == "unknown"
 
 
 def test_sync_manual_note_feedback_skips_generated_note_when_path_still_matches_default(

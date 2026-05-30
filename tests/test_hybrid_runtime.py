@@ -290,6 +290,76 @@ def test_maybe_retrain_from_shadow_data_uses_bootstrap_examples(tmp_path: Path):
     assert report_path.exists()
 
 
+def test_build_bootstrap_feedback_rows_preserves_manual_feedback_parser_and_heuristic_hint(tmp_path: Path):
+    manual_note_feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    manual_note_feedback_path.write_text(
+        json.dumps(
+            {
+                "source_path": "/srv/cloud-vault/mirrors/icloud/Scanned/receipt.pdf",
+                "filename": "receipt.pdf",
+                "correct_label": "receipt",
+                "old_label": "financial",
+                "heuristic_primary": "unknown",
+                "parser": "pdf-ocr-tesseract",
+                "review_status": "manual-note-move",
+                "feedback_strength": "strong",
+                "summary": "Receipt move",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    rows = hybrid_runtime.build_bootstrap_feedback_rows(
+        corrections_path=tmp_path / "corrections.jsonl",
+        examples_path=tmp_path / "examples.jsonl",
+        manual_note_feedback_path=manual_note_feedback_path,
+    )
+
+    assert rows[0]["feedback_source"] == "manual-obsidian-note"
+    assert rows[0]["parser"] == "pdf-ocr-tesseract"
+    assert rows[0]["heuristic_primary"] == "unknown"
+    assert rows[0]["teacher_suggests_correction"] is True
+
+
+def test_apply_disagreement_updates_uses_manual_feedback_corrections(tmp_path: Path):
+    gating_path = tmp_path / "hybrid-gating.json"
+    rules_path = tmp_path / "heuristic-rules.json"
+    hybrid_runtime.save_json(
+        gating_path,
+        {
+            **hybrid_runtime.DEFAULT_HYBRID_GATING,
+            "auto_inline_disagreement_threshold": 2,
+        },
+    )
+    hybrid_runtime.save_json(rules_path, hybrid_runtime.DEFAULT_HEURISTIC_RULES)
+
+    updates = hybrid_runtime.apply_disagreement_updates(
+        comparisons=[],
+        feedback_rows=[
+            {
+                "feedback_source": "manual-obsidian-note",
+                "teacher_suggests_correction": True,
+                "parser": "pdf-ocr-tesseract",
+                "heuristic_primary": "unknown",
+            },
+            {
+                "feedback_source": "manual-obsidian-note",
+                "teacher_suggests_correction": True,
+                "parser": "pdf-ocr-tesseract",
+                "heuristic_primary": "unknown",
+            },
+        ],
+        gating_path=gating_path,
+        rules_path=rules_path,
+    )
+
+    rules = hybrid_runtime.load_json(rules_path, default={})
+
+    assert updates["updated"] is True
+    assert "pdf-ocr-tesseract|unknown" in rules["force_inline_llm_for"]
+
+
 def test_process_shadow_queue_once_records_shadow_errors_without_blocking(tmp_path: Path):
     queue_dir = tmp_path / "shadow-queue"
     queue_dir.mkdir(parents=True)

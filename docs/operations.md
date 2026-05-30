@@ -429,6 +429,12 @@ Self-training loop:
   - when the classifier sees the exact same source path again, reviewed manual
     feedback now wins immediately as a deterministic override instead of being
     treated only as future training signal
+  - generated notes now persist the original source parser plus heuristic hint
+    in frontmatter, and the shadow worker exports those fields back into
+    strong manual-feedback rows before running its retrain/update pass
+  - those enriched manual-feedback rows now participate in heuristic
+    fast-path learning by adding `force_inline_llm_for` rules when repeated
+    human corrections show a parser plus heuristic-hint combination is unsafe
   - `CLASSIFICATION_TARGETED_REQUEUE_ENABLED` and
     `CLASSIFICATION_TARGETED_REQUEUE_LIMIT` bound this behavior
   - set `CLASSIFICATION_BACKFILL_ENABLED=false` when you want a bounded worker

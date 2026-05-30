@@ -1562,6 +1562,9 @@ def write_obsidian_note(
     canonical_source_path: str | None = None,
     canonical_source_hash: str | None = None,
     last_seen_filename: str | None = None,
+    source_parser: str | None = None,
+    heuristic_primary_hint: str | None = None,
+    hybrid_live_source: str | None = None,
 ) -> Path:
     # --- image-normalize-before-note BEGIN ---
     try:
@@ -1745,6 +1748,9 @@ last_seen_filename: {json.dumps(note_contract["last_seen_filename"], ensure_asci
 attachment_mode: {json.dumps(note_contract["attachment_mode"], ensure_ascii=False)}
 compatibility_attachment_path: {json.dumps(note_contract["compatibility_attachment_path"], ensure_ascii=False)}
 source_link: {json.dumps(note_contract["source_link"], ensure_ascii=False)}
+source_parser: {json.dumps(str(source_parser or ""), ensure_ascii=False)}
+heuristic_primary_hint: {json.dumps(str(heuristic_primary_hint or ""), ensure_ascii=False)}
+hybrid_live_source: {json.dumps(str(hybrid_live_source or ""), ensure_ascii=False)}
 classified_at: {json.dumps(now_ak())}
 file_date_guess: {json.dumps(file_date_guess, ensure_ascii=False)}
 language: {json.dumps(language, ensure_ascii=False)}
@@ -2181,6 +2187,9 @@ def main() -> int:
                     canonical_source_path=args.canonical_source_path or None,
                     canonical_source_hash=args.canonical_source_hash or None,
                     last_seen_filename=args.last_seen_filename or None,
+                    source_parser=str(timing.get("parser", "") or ""),
+                    heuristic_primary_hint=str((heuristic_classification or {}).get("primary_label", "") or ""),
+                    hybrid_live_source=str(((hybrid_meta or {}).get("decision") or {}).get("live_source", "") or ""),
                 )
                 timing["note_write_ms"] = elapsed_ms(note_started_at)
                 timing["primary_label"] = classification.get("primary_label", "unknown")

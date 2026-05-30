@@ -101,6 +101,7 @@
 - Move-correction note: when a classifier-generated note is manually relocated into a different category folder, the feedback export should key the correction to the original source file and preserve the old label so heuristics and LightGBM can learn from the move.
 - Targeted-reclassify note: strong manual corrections now also queue a bounded backend reclassification for the matching source file when the note edit is newer than the last completed classification; weak folder hints remain training-only.
 - Exact-override note: when the same source file is classified again, an exact strong reviewed correction for that source path should override the stale model guess immediately so the rewritten note follows the human move instead of waiting for broader retraining to catch up.
+- Heuristic-learning note: generated notes should preserve the original source parser and heuristic hint in frontmatter so later manual moves can feed those values back into the training loop; repeated strong human corrections for the same parser plus heuristic-hint pair should teach the runtime to force inline LLM instead of trusting that fast path.
 - Operator-control note: bounded cloudsync classification runs can now set
   `CLASSIFICATION_BACKFILL_ENABLED=false` or use
   `run_targeted_classification_batch.sh --targeted-feedback-only` to process

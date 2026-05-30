@@ -201,6 +201,45 @@ def test_write_obsidian_note_reuses_existing_note_for_same_canonical_source():
         assert [path.name for path in matching_extracted] == ["project kay memory.extracted.md"]
 
 
+def test_write_obsidian_note_persists_source_parser_and_heuristic_hint():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        vault = root / "vault"
+        source_path = root / "Inbox" / "Store Receipt.pdf"
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_bytes(b"receipt")
+        ensure_vault(vault)
+
+        note_path = write_obsidian_note(
+            vault=vault,
+            source_path=source_path,
+            file_hash="abcdef1234567890",
+            markdown="Receipt preview",
+            classification={
+                "primary_label": "receipt",
+                "secondary_labels": ["financial"],
+                "confidence": 1.0,
+                "summary": "Receipt summary.",
+                "reason": "Manual override won.",
+                "sensitive_flags": ["financial"],
+                "recommended_action": "keep",
+                "file_date_guess": "unknown",
+                "language": "English",
+            },
+            attach_originals=False,
+            canonical_source_path="/srv/cloud-vault/mirrors/icloud/Scanned/Store Receipt.pdf",
+            source_parser="pdf-ocr-tesseract",
+            heuristic_primary_hint="unknown",
+            hybrid_live_source="manual-correction-override",
+        )
+
+        note_text = note_path.read_text(encoding="utf-8")
+
+        assert 'source_parser: "pdf-ocr-tesseract"' in note_text
+        assert 'heuristic_primary_hint: "unknown"' in note_text
+        assert 'hybrid_live_source: "manual-correction-override"' in note_text
+
+
 def test_write_obsidian_note_collapses_existing_duplicate_note_for_same_canonical_source():
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
