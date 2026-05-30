@@ -33,6 +33,7 @@ from packages.vault.naming import (
 )
 
 from .category_manager import (
+    find_reviewed_label_override,
     format_examples_for_prompt,
     image_safe_categories,
     load_categories,
@@ -234,6 +235,73 @@ def yaml_list(items: List[Any]) -> str:
     if not items:
         return "[]"
     return "[" + ", ".join(json.dumps(str(x), ensure_ascii=False) for x in items) + "]"
+
+
+def _sensitive_flags_from_labels(primary: str, secondary: List[str]) -> List[str]:
+    labels = {obsidian_tag(primary), *(obsidian_tag(item) for item in secondary)}
+    flags: List[str] = []
+    if labels & {"medical", "appeal", "appeals", "benefits", "claim", "medical-receipt", "pharmacy", "prescription"}:
+        flags.append("medical")
+    if labels & {"receipt", "invoice", "financial", "tax", "insurance", "reimbursement-packet", "benefits", "claim"}:
+        flags.append("financial")
+    if labels & {"legal", "contract", "policy"}:
+        flags.append("legal")
+    if labels & {"identity-document"}:
+        flags.append("identity")
+    return flags or ["none"]
+
+
+def build_reviewed_override_classification(
+    *,
+    reviewed_row: Dict[str, Any],
+    source_path: Path,
+    taxonomy_candidates: List[str],
+) -> Dict[str, Any]:
+    primary = obsidian_tag(
+        str(
+            reviewed_row.get("correct_label")
+            or reviewed_row.get("primary_label")
+            or reviewed_row.get("label")
+            or "unknown"
+        )
+    )
+    secondary: List[str] = []
+    seen_secondary: set[str] = set()
+    for item in reviewed_row.get("secondary_labels", []) or []:
+        tag = obsidian_tag(str(item))
+        if tag in {"", "unknown", primary} or tag in seen_secondary:
+            continue
+        seen_secondary.add(tag)
+        secondary.append(tag)
+
+    candidate_categories_used: List[str] = []
+    for item in [primary, *secondary, *taxonomy_candidates]:
+        tag = obsidian_tag(str(item))
+        if tag and tag not in candidate_categories_used:
+            candidate_categories_used.append(tag)
+
+    review_status = str(reviewed_row.get("review_status") or "reviewed-feedback").strip() or "reviewed-feedback"
+    summary = (
+        str(reviewed_row.get("summary") or "").strip()
+        or f"Used reviewed correction for {source_path.name}."
+    )
+    note = str(reviewed_row.get("note") or "").strip()
+    reason = f"Used exact reviewed feedback for this source file from {review_status}."
+    if note:
+        reason = f"{reason} Evidence: {note}"
+
+    return {
+        "primary_label": primary,
+        "secondary_labels": secondary,
+        "confidence": 1.0,
+        "summary": summary,
+        "reason": reason,
+        "sensitive_flags": _sensitive_flags_from_labels(primary, secondary),
+        "recommended_action": "keep",
+        "file_date_guess": "unknown",
+        "language": "unknown",
+        "candidate_categories_used": candidate_categories_used,
+    }
 
 
 def build_note_contract_metadata(
@@ -881,6 +949,43 @@ def resolve_hybrid_document_decision(
         is_image=False,
     )
 
+    reviewed_override = find_reviewed_label_override(
+        source_path=source_path,
+        filename=source_path.name,
+        limit=1500,
+    )
+    reviewed_source_path = str((reviewed_override or {}).get("source_path", "") or "").strip()
+    if reviewed_override and reviewed_source_path == str(source_path):
+        decision = {
+            "use_inline_llm": False,
+            "live_source": "manual-correction-override",
+            "selected_primary_hint": str(
+                reviewed_override.get("correct_label")
+                or reviewed_override.get("primary_label")
+                or reviewed_override.get("label")
+                or "unknown"
+            ),
+            "decision_reason": "exact-source-reviewed-feedback",
+            "candidate_count": len(taxonomy_candidates),
+        }
+        if timing is not None:
+            timing["hybrid_live_source"] = decision["live_source"]
+            timing["hybrid_decision_reason"] = decision["decision_reason"]
+        classification = build_reviewed_override_classification(
+            reviewed_row=reviewed_override,
+            source_path=source_path,
+            taxonomy_candidates=taxonomy_candidates,
+        )
+        hybrid_meta = {
+            "taxonomy_candidates": taxonomy_candidates,
+            "lightgbm": None,
+            "decision": decision,
+            "retrieval": retrieval_metadata,
+            "extraction": extraction_metadata,
+            "reviewed_override": reviewed_override,
+        }
+        return classification, hybrid_meta
+
     lightgbm_result: Optional[Dict[str, Any]] = None
     model_path = lightgbm_model_path or LIGHTGBM_MODEL_PATH
     try:
@@ -1204,6 +1309,7 @@ def classify_markdown(
         extension=ext,
         content=clipped,
         is_image=False,
+        source_path=source_path,
     )
 
     prompt = f"""
@@ -1293,6 +1399,7 @@ def classify_image_vision(
         extension=ext,
         content="",
         is_image=True,
+        source_path=source_path,
     )
 
     image_b64 = base64.b64encode(source_path.read_bytes()).decode("utf-8")

@@ -100,6 +100,7 @@
 - Folder-training note: manual notes without explicit `primary_label` frontmatter can now inherit a weak classifier label from their folder path when that path maps to a known category or to an explicit override in `config/vault-folder-labels.json`.
 - Move-correction note: when a classifier-generated note is manually relocated into a different category folder, the feedback export should key the correction to the original source file and preserve the old label so heuristics and LightGBM can learn from the move.
 - Targeted-reclassify note: strong manual corrections now also queue a bounded backend reclassification for the matching source file when the note edit is newer than the last completed classification; weak folder hints remain training-only.
+- Exact-override note: when the same source file is classified again, an exact strong reviewed correction for that source path should override the stale model guess immediately so the rewritten note follows the human move instead of waiting for broader retraining to catch up.
 - Operator-control note: bounded cloudsync classification runs can now set
   `CLASSIFICATION_BACKFILL_ENABLED=false` or use
   `run_targeted_classification_batch.sh --targeted-feedback-only` to process

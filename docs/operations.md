@@ -426,6 +426,9 @@ Self-training loop:
     training set and do not requeue the source file immediately
   - the worker only requeues when the note edit is newer than the last
     completed classification for that source, which prevents repeat loops
+  - when the classifier sees the exact same source path again, reviewed manual
+    feedback now wins immediately as a deterministic override instead of being
+    treated only as future training signal
   - `CLASSIFICATION_TARGETED_REQUEUE_ENABLED` and
     `CLASSIFICATION_TARGETED_REQUEUE_LIMIT` bound this behavior
   - set `CLASSIFICATION_BACKFILL_ENABLED=false` when you want a bounded worker

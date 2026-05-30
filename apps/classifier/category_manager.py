@@ -12,8 +12,9 @@ CONFIG_DIR = SETTINGS.config_root
 CATEGORIES_FILE = CONFIG_DIR / "categories.txt"
 LOCAL_CATEGORIES_FILE = CONFIG_DIR / "categories.local.txt"
 GROUPS_FILE = CONFIG_DIR / "category-groups.json"
-CORRECTIONS_FILE = CONFIG_DIR / "corrections.jsonl"
-EXAMPLES_FILE = CONFIG_DIR / "examples.jsonl"
+CORRECTIONS_FILE = SETTINGS.corrections_path
+EXAMPLES_FILE = SETTINGS.examples_path
+MANUAL_NOTE_FEEDBACK_FILE = SETTINGS.manual_note_feedback_path
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 
@@ -131,17 +132,63 @@ def read_jsonl(path: Path, limit: int = 200) -> List[Dict[str, Any]]:
             pass
     return rows
 
-def load_relevant_examples(filename: str, extension: str, content: str = "", is_image: bool = False, limit: int = 5) -> List[Dict[str, Any]]:
-    examples = read_jsonl(EXAMPLES_FILE, 500) + read_jsonl(CORRECTIONS_FILE, 500)
+def find_reviewed_label_override(
+    *,
+    source_path: str | Path | None = None,
+    filename: str = "",
+    limit: int = 2000,
+) -> Dict[str, Any] | None:
+    source_text = str(source_path or "").strip()
+    filename_text = str(filename or "").strip()
+    rows = (
+        read_jsonl(MANUAL_NOTE_FEEDBACK_FILE, limit)
+        + read_jsonl(CORRECTIONS_FILE, limit)
+        + read_jsonl(EXAMPLES_FILE, limit)
+    )
+    if not rows:
+        return None
+
+    for item in reversed(rows):
+        item_source_path = str(item.get("source_path", "") or "").strip()
+        item_filename = str(
+            item.get("filename")
+            or item.get("source_filename")
+            or Path(item_source_path or "").name
+            or ""
+        ).strip()
+        if source_text and item_source_path and item_source_path == source_text:
+            return item
+        if filename_text and item_filename and item_filename == filename_text:
+            return item
+    return None
+
+
+def load_relevant_examples(
+    filename: str,
+    extension: str,
+    content: str = "",
+    is_image: bool = False,
+    limit: int = 5,
+    source_path: str | Path | None = None,
+) -> List[Dict[str, Any]]:
+    examples = (
+        read_jsonl(MANUAL_NOTE_FEEDBACK_FILE, 500)
+        + read_jsonl(EXAMPLES_FILE, 500)
+        + read_jsonl(CORRECTIONS_FILE, 500)
+    )
     if not examples:
         return []
+    exact_match = find_reviewed_label_override(source_path=source_path, filename=filename, limit=1500)
     words = _keywords(filename) | _keywords(content[:4000])
     scored = []
     for ex in examples:
         ex_text = " ".join(str(ex.get(k, "")) for k in ["filename", "note", "summary", "correct_label", "primary_label"])
+        ex_text = " ".join([ex_text, str(ex.get("source_path", ""))]).strip()
         score = len(words & _keywords(ex_text))
         if is_image and str(ex.get("kind", "")).lower() in {"image", "visual"}:
             score += 3
+        if exact_match is not None and ex == exact_match:
+            score += 1000
         if score > 0:
             scored.append((score, ex))
     scored.sort(key=lambda x: x[0], reverse=True)

@@ -163,3 +163,106 @@ def test_extract_json_accepts_fenced_json_payload():
 
     assert result["primary_label"] == "invoice"
     assert result["secondary_labels"] == ["financial"]
+
+
+def test_resolve_hybrid_document_decision_uses_exact_reviewed_override(tmp_path: Path, monkeypatch):
+    source_path = tmp_path / "receipt.pdf"
+    source_path.write_bytes(b"%PDF-1.7 fake")
+
+    monkeypatch.setattr(classifier_module, "build_retrieval_metadata", lambda **_: {})
+    monkeypatch.setattr(
+        classifier_module,
+        "select_candidate_categories",
+        lambda **_: ["receipt", "financial", "needs-review"],
+    )
+    monkeypatch.setattr(
+        classifier_module,
+        "find_reviewed_label_override",
+        lambda **_: {
+            "source_path": str(source_path),
+            "correct_label": "receipt",
+            "secondary_labels": ["financial"],
+            "summary": "Manual correction moved this exact file to receipt.",
+            "note": "manual-note-move:01 Classified/receipt/receipt.md",
+            "review_status": "manual-note-move",
+            "feedback_strength": "strong",
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        classifier_module,
+        "predict_lightgbm_result",
+        lambda **_: {
+            "top_label": "financial",
+            "top_probability": 0.97,
+            "needs_llm_probability": 0.02,
+            "disagreement_risk": 0.01,
+        },
+    )
+
+    llm_calls = {"count": 0}
+
+    def _unexpected_inline_llm(**_kwargs):
+        llm_calls["count"] += 1
+        return {
+            "primary_label": "financial",
+            "secondary_labels": [],
+            "confidence": 0.4,
+            "summary": "Should not be used.",
+            "reason": "inline llm",
+        }
+
+    monkeypatch.setattr(classifier_module, "classify_markdown", _unexpected_inline_llm)
+
+    classification, hybrid_meta = classifier_module.resolve_hybrid_document_decision(
+        source_path=source_path,
+        markdown="Home improvement store receipt total amount paid by card.",
+        parser_name="pdftotext",
+        categories=["receipt", "financial", "needs-review"],
+        heuristic_result={"primary_label": "financial", "confidence": 0.91},
+        ollama_url="http://example.invalid",
+        model="qwen2.5:3b",
+        max_chars=4000,
+    )
+
+    assert llm_calls["count"] == 0
+    assert classification["primary_label"] == "receipt"
+    assert classification["secondary_labels"] == ["financial"]
+    assert classification["confidence"] == 1.0
+    assert hybrid_meta["decision"]["live_source"] == "manual-correction-override"
+    assert hybrid_meta["decision"]["decision_reason"] == "exact-source-reviewed-feedback"
+
+
+def test_classify_markdown_passes_source_path_to_relevant_examples(tmp_path: Path, monkeypatch):
+    source_path = tmp_path / "receipt.pdf"
+    source_path.write_bytes(b"%PDF-1.7 fake")
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        classifier_module,
+        "select_candidate_categories",
+        lambda **_: ["receipt", "financial"],
+    )
+
+    def _capture_examples(**kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(classifier_module, "load_relevant_examples", _capture_examples)
+    monkeypatch.setattr(
+        classifier_module,
+        "ollama_chat",
+        lambda **_: '{"primary_label":"receipt","secondary_labels":[],"confidence":0.8,"summary":"Receipt","reason":"Contains totals.","sensitive_flags":["financial"],"recommended_action":"keep","file_date_guess":"unknown","language":"English"}',
+    )
+
+    result = classifier_module.classify_markdown(
+        markdown="Receipt total amount paid.",
+        source_path=source_path,
+        categories=["receipt", "financial"],
+        ollama_url="http://example.invalid",
+        model="qwen2.5:3b",
+        max_chars=4000,
+    )
+
+    assert result["primary_label"] == "receipt"
+    assert captured["source_path"] == source_path
