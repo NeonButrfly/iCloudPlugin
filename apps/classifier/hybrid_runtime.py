@@ -75,6 +75,23 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def parse_utc_timestamp(raw_value: Any) -> datetime | None:
+    if not isinstance(raw_value, str):
+        return None
+    text = raw_value.strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def load_json(path: Path, default: Any) -> Any:
     if not path.exists():
         return default
@@ -576,7 +593,7 @@ def build_bootstrap_feedback_rows(
             )
             rows.append(
                 {
-                    "recorded_at": utc_now(),
+                    "recorded_at": str(item.get("recorded_at") or utc_now()),
                     "filename": filename,
                     "extension": extension,
                     "parser": str(item.get("parser", "")),
@@ -798,21 +815,38 @@ def maybe_retrain_from_shadow_data(
         }
 
     previous_training_rows = 0
+    previous_trained_at: datetime | None = None
     prior_report = load_json(report_path, default={}) or {}
     if isinstance(prior_report, dict):
         try:
             previous_training_rows = int(prior_report.get("training_rows", 0) or 0)
         except Exception:
             previous_training_rows = 0
+        previous_trained_at = parse_utc_timestamp(prior_report.get("trained_at"))
 
     new_rows = max(len(approved) - previous_training_rows, 0)
-    if previous_training_rows > 0 and new_rows < min_new_rows_since_last_train:
+    new_manual_teacher_rows = 0
+    if previous_trained_at is not None:
+        for row in approved:
+            if str(row.get("feedback_source", "") or "").strip() != "manual-obsidian-note":
+                continue
+            row_recorded_at = parse_utc_timestamp(row.get("recorded_at"))
+            if row_recorded_at is not None and row_recorded_at > previous_trained_at:
+                new_manual_teacher_rows += 1
+    should_bypass_new_row_threshold = new_manual_teacher_rows > 0
+
+    if (
+        previous_training_rows > 0
+        and new_rows < min_new_rows_since_last_train
+        and not should_bypass_new_row_threshold
+    ):
         return {
             "retrained": False,
             "reason": "insufficient-new-approved-rows",
             "training_rows": len(approved),
             "teacher_approved_rows": len(approved),
             "new_teacher_rows": new_rows,
+            "new_manual_teacher_rows": new_manual_teacher_rows,
             "previous_training_rows": previous_training_rows,
         }
 
@@ -853,6 +887,7 @@ def maybe_retrain_from_shadow_data(
         "training_rows": len(training_rows),
         "teacher_approved_rows": len(approved),
         "new_teacher_rows": new_rows,
+        "new_manual_teacher_rows": new_manual_teacher_rows,
         "previous_training_rows": previous_training_rows,
         "feedback_sources": dict(sorted(feedback_sources.items())),
         "report": report,

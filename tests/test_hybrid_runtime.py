@@ -290,6 +290,79 @@ def test_maybe_retrain_from_shadow_data_uses_bootstrap_examples(tmp_path: Path):
     assert report_path.exists()
 
 
+def test_maybe_retrain_from_shadow_data_retrains_for_new_manual_feedback_even_below_min_new_rows(
+    tmp_path: Path,
+):
+    examples_path = tmp_path / "examples.jsonl"
+    examples_path.write_text(
+        "".join(
+            json.dumps(
+                {
+                    "filename": f"reviewed-{index}.pdf",
+                    "source_filename": f"reviewed-{index}.pdf",
+                    "correct_label": label,
+                    "old_label": "unknown",
+                    "confidence": 0.98,
+                    "summary": f"Reviewed {label} training example",
+                    "secondary_labels": ["reviewed"],
+                }
+            )
+            + "\n"
+            for index, label in enumerate(["appeal", "invoice", "medical", "legal"], start=1)
+        ),
+        encoding="utf-8",
+    )
+    manual_note_feedback_path = tmp_path / "manual-note-feedback.jsonl"
+    manual_note_feedback_path.write_text(
+        json.dumps(
+            {
+                "recorded_at": "2026-05-30T07:00:00Z",
+                "source_path": "/srv/cloud-vault/mirrors/icloud/Scanned/receipt.pdf",
+                "filename": "receipt.pdf",
+                "correct_label": "receipt",
+                "old_label": "financial",
+                "heuristic_primary": "unknown",
+                "parser": "pdf-ocr-tesseract",
+                "review_status": "manual-note-move",
+                "feedback_strength": "strong",
+                "summary": "Fresh manual receipt correction",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    model_path = tmp_path / "lightgbm.joblib"
+    report_path = tmp_path / "lightgbm-report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "trained_at": "2026-05-30T06:00:00Z",
+                "training_rows": 4,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    result = hybrid_runtime.maybe_retrain_from_shadow_data(
+        comparisons_path=tmp_path / "shadow-comparisons.jsonl",
+        examples_path=examples_path,
+        corrections_path=tmp_path / "corrections.jsonl",
+        manual_note_feedback_path=manual_note_feedback_path,
+        model_path=model_path,
+        report_path=report_path,
+        min_rows=3,
+        min_new_rows_since_last_train=10,
+    )
+
+    assert result["retrained"] is True
+    assert result["teacher_approved_rows"] == 5
+    assert result["feedback_sources"]["manual-obsidian-note"] == 1
+
+
 def test_build_bootstrap_feedback_rows_preserves_manual_feedback_parser_and_heuristic_hint(tmp_path: Path):
     manual_note_feedback_path = tmp_path / "manual-note-feedback.jsonl"
     manual_note_feedback_path.write_text(
