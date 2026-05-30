@@ -73,6 +73,26 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - `tichuml1` `/refresh/status` resumed the existing aggregate background scan
 - `clouddrive.neonbutterfly.net` now proxies to `192.168.50.196:8080`
 - `tichuml1` classifier health is OK
+- `tichuml1` classifier containers were recreated from the monorepo compose on
+  2026-05-29 AKDT while preserving the existing trained runtime/output
+  directories under `/opt/local-doc-classifier` for continuity
+- live classifier readiness recovered and is green again:
+  - `model_exists=true`
+  - `real_ingestion_allowed=true`
+  - `teacher_reviewed_rows=569`
+  - `teacher_approved_rows=546`
+  - `feedback_sources.manual-obsidian-note=22`
+- a one-shot `shadow-worker` run on 2026-05-29 AKDT scanned `39` vault notes,
+  exported `1` fresh manual-feedback row from a real note move, and retrained
+  LightGBM live with `training_rows=545`
+- the live manual-feedback artifact now includes the receipt correction for
+  `/srv/cloud-vault/mirrors/icloud/Scanned/03182023_You for Shopping at Lowe’s your new purchase!.pdf`
+  with `correct_label=receipt` and `old_label=financial`
+- a direct bounded cloudsync classification-worker run created and completed
+  targeted job `#55` for that same receipt source file
+- the current model still rewrote that specific note back into
+  `02 Needs Review/... - financial.md`, so the live feedback/training loop is
+  proven, but this one example has not flipped the downstream decision yet
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
   compute-only cutover; the old service and worker are stopped there
 - a pause was requested for the current aggregate background scan so manual
@@ -85,10 +105,8 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - `classification-worker` on `kayraspi` is intentionally stopped after reset
 - aggregate mirror indexing has picked up both `google1` and `google2`
 - `document-vault` is the canonical local Obsidian vault
-- `document-vault` was reset on 2026-05-24 AKDT and contains only the fresh
-  classifier smoke output
-- classifier training/runtime state was cleared; `/readiness` reports
-  `model_exists=false` and `real_ingestion_allowed=false`
+- `document-vault` now contains both the original smoke output and additional
+  live classifier notes from the resumed pipeline work
 - the smoke classification used
   `/srv/cloud-vault/mirrors/google1/Aetna Life Insurance Company - APPEAL 1 FFS.docx`
   and created an `appeal` note in `document-vault`
@@ -96,7 +114,12 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 
 ## Not Finished Yet
 
-- retrain/approve classifier readiness before resuming bulk real-folder submissions
+- make manual curation change downstream classifier decisions more reliably than
+  the current single-example receipt result
+- finish proving the fixed targeted batch helper end to end on the compute-only
+  cloudsync host; the original `service "postgres" is not running` failure is
+  fixed in repo, but the workstation-timed live helper run still needs one
+  clean completion sample
 - normalize old hash-heavy note filenames
 - retire/archive the old standalone `local-doc-classifier` checkout after safe soak period
 - optionally move cloudsync Postgres off `kayraspi` later if the compute-only
