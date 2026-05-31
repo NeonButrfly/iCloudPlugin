@@ -5,6 +5,7 @@ from typing import Annotated
 from pydantic import Field
 
 DEFAULT_SEARCH_LIMIT = 5
+DEFAULT_HYDRATE_LIMIT = 3
 DEFAULT_EXCERPT_MAX_CHARS = 1000
 DEFAULT_NOTE_MAX_CHARS = 20_000
 
@@ -19,6 +20,17 @@ SearchQuery = Annotated[
 SearchLimit = Annotated[
     int,
     Field(ge=1, le=50, description="Maximum number of matching files to return."),
+]
+
+HydrateLimit = Annotated[
+    int,
+    Field(
+        ge=0,
+        le=10,
+        description=(
+            "How many top search matches should be expanded into note-plus-file bundles."
+        ),
+    ),
 ]
 
 PathScope = Annotated[

@@ -88,6 +88,44 @@ class ICloudIndexServiceClient:
     def get_file_source(self, *, file_id: int) -> dict[str, Any]:
         return self._request("GET", f"/files/{file_id}/source")
 
+    def search_notes_and_files(
+        self,
+        *,
+        query: str,
+        limit: int = 5,
+        path_scope: str | None = None,
+        hydrate_limit: int = 3,
+        max_chars: int = 1000,
+        note_max_chars: int = 20_000,
+    ) -> dict[str, Any]:
+        search_payload = self.search_files(query=query, limit=limit, path_scope=path_scope)
+        raw_results = search_payload.get("results")
+        if not isinstance(raw_results, list):
+            raise TypeError("Expected search results to be a JSON list.")
+
+        bundles: list[dict[str, Any]] = []
+        for result in raw_results[:hydrate_limit]:
+            if not isinstance(result, dict):
+                continue
+            file_id = result.get("file_id")
+            if not isinstance(file_id, int) or file_id <= 0:
+                continue
+            bundles.append(
+                {
+                    "match": result,
+                    "file": self.get_file_excerpt(file_id=file_id, max_chars=max_chars),
+                    "note": self.get_file_note(file_id=file_id, max_chars=note_max_chars),
+                    "source": self.get_file_source(file_id=file_id),
+                }
+            )
+
+        return {
+            **search_payload,
+            "hydrate_limit": hydrate_limit,
+            "hydrated_count": len(bundles),
+            "bundles": bundles,
+        }
+
     def refresh_index(self) -> dict[str, Any]:
         return self._request("POST", "/refresh")
 

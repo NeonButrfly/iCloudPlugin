@@ -95,9 +95,13 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `GET /files/{id}/source`
     - `GET /files/{id}/source/download`
   - the repo-local MCP bridge now exposes:
+    - `search_icloud_notes_and_files`
     - `get_icloud_note`
     - `get_icloud_source_reference`
     - `get_icloud_file_bundle`
+  - the combined search tool now searches once and hydrates the top matches
+    into bundled file/note/source payloads so external ChatGPT callers do not
+    need to stitch multiple follow-up calls together for common analysis flows
   - the Cloudflare Worker scaffold proxies those same surfaces and can hand off
     original files through `/download/{file_id}`
   - this slice was validated locally with Python tests plus Worker TypeScript

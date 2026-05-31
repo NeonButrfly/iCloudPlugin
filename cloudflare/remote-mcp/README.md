@@ -8,6 +8,7 @@ remote MCP tools over Streamable HTTP at `/mcp`.
 ## What it exposes
 
 - `search_icloud_files`
+- `search_icloud_notes_and_files`
 - `get_icloud_file`
 - `get_icloud_file_excerpt`
 - `get_icloud_note`
@@ -17,6 +18,13 @@ remote MCP tools over Streamable HTTP at `/mcp`.
 
 The source-reference tool includes a Worker download URL when the origin reports
 that the original file can be handed off safely.
+
+The combined search tool is meant to reduce round trips for external ChatGPT
+workflows by searching once, then expanding the strongest matches into bundled:
+
+- indexed file metadata and excerpt
+- generated note content
+- canonical source-path and download-handoff metadata
 
 ## Required origin configuration
 

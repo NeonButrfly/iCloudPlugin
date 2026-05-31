@@ -8,10 +8,12 @@ from mcp.server.fastmcp import FastMCP
 from .service_client import build_service_client_from_env
 from .tool_schemas import (
     DEFAULT_EXCERPT_MAX_CHARS,
+    DEFAULT_HYDRATE_LIMIT,
     DEFAULT_NOTE_MAX_CHARS,
     DEFAULT_SEARCH_LIMIT,
     ExcerptMaxChars,
     FileId,
+    HydrateLimit,
     NoteMaxChars,
     PathScope,
     SearchLimit,
@@ -90,6 +92,27 @@ def get_icloud_file_bundle(
         "note": note_payload,
         "source": source_payload,
     }
+
+
+@mcp.tool()
+def search_icloud_notes_and_files(
+    query: SearchQuery,
+    limit: SearchLimit = DEFAULT_SEARCH_LIMIT,
+    path_scope: PathScope = None,
+    hydrate_limit: HydrateLimit = DEFAULT_HYDRATE_LIMIT,
+    max_chars: ExcerptMaxChars = DEFAULT_EXCERPT_MAX_CHARS,
+    note_max_chars: NoteMaxChars = DEFAULT_NOTE_MAX_CHARS,
+) -> dict[str, Any]:
+    """Search files, then expand the top matches into note-plus-source bundles for quicker analysis."""
+    with build_service_client_from_env() as client:
+        return client.search_notes_and_files(
+            query=query,
+            limit=limit,
+            path_scope=path_scope,
+            hydrate_limit=hydrate_limit,
+            max_chars=max_chars,
+            note_max_chars=note_max_chars,
+        )
 
 
 @mcp.tool()

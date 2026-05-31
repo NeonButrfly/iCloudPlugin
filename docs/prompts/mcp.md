@@ -7,6 +7,7 @@
   classifier service as the source of truth.
 - Product requirements:
   - search files
+  - search once and hydrate the top note-plus-file bundles for external analysis
   - retrieve file metadata
   - retrieve source excerpts
   - retrieve generated note content
@@ -26,3 +27,9 @@
   - Cloudflare Worker scaffold in `cloudflare/remote-mcp`
   - Cloudflare account-side deployment still pending because account auth was
     not available in-session
+- Follow-up implementation slice:
+  - add `search_icloud_notes_and_files` so external ChatGPT can search once and
+    immediately receive hydrated bundles for the top matches, including:
+    - indexed file metadata and excerpt
+    - generated note content
+    - canonical source-link / download-handoff metadata

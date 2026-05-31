@@ -199,3 +199,105 @@ def test_get_file_source_uses_source_endpoint():
     assert captured_request is not None
     assert captured_request.method == "GET"
     assert str(captured_request.url) == "http://service.test/files/4/source"
+
+
+def test_search_notes_and_files_hydrates_top_results():
+    captured_urls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_urls.append(str(request.url))
+        if str(request.url) == "http://service.test/search?query=appeal&limit=2&path_scope=%2Fgoogle1":
+            return httpx.Response(
+                200,
+                json={
+                    "query": "appeal",
+                    "limit": 2,
+                    "path_scope": "/google1",
+                    "results": [
+                        {"file_id": 7, "name": "Appeal.docx", "path": "/google1/Appeal.docx"},
+                        {"file_id": 8, "name": "Appeal 2.docx", "path": "/google1/Appeal 2.docx"},
+                    ],
+                },
+            )
+        if str(request.url) == "http://service.test/files/7":
+            return httpx.Response(
+                200,
+                json={
+                    "file_id": 7,
+                    "content_text": "A" * 20,
+                    "content_length": 20,
+                    "content_truncated": False,
+                },
+            )
+        if str(request.url) == "http://service.test/files/7/note":
+            return httpx.Response(
+                200,
+                json={
+                    "file_id": 7,
+                    "note_available": True,
+                    "note_content": "B" * 30,
+                    "note_length": 30,
+                    "note_truncated": False,
+                },
+            )
+        if str(request.url) == "http://service.test/files/7/source":
+            return httpx.Response(
+                200,
+                json={
+                    "file_id": 7,
+                    "canonical_source_path": "/srv/cloud-vault/mirrors/google1/Appeal.docx",
+                    "download_path": "/files/7/source/download",
+                },
+            )
+        raise AssertionError(f"Unexpected request URL: {request.url}")
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.search_notes_and_files(
+            query="appeal",
+            limit=2,
+            path_scope="/google1",
+            hydrate_limit=1,
+            max_chars=12,
+            note_max_chars=10,
+        )
+    finally:
+        client.close()
+
+    assert payload["query"] == "appeal"
+    assert payload["hydrate_limit"] == 1
+    assert payload["hydrated_count"] == 1
+    assert len(payload["results"]) == 2
+    assert payload["bundles"] == [
+        {
+            "match": {"file_id": 7, "name": "Appeal.docx", "path": "/google1/Appeal.docx"},
+            "file": {
+                "file_id": 7,
+                "content_text": "AAAAAAAAAAAA",
+                "content_length": 20,
+                "content_truncated": True,
+            },
+            "note": {
+                "file_id": 7,
+                "note_available": True,
+                "note_content": "BBBBBBBBBB",
+                "note_length": 30,
+                "note_truncated": True,
+            },
+            "source": {
+                "file_id": 7,
+                "canonical_source_path": "/srv/cloud-vault/mirrors/google1/Appeal.docx",
+                "download_path": "/files/7/source/download",
+            },
+        }
+    ]
+    assert captured_urls == [
+        "http://service.test/search?query=appeal&limit=2&path_scope=%2Fgoogle1",
+        "http://service.test/files/7",
+        "http://service.test/files/7/note",
+        "http://service.test/files/7/source",
+    ]

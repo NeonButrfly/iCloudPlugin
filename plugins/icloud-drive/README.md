@@ -20,6 +20,7 @@ python -m icloud_plugin_mcp.server
 The plugin exposes:
 
 - `search_icloud_files`
+- `search_icloud_notes_and_files`
 - `get_icloud_file`
 - `get_icloud_file_excerpt`
 - `get_icloud_note`

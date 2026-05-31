@@ -104,6 +104,86 @@ function createServer(env: Env, request: Request): McpServer {
   );
 
   server.registerTool(
+    "search_icloud_notes_and_files",
+    {
+      description:
+        "Search indexed cloud-vault files, then expand the top matches into note-plus-source bundles for faster analysis.",
+      inputSchema: {
+        query: z.string().min(1),
+        limit: z.number().int().min(1).max(50).optional(),
+        path_scope: z.string().optional(),
+        hydrate_limit: z.number().int().min(0).max(10).optional(),
+        max_chars: z.number().int().min(1).max(10000).optional(),
+        note_max_chars: z.number().int().min(1).max(50000).optional(),
+      },
+    },
+    async ({ query, limit, path_scope, hydrate_limit, max_chars, note_max_chars }) => {
+      const params = new URLSearchParams({ query });
+      if (typeof limit === "number") {
+        params.set("limit", String(limit));
+      }
+      if (typeof path_scope === "string" && path_scope.trim()) {
+        params.set("path_scope", path_scope);
+      }
+
+      const searchPayload = await fetchOriginJson(env, `/search?${params.toString()}`);
+      const rawResults = Array.isArray(searchPayload.results) ? searchPayload.results : [];
+      const hydratedBundles: JsonObject[] = [];
+      const activeHydrateLimit = typeof hydrate_limit === "number" ? hydrate_limit : 3;
+
+      for (const result of rawResults.slice(0, activeHydrateLimit)) {
+        if (!result || typeof result !== "object" || Array.isArray(result)) {
+          continue;
+        }
+        const fileId = result.file_id;
+        if (typeof fileId !== "number" || fileId <= 0) {
+          continue;
+        }
+
+        const filePayload = await fetchOriginJson(env, `/files/${fileId}`);
+        if (
+          typeof max_chars === "number" &&
+          typeof filePayload.content_text === "string" &&
+          filePayload.content_text.length > max_chars
+        ) {
+          filePayload.content_text = filePayload.content_text.slice(0, max_chars);
+          filePayload.content_truncated = true;
+        }
+
+        const notePayload = await fetchOriginJson(env, `/files/${fileId}/note`);
+        if (
+          typeof note_max_chars === "number" &&
+          typeof notePayload.note_content === "string" &&
+          notePayload.note_content.length > note_max_chars
+        ) {
+          notePayload.note_content = notePayload.note_content.slice(0, note_max_chars);
+          notePayload.note_truncated = true;
+        }
+
+        const sourcePayload = withWorkerDownloadUrl(
+          await fetchOriginJson(env, `/files/${fileId}/source`),
+          request,
+          env,
+        );
+
+        hydratedBundles.push({
+          match: result as JsonObject,
+          file: filePayload,
+          note: notePayload,
+          source: sourcePayload,
+        });
+      }
+
+      return jsonToolResult({
+        ...searchPayload,
+        hydrate_limit: activeHydrateLimit,
+        hydrated_count: hydratedBundles.length,
+        bundles: hydratedBundles,
+      });
+    },
+  );
+
+  server.registerTool(
     "get_icloud_file",
     {
       description: "Get indexed metadata and extracted content for a specific file.",

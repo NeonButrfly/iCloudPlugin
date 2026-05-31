@@ -729,6 +729,7 @@ python -m apps.classifier.classify_to_obsidian --process-shadow-queue
 The local MCP bridge now exposes:
 
 - `search_icloud_files`
+- `search_icloud_notes_and_files`
 - `get_icloud_file`
 - `get_icloud_file_excerpt`
 - `get_icloud_note`
@@ -745,6 +746,17 @@ The backing service now exposes plugin-facing note/source routes:
 `GET /files/{id}/source/download` streams the original mirrored file with
 plugin-token auth and `Cache-Control: private, no-store`.
 
+The combined search tool searches once, then expands the top matches into
+bundled:
+
+- indexed file metadata and excerpt
+- generated note content
+- canonical source-link and download-handoff metadata
+
+Use it when an external AI caller needs both the note layer and source layer
+for the strongest matches without manually stitching several follow-up MCP calls
+together.
+
 ## Cloudflare remote MCP
 
 Issue [#48](https://github.com/NeonButrfly/iCloudPlugin/issues/48) adds the
@@ -754,6 +766,8 @@ first production-shaped external MCP slice in
 - It is a Cloudflare Worker MCP facade over the on-prem index/classifier
   service.
 - The origin service remains the source of truth.
+- The Worker now exposes the same combined retrieval workflow through
+  `search_icloud_notes_and_files` in addition to the single-file tools.
 - The Worker expects:
   - `ORIGIN_BASE_URL`
   - `ORIGIN_API_TOKEN`
