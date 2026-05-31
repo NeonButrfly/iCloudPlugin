@@ -578,6 +578,23 @@ Self-training loop:
   `confidence` are now normalized before note writing (#32)
   - if LightGBM or heuristic hybrid hints provide a sensible fallback label, the
     note keeps that recovered label but stays under `02 Needs Review`
+
+Canonical label-map alignment:
+
+- the runtime now uses a shared canonical label map so heuristic and LightGBM
+  agreement is measured on coarse canonical labels instead of the older
+  fine-grained split
+- canonicalization is shared across:
+  - index-driven LightGBM training rows
+  - hybrid gating
+  - reviewed example ingestion
+- live proof on `tichuml1` on 2026-05-31 AKDT from classifier `/readiness`:
+  - `teacher_reviewed_rows=1032`
+  - `teacher_approved_rows=963`
+  - `teacher_live_agreement_rows=944`
+  - `teacher_approval_rate=0.93314`
+  - `teacher_agreement_rate=0.98027`
+  - `real_ingestion_allowed=true`
   - if no safe fallback exists, the note degrades to `needs-review` instead of
     an opaque `unknown` label
 - the dedicated `shadow-worker` also needs the shared source mirror mount, not

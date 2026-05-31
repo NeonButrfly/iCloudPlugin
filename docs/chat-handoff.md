@@ -157,6 +157,21 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `classification_job_counts={completed:97, failed:2, queued:84, running:1}`
     - `classification_state_counts={completed:65, queued:85}`
     - refresh remained active at the same time
+- issue [#22](https://github.com/NeonButrfly/iCloudPlugin/issues/22) is now
+  closure-ready too:
+  - the repo already has a shared canonical label map in
+    `apps/classifier/label_map.py`
+  - canonicalization is already used by:
+    - index-driven LightGBM training
+    - hybrid gating
+    - reviewed example ingestion
+  - live proof on 2026-05-31 AKDT from classifier `/readiness`:
+    - `teacher_reviewed_rows=1032`
+    - `teacher_approved_rows=963`
+    - `teacher_live_agreement_rows=944`
+    - `teacher_approval_rate=0.93314`
+    - `teacher_agreement_rate=0.98027`
+    - `real_ingestion_allowed=true`
 - `clouddrive.neonbutterfly.net` now proxies to `192.168.50.196:8080`
 - `tichuml1` classifier health is OK
 - `tichuml1` classifier containers were recreated from the monorepo compose on
