@@ -264,6 +264,90 @@ def test_run_vault_reconciliation_once_updates_state_to_matching_current_note(
     assert json.loads(stored_state.response_payload_json)["record"]["note_path"] == current_note_reference
 
 
+def test_run_vault_reconciliation_once_normalizes_legacy_hash_note_filename(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from icloud_index_service.services.vault_reconciliation import run_vault_reconciliation_once
+
+    mirror_root = tmp_path / "mirror"
+    live_file = mirror_root / "icloud" / "Budget Draft.pdf"
+    live_file.parent.mkdir(parents=True, exist_ok=True)
+    live_file.write_bytes(b"budget-pdf")
+
+    vault_root = tmp_path / "vault"
+    legacy_note_path = vault_root / "01 Classified" / "financial" / "Budget Draft - financial - abc123def456.md"
+    _write_note(
+        legacy_note_path,
+        canonical_source_path=str(live_file),
+        canonical_source_hash="6f693629f034268150d0c59ec406ba0157e82984145a6267379a91695a7728b5",
+        last_seen_filename="Budget Draft.pdf",
+    )
+    legacy_note_path.write_text(
+        legacy_note_path.read_text(encoding="utf-8").replace(
+            'attachment_mode: "copied-compatibility"\n',
+            'primary_label: "financial"\nattachment_mode: "copied-compatibility"\n',
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    try:
+        file_record = _add_file(
+            session,
+            external_id="file-1",
+            name="Budget Draft.pdf",
+            path="/icloud/Budget Draft.pdf",
+        )
+        session.add(
+            ClassificationState(
+                file_id=file_record.id,
+                submission_status="completed",
+                classifier_note_path="/vault/01 Classified/financial/Budget Draft - financial - abc123def456.md",
+                classifier_manifest_record=json.dumps(
+                    {
+                        "note_path": "/vault/01 Classified/financial/Budget Draft - financial - abc123def456.md",
+                        "canonical_source_path": str(live_file),
+                        "canonical_source_hash": "6f693629f034268150d0c59ec406ba0157e82984145a6267379a91695a7728b5",
+                        "last_seen_filename": "Budget Draft.pdf",
+                    }
+                ),
+                response_payload_json=json.dumps(
+                    {
+                        "record": {
+                            "note_path": "/vault/01 Classified/financial/Budget Draft - financial - abc123def456.md",
+                            "canonical_source_path": str(live_file),
+                            "canonical_source_hash": "6f693629f034268150d0c59ec406ba0157e82984145a6267379a91695a7728b5",
+                            "last_seen_filename": "Budget Draft.pdf",
+                        }
+                    }
+                ),
+            )
+        )
+        session.commit()
+
+        result = run_vault_reconciliation_once(session, limit=10)
+        session.expire_all()
+        stored_state = session.scalar(select(ClassificationState).limit(1))
+    finally:
+        session.close()
+
+    clean_note_path = vault_root / "01 Classified" / "financial" / "Budget Draft - financial.md"
+
+    assert result["repaired"] == 1
+    assert not legacy_note_path.exists()
+    assert clean_note_path.exists()
+    assert stored_state is not None
+    assert stored_state.classifier_note_path == "/vault/01 Classified/financial/Budget Draft - financial.md"
+    assert json.loads(stored_state.classifier_manifest_record)["note_path"] == "/vault/01 Classified/financial/Budget Draft - financial.md"
+    assert json.loads(stored_state.response_payload_json)["record"]["note_path"] == "/vault/01 Classified/financial/Budget Draft - financial.md"
+
+
 def test_run_vault_reconciliation_once_prefers_unsuffixed_matching_note(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

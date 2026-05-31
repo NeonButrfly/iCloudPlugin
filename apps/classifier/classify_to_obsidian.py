@@ -405,6 +405,14 @@ def _note_suffix_rank(name: str) -> tuple[int, int]:
     return (1, int(match.group(1)))
 
 
+def _has_legacy_hash_noise(name: str) -> bool:
+    stem = Path(name).stem.lower()
+    return bool(
+        re.search(r" - [0-9a-f]{8,}$", stem)
+        or re.match(r"^[0-9a-f]{16,}-", stem)
+    )
+
+
 def _extract_wikilink_target(value: str) -> PurePosixPath | None:
     raw_value = str(value or "").strip()
     match = re.fullmatch(r"\[\[([^\]]+)\]\]", raw_value)
@@ -443,7 +451,14 @@ def _existing_generated_note_matches(
                 rank = 2
             if rank is not None:
                 matches.append((rank, note_path, metadata))
-    matches.sort(key=lambda item: (item[0], _note_suffix_rank(item[1].name), str(item[1]).lower()))
+    matches.sort(
+        key=lambda item: (
+            item[0],
+            1 if _has_legacy_hash_noise(item[1].name) else 0,
+            _note_suffix_rank(item[1].name),
+            str(item[1]).lower(),
+        )
+    )
     return matches
 
 

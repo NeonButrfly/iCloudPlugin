@@ -261,6 +261,10 @@ SUDO_PASSWORD=... bash ./deploy/roles/cloudsync/install_storage_host_sync_assets
   - `source_parser`
   - `heuristic_primary_hint`
   - `hybrid_live_source`
+- the same reconciliation path now also normalizes legacy generated note
+  filenames that still expose hash-heavy suffixes or staged-upload hash
+  prefixes, and it updates stored `classifier_note_path` references to the
+  clean human-readable note name as part of the same pass
 - the canonical vault root for that role is now `/srv/cloud-vault/document-vault`
 - the old `/srv/cloud-vault/local-doc-classifier-vault` name is a compatibility
   symlink during the soak period

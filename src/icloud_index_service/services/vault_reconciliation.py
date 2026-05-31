@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from icloud_index_service.models.classification_state import ClassificationState
 from icloud_index_service.models.file import FileRecord
+from packages.vault.naming import build_note_filename
 
 DEFAULT_VAULT_RECONCILIATION_LIMIT = 10
 GENERATED_NOTE_ROOTS = ("01 Classified", "02 Needs Review")
@@ -414,6 +415,14 @@ def _note_suffix_rank(name: str) -> tuple[int, int]:
     return (1, int(match.group(1)))
 
 
+def _has_legacy_hash_noise(name: str) -> bool:
+    stem = Path(name).stem.lower()
+    return bool(
+        re.search(r" - [0-9a-f]{8,}$", stem)
+        or re.match(r"^[0-9a-f]{16,}-", stem)
+    )
+
+
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -453,6 +462,52 @@ def _iter_generated_notes(vault_root: Path) -> list[tuple[Path, dict[str, str]]]
                 continue
             notes.append((note_path.resolve(), metadata))
     return notes
+
+
+def _display_source_name(
+    *,
+    canonical_source_path: str,
+    last_seen_filename: str,
+    fallback_name: str,
+) -> str:
+    for candidate in (last_seen_filename, canonical_source_path, fallback_name):
+        name = Path(str(candidate or "")).name.strip()
+        if name:
+            return name
+    return "document"
+
+
+def _normalize_generated_note_filename(
+    *,
+    note_path: Path,
+    note_text: str,
+    metadata: dict[str, str],
+) -> tuple[Path, bool]:
+    if not _has_legacy_hash_noise(note_path.name):
+        return note_path, False
+
+    expected_parts = _expected_generated_category_parts(note_text, metadata)
+    if not expected_parts:
+        return note_path, False
+
+    visible_name = _display_source_name(
+        canonical_source_path=metadata.get("canonical_source_path", ""),
+        last_seen_filename=metadata.get("last_seen_filename", ""),
+        fallback_name=note_path.name,
+    )
+    sibling_names = {path.name for path in note_path.parent.glob("*.md")}
+    sibling_names.discard(note_path.name)
+    target_name = build_note_filename(
+        title=Path(visible_name).stem,
+        primary_label=" - ".join(expected_parts),
+        existing_names=sibling_names,
+    )
+    target_path = note_path.with_name(target_name)
+    if target_path == note_path:
+        return note_path, False
+
+    note_path.replace(target_path)
+    return target_path.resolve(), True
 
 
 def _load_vault_folder_label_map(folder_label_map_path: Path | None) -> dict[str, dict[str, object]]:
@@ -1036,7 +1091,14 @@ def _find_matching_generated_notes(
             rank = 2
         if rank is not None:
             matches.append((rank, note_path, metadata))
-    matches.sort(key=lambda item: (item[0], _note_suffix_rank(item[1].name), str(item[1]).lower()))
+    matches.sort(
+        key=lambda item: (
+            item[0],
+            1 if _has_legacy_hash_noise(item[1].name) else 0,
+            _note_suffix_rank(item[1].name),
+            str(item[1]).lower(),
+        )
+    )
     return matches
 
 
@@ -1267,6 +1329,22 @@ def run_vault_reconciliation_once(
             continue
 
         active_note_text = active_note_path.read_text(encoding="utf-8", errors="replace")
+        active_note_path, note_name_changed = _normalize_generated_note_filename(
+            note_path=active_note_path,
+            note_text=active_note_text,
+            metadata=active_metadata,
+        )
+        if note_name_changed:
+            state_repaired = True
+            database_changed = True
+            active_note_text = active_note_path.read_text(encoding="utf-8", errors="replace")
+            note_reference = _vault_note_reference(active_note_path, vault_root)
+            if _update_state_note_references(
+                state,
+                note_reference=note_reference,
+                note_metadata=active_metadata,
+            ):
+                database_changed = True
         repaired_note_text, note_link_changed = _repair_note_links(active_note_text, active_metadata)
         if note_link_changed:
             active_note_path.write_text(repaired_note_text, encoding="utf-8")

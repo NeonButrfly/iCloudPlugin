@@ -57,6 +57,9 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - `kayraspi` `/opt/iCloudPlugin` was updated to current `main` and rebuilt
 - the old `New project 2` architecture artifacts were moved into repo docs
 - the repo now has a canonical workspace map and consolidated artifact location
+- the reconciliation path now normalizes legacy hash-heavy generated note
+  filenames back to clean human-readable names and rewrites stored note
+  references accordingly
 
 ## Important Deployment Fixes Already Made
 
@@ -709,36 +712,24 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 
 ## Not Finished Yet
 
-- prove the stronger manual-correction override on more than the single live
-  receipt example
-- verify the new parser-aware heuristic-learning path on multiple real manual
-  corrections so `force_inline_llm_for` picks up at least one meaningful
-  parser-plus-hint pattern from user curation (now proven for
-  `pdf-ocr-tesseract|unknown`; broader coverage still open)
-- the classifier/manual-feedback loop is now live-proven across every current
-  parser family present in the vault:
-  - `pdf-ocr-tesseract|unknown`
-  - `docx-xml|unknown`
-  - `plain-text|unknown`
-  - `spreadsheet-openpyxl|spreadsheet`
-  - `docling|unknown`
-  - `docling-converted|unknown`
-  - `pdftotext|unknown`
 - decide how to backfill richer classifier context for the remaining legacy
   generated notes that still lack `source_parser` / `heuristic_primary_hint` /
   `hybrid_live_source` because their state rows are either still queued or are
-  missing entirely
-- normalize old hash-heavy note filenames
-- retire/archive the old standalone `local-doc-classifier` checkout after safe soak period
+  missing entirely ([#1](https://github.com/NeonButrfly/iCloudPlugin/issues/1))
+- retire/archive the old standalone `local-doc-classifier` checkout after safe
+  soak period ([#1](https://github.com/NeonButrfly/iCloudPlugin/issues/1))
 - optionally move cloudsync Postgres off `kayraspi` later if the compute-only
-  cutover soaks cleanly
-- finish an explicit host-level stop of the current background scan once direct
-  reachability to `kayraspi` or `tichuml1` recovers
+  cutover soaks cleanly ([#1](https://github.com/NeonButrfly/iCloudPlugin/issues/1))
+- keep the Codex final-arbiter path disabled until issue
+  [#20](https://github.com/NeonButrfly/iCloudPlugin/issues/20) is fully
+  implemented and deliberately enabled
 - deploy and validate the new Cloudflare remote MCP slice once Cloudflare
   account auth is available in-session
+  ([#48](https://github.com/NeonButrfly/iCloudPlugin/issues/48))
 - decide whether the Worker itself will sit behind Cloudflare Access, another
   OAuth front door, or a different auth product before calling the external MCP
   path production-ready
+  ([#48](https://github.com/NeonButrfly/iCloudPlugin/issues/48))
 
 ## Recent Commits That Matter
 
