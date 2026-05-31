@@ -129,6 +129,23 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       selected the remote-Postgres compute-only path
     - the planned refresh POST showed a redacted bearer header instead of
       leaking the live token
+- issue [#6](https://github.com/NeonButrfly/iCloudPlugin/issues/6) is also now
+  closure-ready:
+  - `create_icloud_web_client()` already supports
+    `ICLOUD_SOURCE_MODE=filesystem-mirror`
+  - the role-based cloudsync and combined compose files already default to:
+    - `ICLOUD_SOURCE_MODE=filesystem-mirror`
+    - `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors`
+  - mirror-backed traversal and source selection are covered by:
+    - `tests/test_icloud_web_client.py`
+    - `tests/test_health_api.py`
+    - `tests/test_auth_session_manager.py`
+    - `tests/test_classification_submission.py`
+  - live proof on 2026-05-31 AKDT from authenticated `GET /status/summary`:
+    - `auth_status.status=configured`
+    - `provider_counts={icloud:37866, google1:1991, google2:1409}`
+    - refresh is actively crawling while the runtime is in
+      filesystem-mirror mode
 - `clouddrive.neonbutterfly.net` now proxies to `192.168.50.196:8080`
 - `tichuml1` classifier health is OK
 - `tichuml1` classifier containers were recreated from the monorepo compose on

@@ -69,6 +69,24 @@ In this mode:
   batch/frontier behavior
 - content extraction still respects `ICLOUD_MAX_DOWNLOAD_BYTES`
 
+This is now the live cloudsync mode on `tichuml1`:
+
+- `ICLOUD_SOURCE_MODE=filesystem-mirror`
+- `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors`
+- `GET /status/summary` reports `auth_status.status=configured` for the active
+  refresh path without requiring Apple-session bootstrap
+- provider counts come from the aggregate mirror roots:
+  - `icloud`
+  - `google1`
+  - `google2`
+
+Current validation for filesystem-mirror mode includes:
+
+- `tests/test_icloud_web_client.py`
+- `tests/test_health_api.py`
+- `tests/test_auth_session_manager.py`
+- `tests/test_classification_submission.py`
+
 ## Cloud-vault mirror sync
 
 The live storage host uses a host-level `rclone` timer to keep the mirror tree
