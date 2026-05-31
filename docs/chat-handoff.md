@@ -117,6 +117,34 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       bootstrap commands for the recommended self-hosted Access model
     - `.dev.vars.example` documents the local Worker secret shape for
       `wrangler dev`
+  - follow-up issue [#50](https://github.com/NeonButrfly/iCloudPlugin/issues/50)
+    is now implemented, verified live, and closed:
+    - `deploy/roles/cloudsync/report_live_status.sh` prints one unified live
+      status report covering:
+      - service health
+      - refresh progress
+      - classifier health
+      - `classification_jobs` counts
+      - `classification_states` counts
+      - provider counts
+      - vault output counts
+    - the helper was re-proven on `tichuml1` with the current compute-only
+      shape:
+      - remote Postgres on `192.168.50.232`
+      - shared vault mounted at `/mnt/cloud-vault/document-vault`
+      - elevated Docker access via `SUDO_PASSWORD`
+    - live proof on 2026-05-31 AKDT showed:
+      - service health `ok`
+      - refresh status still `running`
+      - classifier health `ok`
+      - provider counts:
+        - `icloud=37866`
+        - `google1=1991`
+        - `google2=1409`
+      - vault counts:
+        - `classified_files=6`
+        - `needs_review_files=5`
+        - `attachments_files=0`
   - this slice was validated locally with Python tests plus Worker TypeScript
     type-check
   - the on-prem origin half of the slice is now deployed live on `tichuml1`

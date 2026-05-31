@@ -35,6 +35,7 @@ Related host-level sync assets:
 
 - `deploy/roles/cloudsync/cloud-vault-sync.sh`
 - `deploy/roles/cloudsync/run_targeted_classification_batch.sh`
+- `deploy/roles/cloudsync/report_live_status.sh`
 - `deploy/roles/cloudsync/cloud-vault-sync.service`
 - `deploy/roles/cloudsync/cloud-vault-sync.timer`
 
@@ -88,6 +89,28 @@ The script is intentionally resilient:
 For bounded classifier backfill work on the sync host, use:
 
 - `deploy/roles/cloudsync/run_targeted_classification_batch.sh`
+
+For one unified operator status read on the compute host, use:
+
+- `deploy/roles/cloudsync/report_live_status.sh`
+
+That helper prints one JSON report covering:
+
+- cloudsync `/health`
+- cloudsync `/refresh/status`
+- classifier `/health`
+- `classification_jobs` counts
+- `classification_states` counts
+- indexed provider counts by top-level mirror root
+- generated note / attachment / extracted-markdown counts in the shared vault
+
+It supports the current compute-only cutover with remote Postgres by using the
+same direct `postgres:16` client fallback as the targeted batch helper.
+
+If the host account is not in the Docker group, the helper can also use:
+
+- passwordless `sudo`, or
+- `SUDO_PASSWORD=...` for a one-shot elevated run
 
 That helper can:
 

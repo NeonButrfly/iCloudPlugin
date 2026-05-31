@@ -301,6 +301,34 @@ while shifting the expensive API and refresh worker load onto `tichuml1`.
     configured remote Postgres through a disposable `postgres:16` client
     container instead of requiring a local compose `postgres` service
 
+- for one unified live operator status read on the compute host, use:
+
+```bash
+  cd /opt/iCloudPlugin
+  ENV_FILE=/opt/iCloudPlugin/deploy/roles/cloudsync/.env.live \
+  CLASSIFIER_ENV_FILE=/opt/iCloudPlugin/deploy/roles/classifier/.env.live \
+  bash ./deploy/roles/cloudsync/report_live_status.sh \
+    --summary-json /tmp/cloud-vault-live-status.json
+```
+
+  - the helper prints one JSON report covering:
+    - service `/health`
+    - `/refresh/status`
+    - classifier `/health`
+    - `classification_jobs` counts
+    - `classification_states` counts
+    - indexed provider counts by top-level mirror root
+    - shared vault output counts for:
+      - `01 Classified`
+      - `02 Needs Review`
+      - `90 Attachments`
+      - `_system/extracted-markdown`
+  - like the targeted batch helper, it supports the compute-only cutover where
+    the cloudsync host uses remote Postgres instead of a local compose
+    `postgres` service
+  - if Docker requires elevation on the host, run it with either passwordless
+    `sudo` or `SUDO_PASSWORD=...` for a one-shot elevated report
+
 - if a bounded run is interrupted, or a long file is intentionally stopped
   mid-pass, recover stale `running` jobs before the next batch:
 

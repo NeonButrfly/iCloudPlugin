@@ -19,6 +19,7 @@ def test_cloudsync_role_sync_assets_exist():
     expected = [
         repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh",
         repo_root / "deploy" / "roles" / "cloudsync" / "run_targeted_classification_batch.sh",
+        repo_root / "deploy" / "roles" / "cloudsync" / "report_live_status.sh",
         repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.service",
         repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.timer",
     ]
@@ -85,13 +86,41 @@ def test_cloudsync_targeted_batch_helper_restores_queue_state():
     assert 'timeout "${WORKER_TIMEOUT_SECONDS}s" "${worker_command[@]}"' in script_text
 
 
+def test_cloudsync_live_status_helper_covers_compute_only_status_surfaces():
+    repo_root = Path(__file__).resolve().parents[1]
+    helper_script = (
+        repo_root / "deploy" / "roles" / "cloudsync" / "report_live_status.sh"
+    )
+    script_text = helper_script.read_text(encoding="utf-8")
+
+    assert 'ENV_FILE="${ENV_FILE:-${REPO_ROOT}/deploy/roles/cloudsync/.env.live}"' in script_text
+    assert 'CLASSIFIER_ENV_FILE="${CLASSIFIER_ENV_FILE:-${REPO_ROOT}/deploy/roles/classifier/.env.live}"' in script_text
+    assert 'POSTGRES_HOST="${POSTGRES_HOST:-postgres}"' in script_text
+    assert 'SUDO_PASSWORD="${SUDO_PASSWORD:-}"' in script_text
+    assert "docker_command()" in script_text
+    assert 'printf \'%s\\n\' "${SUDO_PASSWORD}" | sudo -S docker "$@"' in script_text
+    assert "postgres_service_running()" in script_text
+    assert 'docker_command run --rm \\' in script_text
+    assert 'postgres:16 \\' in script_text
+    assert 'capture_service_json "/health"' in script_text
+    assert 'capture_service_json "/refresh/status"' in script_text
+    assert 'CLASSIFIER_HEALTH_JSON="$(capture_http_json "${CLASSIFIER_HEALTH_URL}" -H "X-API-Key: ${CLASSIFIER_API_TOKEN}")"' in script_text
+    assert "classification_job_counts_sql()" in script_text
+    assert "classification_state_counts_sql()" in script_text
+    assert "provider_counts_sql()" in script_text
+    assert "collect_vault_counts_json()" in script_text
+    assert "Wrote summary JSON" in script_text
+
+
 def test_cloudsync_docs_reference_targeted_batch_helper():
     repo_root = Path(__file__).resolve().parents[1]
     role_readme = repo_root / "deploy" / "roles" / "cloudsync" / "README.md"
     operations_doc = repo_root / "docs" / "operations.md"
 
     assert "run_targeted_classification_batch.sh" in role_readme.read_text(encoding="utf-8")
+    assert "report_live_status.sh" in role_readme.read_text(encoding="utf-8")
     assert "run_targeted_classification_batch.sh" in operations_doc.read_text(encoding="utf-8")
+    assert "report_live_status.sh" in operations_doc.read_text(encoding="utf-8")
 
 
 def test_role_compose_files_exist_for_cloudsync_classifier_and_combined():
