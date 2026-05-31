@@ -1,6 +1,14 @@
 import json
 from pathlib import Path
 
+import anyio
+
+from icloud_plugin_mcp.server import mcp
+
+
+async def _list_local_bridge_tools():
+    return await mcp.list_tools()
+
 
 def test_remote_mcp_chatgpt_app_submission_matches_current_tool_surface():
     repo_root = Path(__file__).resolve().parents[1]
@@ -45,3 +53,31 @@ def test_remote_mcp_chatgpt_app_submission_matches_current_tool_surface():
 
     assert len(payload["test_cases"]) >= 5
     assert len(payload["negative_test_cases"]) >= 3
+
+
+def test_chatgpt_app_submission_matches_local_bridge_tool_surface():
+    repo_root = Path(__file__).resolve().parents[1]
+    submission_path = (
+        repo_root / "cloudflare" / "remote-mcp" / "chatgpt-app-submission.json"
+    )
+    payload = json.loads(submission_path.read_text(encoding="utf-8"))
+
+    local_tools = anyio.run(_list_local_bridge_tools)
+    local_tools_by_name = {tool.name: tool for tool in local_tools}
+    submission_tools = payload["tools"]
+
+    assert set(local_tools_by_name) == set(submission_tools)
+
+    for tool_name, expected_metadata in submission_tools.items():
+        tool = local_tools_by_name[tool_name]
+        assert tool.outputSchema is not None
+        assert tool.annotations is not None
+        assert tool.annotations.readOnlyHint == expected_metadata["annotations"][
+            "readOnlyHint"
+        ]
+        assert tool.annotations.openWorldHint == expected_metadata["annotations"][
+            "openWorldHint"
+        ]
+        assert tool.annotations.destructiveHint == expected_metadata["annotations"][
+            "destructiveHint"
+        ]

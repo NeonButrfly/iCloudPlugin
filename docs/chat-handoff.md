@@ -317,6 +317,9 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
         hand-maintained
       - `submission:verify` now also checks the generated metadata against the
         actual Worker-exposed tool surface, not just the checked-in JSON file
+      - repo-side Python tests now also compare the same submission artifact
+        against the local FastMCP bridge, so the shared tool contract is
+        enforced on both MCP surfaces
       - direct `GET /mcp` now returns `405 Allow: POST, DELETE` so
         streamable-http clients do not hang on a standalone SSE path
     - `print-access-bootstrap.mjs` emits ready-to-run Cloudflare Access

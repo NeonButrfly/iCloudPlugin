@@ -1092,6 +1092,9 @@ Recommended deployment shape:
   - `submission:verify` now also checks the generated metadata against the
     actual exposed Worker tool surface, including annotations and
     `outputSchema`
+- repo-side Python tests now also check the same submission artifact against
+  the actual repo-local FastMCP bridge so the shared tool contract is enforced
+  on both MCP surfaces
 
 At the end of the current slice, the repo contains the Worker scaffold and
 validated local type-check.
