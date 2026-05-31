@@ -84,6 +84,7 @@ the Worker itself.
 
 ```bash
 npm install
+npm test
 npm run type-check
 npm run dev
 ```

@@ -117,6 +117,13 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       bootstrap commands for the recommended self-hosted Access model
     - `.dev.vars.example` documents the local Worker secret shape for
       `wrangler dev`
+  - the Worker now also has local Vitest coverage for:
+    - worker-token auth gating
+    - `/healthz` and `/` health responses
+    - origin bearer-auth propagation
+    - download proxying
+    - worker download URL enrichment
+    - digest-compare fallback when `crypto.subtle.timingSafeEqual` is absent
   - follow-up issue [#50](https://github.com/NeonButrfly/iCloudPlugin/issues/50)
     is now implemented, verified live, and closed:
     - `deploy/roles/cloudsync/report_live_status.sh` prints one unified live

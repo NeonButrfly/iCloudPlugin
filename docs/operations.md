@@ -840,6 +840,20 @@ Recommended deployment shape:
 At the end of the current slice, the repo contains the Worker scaffold and
 validated local type-check.
 
+The Worker now also has local behavior tests:
+
+- `cd cloudflare/remote-mcp && npm test`
+
+These cover:
+
+- worker-token auth gating
+- `/healthz` and `/` health responses
+- origin bearer-auth propagation
+- download proxying
+- worker download URL enrichment
+- digest-compare fallback when the runtime does not expose
+  `crypto.subtle.timingSafeEqual`
+
 As of 2026-05-31 AKDT, the on-prem origin half of issue #48 is also deployed
 live on `tichuml1`:
 

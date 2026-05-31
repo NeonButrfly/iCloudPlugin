@@ -9,6 +9,7 @@
     "deploy:verify": "node ./scripts/deploy-and-verify.mjs",
     "dev": "wrangler dev",
     "start": "wrangler dev",
+    "test": "vitest run",
     "type-check": "node ./node_modules/typescript/lib/tsc.js --noEmit"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260523.0",
     "typescript": "^5.9.3",
+    "vitest": "^3.2.4",
     "wrangler": "^4.79.0"
   }
 }
