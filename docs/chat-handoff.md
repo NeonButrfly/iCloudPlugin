@@ -234,6 +234,8 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `classification_states` counts
     - provider counts
     - generated vault output counts
+    - generated-note classifier-context gap counts for legacy notes that still
+      lack `source_parser` / `heuristic_primary_hint` / `hybrid_live_source`
   - the storage-host sync script now writes one machine-readable status
     artifact per run at:
     - `/srv/cloud-vault/logs/cloud-vault-sync-status.json`

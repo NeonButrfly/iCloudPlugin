@@ -165,8 +165,13 @@ def test_cloudsync_live_status_helper_covers_compute_only_status_surfaces():
     assert 'CLASSIFIER_HEALTH_JSON="$(capture_http_json "${CLASSIFIER_HEALTH_URL}" -H "X-API-Key: ${CLASSIFIER_API_TOKEN}")"' in script_text
     assert "classification_job_counts_sql()" in script_text
     assert "classification_state_counts_sql()" in script_text
+    assert "classification_state_status_by_path_sql()" in script_text
     assert "provider_counts_sql()" in script_text
     assert "collect_vault_counts_json()" in script_text
+    assert "collect_generated_note_context_json()" in script_text
+    assert 'MIRROR_ROOT="${MIRROR_ROOT:-${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}/mirrors}"' in script_text
+    assert "--mirror-root" in script_text
+    assert '"generated_note_context_gaps": parse_json_env("GENERATED_NOTE_CONTEXT_JSON")' in script_text
     assert 'CLOUD_VAULT_SYNC_STATUS_PATH="${CLOUD_VAULT_SYNC_STATUS_PATH:-/mnt/cloud-vault/logs/cloud-vault-sync-status.json}"' in script_text
     assert "collect_sync_status_json()" in script_text
     assert '"cloud_vault_sync": parse_json_env("CLOUD_VAULT_SYNC_STATUS_JSON")' in script_text

@@ -34,4 +34,5 @@ endpoint instead of stitching separate note/source lookups client-side.
 
 The live-status tool uses the backing service's `/status/summary` endpoint so
 external callers can inspect refresh progress, classifier readiness, queue
-counts, provider counts, and vault output counts without shell access.
+counts, provider counts, vault output counts, and generated-note
+classifier-context gap counts without shell access.

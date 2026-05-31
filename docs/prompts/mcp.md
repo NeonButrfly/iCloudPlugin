@@ -66,6 +66,8 @@
     - classification queue and state counts
     - provider counts
     - generated vault output counts
+    - generated-note classifier-context gap counts for legacy notes that still
+      lack `source_parser`, `heuristic_primary_hint`, or `hybrid_live_source`
 - Follow-up implementation slice:
   - make the Cloudflare deploy helper push Worker secrets directly when auth is
     available, instead of requiring manual `wrangler secret put` steps first

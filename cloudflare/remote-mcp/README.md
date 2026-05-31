@@ -35,6 +35,11 @@ The live-status tool now comes from the origin service's `/status/summary`
 endpoint, so external MCP callers can fetch one consolidated cloud-vault
 status snapshot without SSH or several stitched probes.
 
+That status snapshot now also includes generated-note classifier-context gap
+counts, so external operators can see how many legacy notes still lack
+`source_parser`, `heuristic_primary_hint`, or `hybrid_live_source` and whether
+those gaps still line up with completed, queued, or missing backend state rows.
+
 ## Required origin configuration
 
 The Worker expects the on-prem service to expose the plugin-facing API with a

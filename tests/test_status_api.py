@@ -116,14 +116,49 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
     session_factory = _build_session_factory(tmp_path)
     _seed_status_data(session_factory)
 
+    mirror_root = tmp_path / "mirrors"
+    matched_source = mirror_root / "google1" / "Appeal.docx"
+    matched_source.parent.mkdir(parents=True, exist_ok=True)
+    matched_source.write_text("Appeal body", encoding="utf-8")
+    unmatched_source = mirror_root / "icloud" / "Legacy.txt"
+    unmatched_source.parent.mkdir(parents=True, exist_ok=True)
+    unmatched_source.write_text("Legacy body", encoding="utf-8")
+
     vault_root = tmp_path / "document-vault"
     (vault_root / "01 Classified" / "medical").mkdir(parents=True)
     (vault_root / "01 Classified" / "medical" / "Appeal - medical.md").write_text(
-        "note",
+        "\n".join(
+            [
+                "---",
+                'type: "classified-document"',
+                f'canonical_source_path: {json.dumps(str(matched_source))}',
+                'canonical_source_hash: "abc123"',
+                'last_seen_filename: "Appeal.docx"',
+                "---",
+                "",
+                "# Appeal",
+            ]
+        )
+        + "\n",
         encoding="utf-8",
     )
     (vault_root / "02 Needs Review").mkdir(parents=True)
-    (vault_root / "02 Needs Review" / "Receipt - review.md").write_text("note", encoding="utf-8")
+    (vault_root / "02 Needs Review" / "Receipt - review.md").write_text(
+        "\n".join(
+            [
+                "---",
+                'type: "classified-document"',
+                f'canonical_source_path: {json.dumps(str(unmatched_source))}',
+                'canonical_source_hash: "def456"',
+                'last_seen_filename: "Legacy.txt"',
+                "---",
+                "",
+                "# Legacy",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     (vault_root / "_system" / "extracted-markdown").mkdir(parents=True)
     (vault_root / "_system" / "extracted-markdown" / "Appeal.md").write_text(
         "body",
@@ -166,6 +201,7 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
             session.close()
 
     monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
     monkeypatch.setenv("CLOUD_VAULT_SYNC_STATUS_PATH", str(sync_status_path))
     monkeypatch.setenv("PLUGIN_API_TOKEN", "secret-token")
     monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
@@ -219,6 +255,21 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
         "extracted_markdown_files": 1,
         "classification_index_present": False,
         "home_note_present": True,
+    }
+    assert payload["generated_note_context_gaps"] == {
+        "vault_root": str(vault_root.resolve()),
+        "mirror_root": str(mirror_root.resolve()),
+        "total_generated_notes": 2,
+        "notes_missing_any_context": 2,
+        "notes_missing_source_parser": 2,
+        "notes_missing_heuristic_primary_hint": 2,
+        "notes_missing_hybrid_live_source": 2,
+        "missing_context_with_matching_completed_state": 0,
+        "missing_context_with_matching_queued_state": 1,
+        "missing_context_with_matching_other_state": 0,
+        "missing_context_without_matching_state": 1,
+        "missing_context_source_file_present": 2,
+        "missing_context_source_file_missing": 0,
     }
     assert payload["cloud_vault_sync"] == {
         "status_file": str(sync_status_path.resolve()),

@@ -16,6 +16,7 @@ POSTGRES_DB="${POSTGRES_DB:-icloud_index}"
 SERVICE_URL="${SERVICE_URL:-}"
 CLASSIFIER_HEALTH_URL="${CLASSIFIER_HEALTH_URL:-}"
 VAULT_ROOT="${VAULT_ROOT:-/mnt/cloud-vault/document-vault}"
+MIRROR_ROOT="${MIRROR_ROOT:-}"
 CLOUD_VAULT_SYNC_STATUS_PATH="${CLOUD_VAULT_SYNC_STATUS_PATH:-/mnt/cloud-vault/logs/cloud-vault-sync-status.json}"
 SUMMARY_JSON_PATH="${SUMMARY_JSON_PATH:-}"
 JSON_PYTHON="${JSON_PYTHON:-python3}"
@@ -28,8 +29,10 @@ REFRESH_STATUS_JSON='{}'
 CLASSIFIER_HEALTH_JSON='{}'
 CLASSIFICATION_JOB_COUNTS_JSON='{}'
 CLASSIFICATION_STATE_COUNTS_JSON='{}'
+CLASSIFICATION_STATE_PATH_STATUS_JSON='[]'
 PROVIDER_COUNTS_JSON='{}'
 VAULT_COUNTS_JSON='{}'
+GENERATED_NOTE_CONTEXT_JSON='{}'
 CLOUD_VAULT_SYNC_STATUS_JSON='{}'
 
 usage() {
@@ -43,6 +46,7 @@ Options:
   --service-url URL          Override the cloudsync service base URL.
   --classifier-health-url URL Override the classifier health URL.
   --vault-root PATH          Override the vault root used for note counts.
+  --mirror-root PATH         Override the mirror root used for generated-note context checks.
   --help                     Show this help text.
 
 Environment:
@@ -285,6 +289,182 @@ from (
 EOF
 }
 
+classification_state_status_by_path_sql() {
+  cat <<'EOF'
+select coalesce(
+  json_agg(
+    json_build_object(
+      'path', f.path,
+      'submission_status', cs.submission_status
+    )
+    order by f.path, cs.id
+  ),
+  '[]'::json
+)
+from classification_states cs
+join files f on f.id = cs.file_id;
+EOF
+}
+
+collect_generated_note_context_json() {
+  "${JSON_PYTHON}" - <<PY
+import json
+import os
+from collections import defaultdict
+from pathlib import Path, PurePosixPath
+
+vault_root = Path(${VAULT_ROOT@Q}).resolve()
+mirror_root = Path(${MIRROR_ROOT@Q}).resolve()
+state_rows = json.loads(${CLASSIFICATION_STATE_PATH_STATUS_JSON@Q} or "[]")
+
+statuses_by_path = defaultdict(list)
+if isinstance(state_rows, list):
+    for row in state_rows:
+        if not isinstance(row, dict):
+            continue
+        path = str(row.get("path", "")).strip()
+        status = str(row.get("submission_status", "")).strip()
+        if path and status:
+            statuses_by_path[path].append(status)
+
+def iter_generated_notes():
+    for root_name in ("01 Classified", "02 Needs Review"):
+        note_root = vault_root / root_name
+        if not note_root.exists():
+            continue
+        for note_path in note_root.rglob("*.md"):
+            try:
+                text = note_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            lines = text.splitlines()
+            if not lines or lines[0].strip() != "---":
+                continue
+            end_index = None
+            for index in range(1, len(lines)):
+                if lines[index].strip() == "---":
+                    end_index = index
+                    break
+            if end_index is None:
+                continue
+            metadata = {}
+            for line in lines[1:end_index]:
+                if ":" not in line:
+                    continue
+                key, raw_value = line.split(":", 1)
+                key = key.strip()
+                raw_value = raw_value.strip()
+                try:
+                    parsed = json.loads(raw_value)
+                except json.JSONDecodeError:
+                    parsed = raw_value.strip("'\"")
+                if isinstance(parsed, str):
+                    metadata[key] = parsed
+            if metadata.get("type") != "classified-document":
+                continue
+            yield note_path, metadata
+
+def candidate_roots():
+    values = []
+    for raw in (
+        os.environ.get("ICLOUD_MIRROR_ROOT", ""),
+        str(mirror_root),
+        "/srv/cloud-vault/mirrors",
+        "/mnt/cloud-vault/mirrors",
+    ):
+        cleaned = str(raw).strip().replace("\\\\", "/").rstrip("/")
+        if not cleaned:
+            continue
+        path = PurePosixPath(cleaned)
+        if path not in values:
+            values.append(path)
+    return values
+
+def canonical_to_file_path(value: str) -> str:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return ""
+    try:
+        relative_path = Path(cleaned).resolve().relative_to(mirror_root.resolve())
+    except Exception:
+        normalized = cleaned.replace("\\\\", "/")
+        source_posix = PurePosixPath(normalized)
+        for root in candidate_roots():
+            try:
+                relative_posix = source_posix.relative_to(root)
+            except ValueError:
+                continue
+            parts = [part for part in relative_posix.parts if part]
+            if parts:
+                return "/" + "/".join(parts)
+        return ""
+    parts = [part for part in relative_path.parts if part]
+    return "/" + "/".join(parts) if parts else ""
+
+def source_exists(value: str) -> bool:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return False
+    candidate = Path(cleaned)
+    if candidate.exists() and candidate.is_file():
+        return True
+    file_path = canonical_to_file_path(cleaned)
+    if not file_path:
+        return False
+    candidate = (mirror_root / file_path.lstrip("/")).resolve()
+    return candidate.exists() and candidate.is_file()
+
+summary = {
+    "vault_root": str(vault_root),
+    "mirror_root": str(mirror_root),
+    "total_generated_notes": 0,
+    "notes_missing_any_context": 0,
+    "notes_missing_source_parser": 0,
+    "notes_missing_heuristic_primary_hint": 0,
+    "notes_missing_hybrid_live_source": 0,
+    "missing_context_with_matching_completed_state": 0,
+    "missing_context_with_matching_queued_state": 0,
+    "missing_context_with_matching_other_state": 0,
+    "missing_context_without_matching_state": 0,
+    "missing_context_source_file_present": 0,
+    "missing_context_source_file_missing": 0,
+}
+
+if vault_root.exists() and vault_root.is_dir():
+    for _, metadata in iter_generated_notes():
+        summary["total_generated_notes"] += 1
+        missing_parser = not str(metadata.get("source_parser", "")).strip()
+        missing_heuristic = not str(metadata.get("heuristic_primary_hint", "")).strip()
+        missing_live_source = not str(metadata.get("hybrid_live_source", "")).strip()
+        if not (missing_parser or missing_heuristic or missing_live_source):
+            continue
+        summary["notes_missing_any_context"] += 1
+        if missing_parser:
+            summary["notes_missing_source_parser"] += 1
+        if missing_heuristic:
+            summary["notes_missing_heuristic_primary_hint"] += 1
+        if missing_live_source:
+            summary["notes_missing_hybrid_live_source"] += 1
+        canonical_source_path = str(metadata.get("canonical_source_path", "")).strip()
+        if source_exists(canonical_source_path):
+            summary["missing_context_source_file_present"] += 1
+        else:
+            summary["missing_context_source_file_missing"] += 1
+        file_path = canonical_to_file_path(canonical_source_path)
+        matching_statuses = statuses_by_path.get(file_path, [])
+        if any(status == "completed" for status in matching_statuses):
+            summary["missing_context_with_matching_completed_state"] += 1
+        elif any(status == "queued" for status in matching_statuses):
+            summary["missing_context_with_matching_queued_state"] += 1
+        elif matching_statuses:
+            summary["missing_context_with_matching_other_state"] += 1
+        else:
+            summary["missing_context_without_matching_state"] += 1
+
+print(json.dumps(summary))
+PY
+}
+
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -302,6 +482,10 @@ parse_args() {
         ;;
       --vault-root)
         VAULT_ROOT="$2"
+        shift 2
+        ;;
+      --mirror-root)
+        MIRROR_ROOT="$2"
         shift 2
         ;;
       --help)
@@ -327,6 +511,7 @@ main() {
 
   SERVICE_URL="${SERVICE_URL:-http://127.0.0.1:${SERVICE_PORT:-8080}}"
   CLASSIFIER_HEALTH_URL="${CLASSIFIER_HEALTH_URL:-${CLASSIFIER_API_URL:-http://127.0.0.1:4319}/health}"
+  MIRROR_ROOT="${MIRROR_ROOT:-${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}/mirrors}"
 
   SERVICE_HEALTH_JSON="$(capture_service_json "/health")"
   REFRESH_STATUS_JSON="$(capture_service_json "/refresh/status")"
@@ -343,14 +528,16 @@ PY
 
   CLASSIFICATION_JOB_COUNTS_JSON="$(capture_db_json "$(classification_job_counts_sql)")"
   CLASSIFICATION_STATE_COUNTS_JSON="$(capture_db_json "$(classification_state_counts_sql)")"
+  CLASSIFICATION_STATE_PATH_STATUS_JSON="$(capture_db_json "$(classification_state_status_by_path_sql)")"
   PROVIDER_COUNTS_JSON="$(capture_db_json "$(provider_counts_sql)")"
   VAULT_COUNTS_JSON="$(collect_vault_counts_json)"
+  GENERATED_NOTE_CONTEXT_JSON="$(collect_generated_note_context_json)"
   CLOUD_VAULT_SYNC_STATUS_JSON="$(collect_sync_status_json)"
 
-  export SERVICE_URL CLASSIFIER_HEALTH_URL VAULT_ROOT SUMMARY_JSON_PATH
+  export SERVICE_URL CLASSIFIER_HEALTH_URL VAULT_ROOT MIRROR_ROOT SUMMARY_JSON_PATH
   export SERVICE_HEALTH_JSON REFRESH_STATUS_JSON CLASSIFIER_HEALTH_JSON
   export CLASSIFICATION_JOB_COUNTS_JSON CLASSIFICATION_STATE_COUNTS_JSON
-  export PROVIDER_COUNTS_JSON VAULT_COUNTS_JSON CLOUD_VAULT_SYNC_STATUS_JSON
+  export PROVIDER_COUNTS_JSON VAULT_COUNTS_JSON GENERATED_NOTE_CONTEXT_JSON CLOUD_VAULT_SYNC_STATUS_JSON
 
   "${JSON_PYTHON}" - <<'PY'
 import json
@@ -380,6 +567,7 @@ summary = {
     "classification_state_counts": parse_json_env("CLASSIFICATION_STATE_COUNTS_JSON"),
     "provider_counts": parse_json_env("PROVIDER_COUNTS_JSON"),
     "vault_counts": parse_json_env("VAULT_COUNTS_JSON"),
+    "generated_note_context_gaps": parse_json_env("GENERATED_NOTE_CONTEXT_JSON"),
     "cloud_vault_sync": parse_json_env("CLOUD_VAULT_SYNC_STATUS_JSON"),
 }
 

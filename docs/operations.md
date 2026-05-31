@@ -968,6 +968,10 @@ plugin-authenticated snapshot covering:
 - `classification_states` counts
 - provider counts
 - generated vault output counts
+- generated-note classifier-context gap counts, including how many legacy notes
+  are still missing `source_parser` / `heuristic_primary_hint` /
+  `hybrid_live_source` and whether they still line up with completed, queued,
+  or missing backend state rows
 
 The service role now also receives `CLASSIFIER_API_URL` and
 `CLASSIFIER_API_TOKEN` so `GET /status/summary` can report live classifier
