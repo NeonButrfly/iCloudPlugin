@@ -853,6 +853,13 @@ Recommended deployment shape:
   - optional Worker secret sync from shell env or `.dev.vars`-style files
   - `wrangler deploy --keep-vars`
   - post-deploy `/healthz` verification
+- `cloudflare/remote-mcp/scripts/verify-mcp-tools.mjs` is now the canonical
+  smoke verifier for the remote MCP route itself:
+  - optional `/healthz` preflight when a public base URL is available
+  - live `tools/list` verification over Streamable HTTP
+  - a real probe-tool call, defaulting to `get_icloud_system_status`
+  - nonzero exit when the expected tool surface is missing or the probe call
+    errors
 - `cloudflare/remote-mcp/scripts/print-access-bootstrap.mjs` now emits
   ready-to-run Cloudflare Access bootstrap commands for the recommended
   self-hosted Access application model, including the documented optional

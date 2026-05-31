@@ -70,3 +70,10 @@
     available, instead of requiring manual `wrangler secret put` steps first
   - support secret loading from shell env or a local `.dev.vars`-style file so
     the same local dev secret source can drive real deploys
+- Follow-up implementation slice:
+  - add a real remote-MCP smoke verifier that:
+    - connects to the deployed `/mcp` route over Streamable HTTP
+    - lists tools and confirms the expected external tool surface exists
+    - calls one live probe tool, defaulting to `get_icloud_system_status`
+  - keep this separate from `/healthz` so operators can verify actual MCP
+    usability instead of only Worker reachability

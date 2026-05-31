@@ -130,6 +130,9 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       on remembered Wrangler flags
       - it can now also push Worker secrets from shell env or a local
         `.dev.vars`-style file before deploy
+    - `verify-mcp-tools.mjs` now smoke-tests the remote `/mcp` route itself by
+      connecting over Streamable HTTP, listing tools, and calling one probe
+      tool instead of stopping at `/healthz`
     - `print-access-bootstrap.mjs` emits ready-to-run Cloudflare Access
       bootstrap commands for the recommended self-hosted Access model
     - `.dev.vars.example` documents the local Worker secret shape for

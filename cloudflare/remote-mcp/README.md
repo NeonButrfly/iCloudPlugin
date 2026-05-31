@@ -119,6 +119,40 @@ Deploy with Wrangler and verify `/healthz` afterward:
 npm run deploy:verify
 ```
 
+Verify the deployed `/mcp` route like a real MCP client by listing tools and
+calling one probe tool:
+
+```bash
+npm run mcp:verify -- --base-url https://<worker>.<account>.workers.dev --json
+```
+
+If the Worker uses `WORKER_API_TOKEN`, either set it in the shell first or pass
+it directly:
+
+```bash
+node scripts/verify-mcp-tools.mjs \
+  --base-url https://<worker>.<account>.workers.dev \
+  --token "$WORKER_API_TOKEN" \
+  --json
+```
+
+By default the verifier:
+
+- fetches `/healthz` first when a public base URL is available
+- connects to `/mcp` over Streamable HTTP
+- lists tools and confirms the expected tool surface exists
+- calls `get_icloud_system_status` as the probe tool
+
+You can override the probe tool and arguments when you want a deeper smoke run:
+
+```bash
+node scripts/verify-mcp-tools.mjs \
+  --mcp-url https://<worker>.<account>.workers.dev/mcp \
+  --probe-tool search_icloud_files \
+  --probe-args '{"query":"appeal","limit":1}' \
+  --json
+```
+
 This helper expects:
 
 - `ORIGIN_BASE_URL` and `ORIGIN_API_TOKEN`, either:
