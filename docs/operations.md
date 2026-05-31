@@ -868,11 +868,23 @@ Recommended deployment shape:
     errors
   - optional custom auth headers for front doors such as Cloudflare Access
     service-token flows
+- `cloudflare/remote-mcp/scripts/dev-and-verify.mjs` is now the canonical
+  local deploy-shaped verifier when Cloudflare account auth is unavailable:
+  - starts `wrangler dev` with a temporary env file derived from shell env and
+    optional `.dev.vars`-style secrets input
+  - waits for `/healthz`
+  - verifies `/mcp` through the same Streamable HTTP MCP client used by the
+    hosted smoke flow
+  - enforces a bounded MCP verification timeout so hangs fail fast
+  - cleans up the local `workerd` process tree on Windows after the run
 - Local Worker verification now also has a true end-to-end test path:
   - `cloudflare/remote-mcp/tests/mcp-e2e.test.ts`
   - it connects a real MCP client to the Worker route, runs `tools/list`,
     calls `get_icloud_system_status`, and verifies Worker download URL
     rewriting in bundled search results
+  - direct `GET /mcp` now returns `405 Allow: POST, DELETE` so streamable-http
+    clients can fall through cleanly instead of hanging on a standalone SSE
+    path
 - `cloudflare/remote-mcp/scripts/print-access-bootstrap.mjs` now emits
   ready-to-run Cloudflare Access bootstrap commands for the recommended
   self-hosted Access application model, including the documented optional
@@ -944,6 +956,14 @@ node scripts/deploy-and-verify.mjs --sync-secrets --secrets-file .dev.vars
 That flow pushes `ORIGIN_BASE_URL`, `ORIGIN_API_TOKEN`, and optional
 `WORKER_API_TOKEN` into Worker secrets before the deploy, instead of requiring
 separate manual `wrangler secret put` steps.
+
+When Cloudflare auth is still unavailable, the preferred local verification
+path is now:
+
+```bash
+cd cloudflare/remote-mcp
+node scripts/dev-and-verify.mjs --secrets-file .dev.vars --json
+```
 
 ## Degraded mode
 

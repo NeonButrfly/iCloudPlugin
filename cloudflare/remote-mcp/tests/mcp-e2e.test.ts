@@ -199,4 +199,23 @@ describe("remote MCP worker end-to-end", () => {
     expect(bundleRequest).toBeDefined();
     expect(bundleRequest?.headers.get("Authorization")).toBe("Bearer origin-secret");
   });
+
+  it("returns 405 on direct GET /mcp so streamable-http clients can fall through cleanly", async () => {
+    installFetchMock();
+
+    const response = await worker.fetch(
+      new Request(`${workerBaseUrl}/mcp`, {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer worker-secret",
+        },
+      }),
+      baseEnv,
+      createExecutionContext(),
+    );
+
+    expect(response.status).toBe(405);
+    expect(response.headers.get("Allow")).toBe("POST, DELETE");
+    await expect(response.text()).resolves.toBe("Method Not Allowed");
+  });
 });

@@ -89,3 +89,15 @@
     SDK Web Standard transport
   - use that slimmer handler to enable a real local end-to-end MCP test path in
     plain Node/Vitest while keeping the Cloudflare Worker shape intact
+- Follow-up implementation slice:
+  - add a deploy-shaped local Worker verifier for the pre-auth gap:
+    - `cloudflare/remote-mcp/scripts/dev-and-verify.mjs`
+  - it should:
+    - start `wrangler dev` with temporary env-file wiring
+    - wait for `/healthz`
+    - verify `/mcp` with the real Streamable HTTP MCP smoke client
+    - fail fast if the MCP probe hangs
+    - clean up local Windows `workerd` processes when done
+  - direct `GET /mcp` should return `405 Allow: POST, DELETE` so
+    streamable-http clients can fall through cleanly instead of hanging on a
+    standalone SSE path

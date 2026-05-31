@@ -11,6 +11,8 @@ const WORKER_ROOT = path.resolve(import.meta.dirname, "..");
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 8788;
 const DEFAULT_STARTUP_TIMEOUT_MS = 30000;
+const DEFAULT_VERIFY_TIMEOUT_MS = 30000;
+const WRANGLER_BIN = path.resolve(WORKER_ROOT, "node_modules", "wrangler", "bin", "wrangler.js");
 
 function printHelp() {
   console.log(`Usage: node scripts/dev-and-verify.mjs [options]
@@ -24,6 +26,7 @@ Options:
   --secrets-file <path>     Load Worker env values from a .env-style file before launch
   --verify-header <h>       Extra header for the MCP verifier, repeatable (name:value)
   --startup-timeout-ms <n>  Milliseconds to wait for /healthz (default: ${DEFAULT_STARTUP_TIMEOUT_MS})
+  --verify-timeout-ms <n>   Milliseconds to allow for the /mcp smoke check (default: ${DEFAULT_VERIFY_TIMEOUT_MS})
   --skip-health-check       Skip the /healthz readiness check
   --skip-mcp-check          Skip the /mcp smoke verification step
   --json                    Print the final summary as JSON
@@ -47,6 +50,7 @@ function parseArgs(argv) {
     secretsFile: "",
     verifyHeaders: [],
     startupTimeoutMs: DEFAULT_STARTUP_TIMEOUT_MS,
+    verifyTimeoutMs: DEFAULT_VERIFY_TIMEOUT_MS,
     skipHealthCheck: false,
     skipMcpCheck: false,
     json: false,
@@ -74,6 +78,11 @@ function parseArgs(argv) {
       case "--startup-timeout-ms":
         options.startupTimeoutMs =
           Number.parseInt(argv[index + 1] || "", 10) || DEFAULT_STARTUP_TIMEOUT_MS;
+        index += 1;
+        break;
+      case "--verify-timeout-ms":
+        options.verifyTimeoutMs =
+          Number.parseInt(argv[index + 1] || "", 10) || DEFAULT_VERIFY_TIMEOUT_MS;
         index += 1;
         break;
       case "--skip-health-check":
@@ -205,9 +214,9 @@ function createTempEnvFile(env) {
 
 function spawnWranglerDev(options, env, envFilePath) {
   return spawn(
-    process.platform === "win32" ? "npx.cmd" : "npx",
+    process.execPath,
     [
-      "wrangler",
+      WRANGLER_BIN,
       "dev",
       "--ip",
       options.host,
@@ -220,7 +229,7 @@ function spawnWranglerDev(options, env, envFilePath) {
       cwd: WORKER_ROOT,
       env,
       stdio: ["ignore", "pipe", "pipe"],
-      shell: process.platform === "win32",
+      shell: false,
     },
   );
 }
@@ -254,7 +263,7 @@ async function stopProcess(child) {
     await new Promise((resolve) => {
       const killer = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
         stdio: "ignore",
-        shell: true,
+        shell: false,
       });
       killer.once("exit", () => resolve(undefined));
       setTimeout(() => resolve(undefined), 5000);
@@ -273,6 +282,24 @@ async function stopProcess(child) {
       resolve(undefined);
     }, 5000);
   });
+}
+
+async function withTimeout(label, timeoutMs, work) {
+  let timeoutId = null;
+  try {
+    return await Promise.race([
+      work(),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
 }
 
 async function main() {
@@ -318,7 +345,9 @@ async function main() {
         },
         env,
       );
-      mcp = await runVerification(config);
+      mcp = await withTimeout("Local /mcp smoke verification", options.verifyTimeoutMs, () =>
+        runVerification(config),
+      );
     }
 
     const summary = {

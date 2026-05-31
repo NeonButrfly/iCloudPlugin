@@ -148,10 +148,19 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       - `tools/list`
       - `get_icloud_system_status`
       - bundled-search `worker_download_url` rewriting
+      - direct `GET /mcp` now returns `405 Allow: POST, DELETE` so
+        streamable-http clients do not hang on a standalone SSE path
     - `print-access-bootstrap.mjs` emits ready-to-run Cloudflare Access
       bootstrap commands for the recommended self-hosted Access model
     - `.dev.vars.example` documents the local Worker secret shape for
       `wrangler dev`
+    - `dev-and-verify.mjs` now provides the missing local deploy-shaped smoke
+      path before Cloudflare account auth exists:
+      - starts `wrangler dev` with a temporary env file
+      - waits for `/healthz`
+      - verifies `/mcp` with the real MCP smoke client
+      - bounds the MCP verification time so hangs fail fast
+      - cleans up local `workerd` processes on Windows after the run
   - the Worker now also has local Vitest coverage for:
     - worker-token auth gating
     - `/healthz` and `/` health responses

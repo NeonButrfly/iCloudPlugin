@@ -113,6 +113,27 @@ Local secret/example file:
 
 - copy `.dev.vars.example` to `.dev.vars` for local `wrangler dev` work
 
+Run a deploy-shaped local smoke before Cloudflare account auth is available:
+
+```bash
+npm run dev:verify
+```
+
+That helper:
+
+- starts `wrangler dev` with a temporary env file built from shell env and
+  optional `--secrets-file`
+- waits for `/healthz`
+- verifies `/mcp` with a real Streamable HTTP MCP client
+- cleans up the local `workerd` process tree on Windows after the check
+
+You can trim or tune it with:
+
+- `--skip-health-check`
+- `--skip-mcp-check`
+- `--startup-timeout-ms <n>`
+- `--verify-timeout-ms <n>`
+
 ## Deployment helpers
 
 Plan the deploy and derived URLs without deploying:
