@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from collections import Counter
 from datetime import datetime, timezone
@@ -18,6 +19,7 @@ from icloud_index_service.services.job_runner import get_refresh_status_snapshot
 DEFAULT_CLASSIFIER_HEALTH_TIMEOUT_SECONDS = 5.0
 DEFAULT_CLASSIFIER_HEALTH_URL = "http://127.0.0.1:4319/health"
 DEFAULT_VAULT_ROOT = "/srv/cloud-vault/document-vault"
+DEFAULT_CLOUD_VAULT_SYNC_STATUS_PATH = "/srv/cloud-vault/logs/cloud-vault-sync-status.json"
 
 
 def _utc_now_iso() -> str:
@@ -33,6 +35,13 @@ def _resolve_classifier_health_url() -> str:
 
 def _resolve_vault_root() -> Path:
     raw_value = (os.getenv("CLASSIFIER_VAULT_ROOT") or DEFAULT_VAULT_ROOT).strip()
+    return Path(raw_value)
+
+
+def _resolve_cloud_vault_sync_status_path() -> Path:
+    raw_value = (
+        os.getenv("CLOUD_VAULT_SYNC_STATUS_PATH") or DEFAULT_CLOUD_VAULT_SYNC_STATUS_PATH
+    ).strip()
     return Path(raw_value)
 
 
@@ -57,6 +66,43 @@ def collect_vault_counts(*, vault_root: Path | None = None) -> dict[str, Any]:
         "extracted_markdown_files": _count_vault_files(active_vault_root / "_system/extracted-markdown"),
         "classification_index_present": (active_vault_root / "Classification Index.md").is_file(),
         "home_note_present": (active_vault_root / "Home.md").is_file(),
+    }
+
+
+def collect_cloud_vault_sync_status(
+    *, sync_status_path: Path | None = None
+) -> dict[str, Any]:
+    active_path = (sync_status_path or _resolve_cloud_vault_sync_status_path()).resolve()
+    if not active_path.exists() or not active_path.is_file():
+        return {
+            "status_file": str(active_path),
+            "status_file_present": False,
+            "overall_status": "unknown",
+        }
+
+    try:
+        payload = json.loads(active_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return {
+            "status_file": str(active_path),
+            "status_file_present": True,
+            "overall_status": "unknown",
+            "error": "sync-status-invalid",
+            "detail": str(exc),
+        }
+
+    if not isinstance(payload, dict):
+        return {
+            "status_file": str(active_path),
+            "status_file_present": True,
+            "overall_status": "unknown",
+            "error": "sync-status-non-object",
+        }
+
+    return {
+        "status_file": str(active_path),
+        "status_file_present": True,
+        **payload,
     }
 
 
@@ -137,4 +183,5 @@ def build_status_summary(
         "classification_state_counts": collect_classification_state_counts(session),
         "provider_counts": collect_provider_counts(session),
         "vault_counts": collect_vault_counts(),
+        "cloud_vault_sync": collect_cloud_vault_sync_status(),
     }

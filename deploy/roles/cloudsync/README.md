@@ -85,6 +85,18 @@ The script is intentionally resilient:
   as source objects
 - ongoing runs use a dedicated state directory under
   `/srv/cloud-vault/.rclone-bisync`
+- it now also writes a machine-readable status artifact to:
+  - `/srv/cloud-vault/logs/cloud-vault-sync-status.json`
+  - the artifact records each remote outcome plus an overall status such as
+    `ok` or `degraded`
+  - default required/optional remotes:
+    - `icloud`: required
+    - `gdrive1`: optional
+    - `gdrive2`: optional
+  - per-remote required flags can be overridden with:
+    - `REMOTE_ICLOUD_REQUIRED`
+    - `REMOTE_GOOGLE_1_REQUIRED`
+    - `REMOTE_GOOGLE_2_REQUIRED`
 
 For bounded classifier backfill work on the sync host, use:
 
@@ -98,6 +110,7 @@ That helper prints one JSON report covering:
 
 - cloudsync `/health`
 - cloudsync `/refresh/status`
+- cloud-vault mirror sync status from `cloud-vault-sync-status.json`
 - classifier `/health`
 - `classification_jobs` counts
 - `classification_states` counts

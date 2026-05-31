@@ -16,6 +16,7 @@ POSTGRES_DB="${POSTGRES_DB:-icloud_index}"
 SERVICE_URL="${SERVICE_URL:-}"
 CLASSIFIER_HEALTH_URL="${CLASSIFIER_HEALTH_URL:-}"
 VAULT_ROOT="${VAULT_ROOT:-/mnt/cloud-vault/document-vault}"
+CLOUD_VAULT_SYNC_STATUS_PATH="${CLOUD_VAULT_SYNC_STATUS_PATH:-/mnt/cloud-vault/logs/cloud-vault-sync-status.json}"
 SUMMARY_JSON_PATH="${SUMMARY_JSON_PATH:-}"
 JSON_PYTHON="${JSON_PYTHON:-python3}"
 SUDO_PASSWORD="${SUDO_PASSWORD:-}"
@@ -29,6 +30,7 @@ CLASSIFICATION_JOB_COUNTS_JSON='{}'
 CLASSIFICATION_STATE_COUNTS_JSON='{}'
 PROVIDER_COUNTS_JSON='{}'
 VAULT_COUNTS_JSON='{}'
+CLOUD_VAULT_SYNC_STATUS_JSON='{}'
 
 usage() {
   cat <<'EOF'
@@ -194,6 +196,46 @@ print(json.dumps({
 PY
 }
 
+collect_sync_status_json() {
+  if [[ ! -f "${CLOUD_VAULT_SYNC_STATUS_PATH}" ]]; then
+    "${JSON_PYTHON}" - <<PY
+import json
+print(json.dumps({
+    "status_file": ${CLOUD_VAULT_SYNC_STATUS_PATH@Q},
+    "status_file_present": False,
+    "overall_status": "unknown",
+}))
+PY
+    return 0
+  fi
+
+  "${JSON_PYTHON}" - <<PY
+import json
+from pathlib import Path
+
+path = Path(${CLOUD_VAULT_SYNC_STATUS_PATH@Q})
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("sync status payload is not a JSON object")
+    payload = {
+        "status_file": str(path),
+        "status_file_present": True,
+        **payload,
+    }
+except Exception as exc:
+    payload = {
+        "status_file": str(path),
+        "status_file_present": True,
+        "overall_status": "unknown",
+        "error": "sync-status-invalid",
+        "detail": str(exc),
+    }
+
+print(json.dumps(payload))
+PY
+}
+
 capture_db_json() {
   local sql="$1"
   json_or_error "db-query-failed" psql_json "${sql}"
@@ -303,11 +345,12 @@ PY
   CLASSIFICATION_STATE_COUNTS_JSON="$(capture_db_json "$(classification_state_counts_sql)")"
   PROVIDER_COUNTS_JSON="$(capture_db_json "$(provider_counts_sql)")"
   VAULT_COUNTS_JSON="$(collect_vault_counts_json)"
+  CLOUD_VAULT_SYNC_STATUS_JSON="$(collect_sync_status_json)"
 
   export SERVICE_URL CLASSIFIER_HEALTH_URL VAULT_ROOT SUMMARY_JSON_PATH
   export SERVICE_HEALTH_JSON REFRESH_STATUS_JSON CLASSIFIER_HEALTH_JSON
   export CLASSIFICATION_JOB_COUNTS_JSON CLASSIFICATION_STATE_COUNTS_JSON
-  export PROVIDER_COUNTS_JSON VAULT_COUNTS_JSON
+  export PROVIDER_COUNTS_JSON VAULT_COUNTS_JSON CLOUD_VAULT_SYNC_STATUS_JSON
 
   "${JSON_PYTHON}" - <<'PY'
 import json
@@ -337,6 +380,7 @@ summary = {
     "classification_state_counts": parse_json_env("CLASSIFICATION_STATE_COUNTS_JSON"),
     "provider_counts": parse_json_env("PROVIDER_COUNTS_JSON"),
     "vault_counts": parse_json_env("VAULT_COUNTS_JSON"),
+    "cloud_vault_sync": parse_json_env("CLOUD_VAULT_SYNC_STATUS_JSON"),
 }
 
 summary_path = os.environ.get("SUMMARY_JSON_PATH", "").strip()

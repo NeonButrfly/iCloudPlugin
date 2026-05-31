@@ -130,6 +130,33 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
         encoding="utf-8",
     )
     (vault_root / "Home.md").write_text("# Home", encoding="utf-8")
+    sync_status_path = tmp_path / "cloud-vault-sync-status.json"
+    sync_status_path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-05-31T18:00:00+00:00",
+                "overall_status": "degraded",
+                "required_failures_present": True,
+                "degraded_remotes": ["icloud", "gdrive1"],
+                "required_failure_remotes": ["icloud"],
+                "remote_statuses": [
+                    {
+                        "remote_name": "icloud",
+                        "required": True,
+                        "status": "failed",
+                        "detail": "rclone bisync failed",
+                    },
+                    {
+                        "remote_name": "gdrive1",
+                        "required": False,
+                        "status": "unreachable",
+                        "detail": "Remote gdrive1 is configured but not reachable. Skipping.",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
 
     def override_get_session():
         session = session_factory()
@@ -139,6 +166,7 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
             session.close()
 
     monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+    monkeypatch.setenv("CLOUD_VAULT_SYNC_STATUS_PATH", str(sync_status_path))
     monkeypatch.setenv("PLUGIN_API_TOKEN", "secret-token")
     monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
     monkeypatch.setattr(main_module, "check_database_health", lambda: True)
@@ -191,6 +219,29 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
         "extracted_markdown_files": 1,
         "classification_index_present": False,
         "home_note_present": True,
+    }
+    assert payload["cloud_vault_sync"] == {
+        "status_file": str(sync_status_path.resolve()),
+        "status_file_present": True,
+        "generated_at": "2026-05-31T18:00:00+00:00",
+        "overall_status": "degraded",
+        "required_failures_present": True,
+        "degraded_remotes": ["icloud", "gdrive1"],
+        "required_failure_remotes": ["icloud"],
+        "remote_statuses": [
+            {
+                "remote_name": "icloud",
+                "required": True,
+                "status": "failed",
+                "detail": "rclone bisync failed",
+            },
+            {
+                "remote_name": "gdrive1",
+                "required": False,
+                "status": "unreachable",
+                "detail": "Remote gdrive1 is configured but not reachable. Skipping.",
+            },
+        ],
     }
     assert isinstance(payload["generated_at"], str)
 

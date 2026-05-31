@@ -47,6 +47,21 @@ def test_cloudsync_role_skips_dangling_google_drive_shortcuts():
     assert "--drive-skip-dangling-shortcuts" in script_text
 
 
+def test_cloudsync_sync_script_writes_machine_readable_status_artifact():
+    repo_root = Path(__file__).resolve().parents[1]
+    sync_script = repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh"
+    script_text = sync_script.read_text(encoding="utf-8")
+
+    assert 'STATUS_FILE="${STATUS_FILE:-${STATUS_DIR}/cloud-vault-sync-status.json}"' in script_text
+    assert 'REMOTE_ICLOUD_REQUIRED="${REMOTE_ICLOUD_REQUIRED:-true}"' in script_text
+    assert 'REMOTE_GOOGLE_1_REQUIRED="${REMOTE_GOOGLE_1_REQUIRED:-false}"' in script_text
+    assert 'REMOTE_GOOGLE_2_REQUIRED="${REMOTE_GOOGLE_2_REQUIRED:-false}"' in script_text
+    assert "record_sync_status()" in script_text
+    assert "write_sync_status_file()" in script_text
+    assert '"overall_status": overall_status' in script_text
+    assert '"required_failures_present": bool(required_failures)' in script_text
+
+
 def test_cloudsync_targeted_batch_helper_restores_queue_state():
     repo_root = Path(__file__).resolve().parents[1]
     helper_script = (
@@ -114,6 +129,9 @@ def test_cloudsync_live_status_helper_covers_compute_only_status_surfaces():
     assert "classification_state_counts_sql()" in script_text
     assert "provider_counts_sql()" in script_text
     assert "collect_vault_counts_json()" in script_text
+    assert 'CLOUD_VAULT_SYNC_STATUS_PATH="${CLOUD_VAULT_SYNC_STATUS_PATH:-/mnt/cloud-vault/logs/cloud-vault-sync-status.json}"' in script_text
+    assert "collect_sync_status_json()" in script_text
+    assert '"cloud_vault_sync": parse_json_env("CLOUD_VAULT_SYNC_STATUS_JSON")' in script_text
     assert "Wrote summary JSON" in script_text
 
 

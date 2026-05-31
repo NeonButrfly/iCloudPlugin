@@ -61,6 +61,7 @@
     - service health
     - auth/session status
     - refresh progress
+    - mirror sync status
     - classifier health/readiness
     - classification queue and state counts
     - provider counts

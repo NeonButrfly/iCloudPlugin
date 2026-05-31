@@ -115,11 +115,33 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - service health
     - auth status
     - refresh progress
+    - mirror sync status
     - classifier health
     - `classification_jobs` counts
     - `classification_states` counts
     - provider counts
     - generated vault output counts
+  - the storage-host sync script now writes one machine-readable status
+    artifact per run at:
+    - `/srv/cloud-vault/logs/cloud-vault-sync-status.json`
+    - default required/optional remotes:
+      - `icloud`: required
+      - `gdrive1`: optional
+      - `gdrive2`: optional
+    - the artifact records per-remote outcomes plus an overall status such as
+      `ok` or `degraded`
+  - issue [#13](https://github.com/NeonButrfly/iCloudPlugin/issues/13) is now
+    fixed and closed with live proof:
+    - `/usr/local/bin/cloud-vault-sync.sh` on `kayraspi2` now writes
+      `/srv/cloud-vault/logs/cloud-vault-sync-status.json`
+    - the current live artifact records:
+      - `overall_status=ok`
+      - `required_failures_present=false`
+      - per-remote rows for `icloud`, `gdrive1`, and `gdrive2`
+    - `deploy/roles/cloudsync/report_live_status.sh` on `tichuml1` now
+      includes `cloud_vault_sync`
+    - authenticated `GET /status/summary` on `tichuml1` now also includes
+      `cloud_vault_sync`
   - the Cloudflare Worker scaffold proxies those same surfaces and can hand off
     original files through `/download/{file_id}`
   - the Worker now also supports an optional client-facing bearer gate via

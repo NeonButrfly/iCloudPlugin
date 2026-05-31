@@ -110,6 +110,14 @@ Behavior:
 - Google Drive dangling shortcuts are skipped because they cannot be read as
   source objects during mirror initialization
 - `RCLONE_TEST` is maintained as the access-health probe file for bisync
+- each sync run now also writes a machine-readable artifact at:
+  - `/srv/cloud-vault/logs/cloud-vault-sync-status.json`
+  - default required/optional remotes:
+    - `icloud`: required
+    - `gdrive1`: optional
+    - `gdrive2`: optional
+  - the artifact records per-remote outcomes plus an overall status such as
+    `ok` or `degraded`
 
 Current Google Drive expectation:
 
@@ -316,6 +324,7 @@ while shifting the expensive API and refresh worker load onto `tichuml1`.
   - the helper prints one JSON report covering:
     - service `/health`
     - `/refresh/status`
+    - mirror sync status from `cloud-vault-sync-status.json`
     - classifier `/health`
     - `classification_jobs` counts
     - `classification_states` counts
@@ -809,6 +818,7 @@ plugin-authenticated snapshot covering:
 - service health
 - auth status
 - refresh progress
+- mirror sync status
 - classifier health
 - `classification_jobs` counts
 - `classification_states` counts
