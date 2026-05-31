@@ -68,6 +68,10 @@ For the compute-only deployment on `tichuml1`:
 - set `CLASSIFIER_API_TOKEN` to the same live classifier API token used by the
   classifier role; real-folder submission will fail fast if it is blank while
   classification submission is enabled
+- the refresh worker now also supports operator-tunable mid-batch status
+  cadence for image-heavy or OCR-heavy workloads:
+  - `ICLOUD_REFRESH_PROGRESS_HEARTBEAT_SECONDS`
+  - `ICLOUD_REFRESH_PROGRESS_HEARTBEAT_ITEMS`
 - when the host is using a remote Postgres instance and you only need to bring
   up `classification-worker`, prefer `docker start icloudplugin-classification-worker-1`
   or `docker compose ... up -d --no-deps classification-worker` so compose does
@@ -130,6 +134,20 @@ That helper prints one JSON report covering:
 - `classification_states` counts
 - indexed provider counts by top-level mirror root
 - generated note / attachment / extracted-markdown counts in the shared vault
+
+The refresh-status payload now includes mid-batch timing/liveness fields such as:
+
+- `heartbeat_at`
+- `heartbeat_age_seconds`
+- `batch_started_at`
+- `batch_age_seconds`
+- `last_progress_at`
+- `progress_age_seconds`
+- `batch_stage`
+- `current_batch_items_processed`
+
+On long OCR-heavy batches, those fields let operators confirm that the worker
+is still advancing even before `batch_count` changes.
 
 It supports the current compute-only cutover with remote Postgres by using the
 same direct `postgres:16` client fallback as the targeted batch helper.

@@ -153,6 +153,12 @@ SUDO_PASSWORD=... bash ./deploy/roles/cloudsync/install_storage_host_sync_assets
   queue a new background scan when no newer completed scan exists
 - `ICLOUD_REFRESH_BATCH_FILE_LIMIT` controls how many file entries are processed
   per resumable batch
+- `ICLOUD_REFRESH_PROGRESS_HEARTBEAT_SECONDS` controls how long an extraction-
+  heavy batch can go without publishing a fresh mid-batch heartbeat/progress
+  update; the default is `10`
+- `ICLOUD_REFRESH_PROGRESS_HEARTBEAT_ITEMS` controls how many files can finish
+  inside one extraction-heavy batch before the worker publishes a fresh
+  mid-batch heartbeat/progress update; the default is `10`
 - `ICLOUD_OCR_LANGS` controls the Tesseract language set used for still-image OCR
 - the OCR path is now image-first and cheap by default:
   - image files try PaddleOCR when available, then fall back to Tesseract
@@ -165,6 +171,27 @@ SUDO_PASSWORD=... bash ./deploy/roles/cloudsync/install_storage_host_sync_assets
 - `ICLOUD_PDF_OCR_DPI` controls PDF page render resolution for OCR fallback
 - batch progress is stored in the `jobs` payload, so the worker can immediately
   resume where it left off after a restart
+- `/refresh/status` now exposes live batch-liveness fields from that payload so
+  operators can tell the difference between a stalled worker and a slow OCR-
+  heavy batch, including:
+  - `claimed_at`
+  - `heartbeat_at`
+  - `heartbeat_age_seconds`
+  - `batch_started_at`
+  - `batch_age_seconds`
+  - `last_progress_at`
+  - `progress_age_seconds`
+  - `batch_stage`
+  - `batch_file_limit`
+  - `current_batch_size`
+  - `current_batch_items_processed`
+  - `current_batch_items_remaining`
+  - `last_batch_completed_at`
+  - `last_batch_size`
+  - `last_batch_duration_seconds`
+- items processed during long extraction-heavy batches are now persisted
+  mid-batch instead of waiting for the full batch boundary, so `items_seen` can
+  advance while `batch_count` stays fixed
 - restart recovery keeps the same job frontier and sync run instead of opening
   a fresh scan
 - restart recovery does not spend retry budget; retries are still reserved for

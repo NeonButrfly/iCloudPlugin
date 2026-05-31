@@ -292,6 +292,69 @@ def test_refresh_status_reports_latest_job_progress(tmp_path):
     }
 
 
+def test_refresh_status_reports_batch_timing_and_liveness_details(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+    claimed_at = datetime(2026, 5, 31, 18, 0, 0, tzinfo=timezone.utc)
+    heartbeat_at = claimed_at + timedelta(seconds=20)
+    batch_started_at = claimed_at + timedelta(seconds=5)
+    last_progress_at = claimed_at + timedelta(seconds=18)
+    last_batch_completed_at = claimed_at + timedelta(seconds=10)
+
+    try:
+        session.add(
+            Job(
+                job_type=METADATA_REFRESH_JOB_TYPE,
+                status=JOB_STATUS_RUNNING,
+                payload_json=json.dumps(
+                    {
+                        "source": "background-scan",
+                        "items_seen": 25,
+                        "batch_count": 3,
+                        "frontier": [{"type": "folder", "name": "Documents"}],
+                        "claimed_at": claimed_at.isoformat(),
+                        "heartbeat_at": heartbeat_at.isoformat(),
+                        "batch_started_at": batch_started_at.isoformat(),
+                        "last_progress_at": last_progress_at.isoformat(),
+                        "last_batch_completed_at": last_batch_completed_at.isoformat(),
+                        "batch_file_limit": 100,
+                        "batch_stage": "extracting",
+                        "current_batch_size": 7,
+                        "current_batch_items_processed": 3,
+                        "last_batch_size": 5,
+                        "last_batch_duration_seconds": 14.25,
+                    }
+                ),
+                sync_run_id=None,
+            )
+        )
+        session.commit()
+        monkeypatch.setattr(
+            job_runner_module,
+            "_utc_now",
+            lambda: claimed_at + timedelta(seconds=30),
+        )
+        active_payload = get_refresh_status(session)
+    finally:
+        session.close()
+
+    assert active_payload["claimed_at"] == claimed_at.isoformat()
+    assert active_payload["heartbeat_at"] == heartbeat_at.isoformat()
+    assert active_payload["heartbeat_age_seconds"] == 10
+    assert active_payload["batch_started_at"] == batch_started_at.isoformat()
+    assert active_payload["batch_age_seconds"] == 25
+    assert active_payload["last_progress_at"] == last_progress_at.isoformat()
+    assert active_payload["progress_age_seconds"] == 12
+    assert active_payload["last_batch_completed_at"] == last_batch_completed_at.isoformat()
+    assert active_payload["batch_file_limit"] == 100
+    assert active_payload["batch_stage"] == "extracting"
+    assert active_payload["current_batch_size"] == 7
+    assert active_payload["current_batch_items_processed"] == 3
+    assert active_payload["current_batch_items_remaining"] == 4
+    assert active_payload["last_batch_size"] == 5
+    assert active_payload["last_batch_duration_seconds"] == 14.25
+
+
 def test_refresh_job_schema_readiness_caches_success_by_bind(tmp_path, monkeypatch):
     session_factory = _build_session_factory(tmp_path, create_schema=True)
     first_session = session_factory()
@@ -348,11 +411,15 @@ def test_enqueue_and_run_metadata_refresh_updates_job_payload_with_crawl_results
     assert completed_job is not None
     assert completed_job.status == JOB_STATUS_COMPLETED
     assert completed_job.error_message is None
-    assert json.loads(completed_job.payload_json or "{}") == {
-        "source": "refresh-endpoint",
-        "items_seen": 1,
-        "auth_mode": "browser-assisted-apple-web",
-    }
+    completed_payload = json.loads(completed_job.payload_json or "{}")
+    assert completed_payload["source"] == "refresh-endpoint"
+    assert completed_payload["items_seen"] == 1
+    assert completed_payload["auth_mode"] == "browser-assisted-apple-web"
+    assert completed_payload["batch_file_limit"] == 100
+    assert completed_payload["last_batch_size"] == 1
+    assert isinstance(completed_payload["last_batch_completed_at"], str)
+    assert isinstance(completed_payload["last_progress_at"], str)
+    assert isinstance(completed_payload["last_batch_duration_seconds"], float)
     assert stored_job is not None
     assert stored_job.status == JOB_STATUS_COMPLETED
 
@@ -458,6 +525,113 @@ def test_run_next_job_requeues_partial_refresh_and_resumes_from_persisted_fronti
         }
     ]
     assert client.frontier_calls[1] == first_payload["frontier"]
+
+
+def test_run_next_job_persists_mid_batch_progress_during_extraction(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+    client = BatchingICloudWebClient(
+        initial_frontier=[
+            {
+                "type": "folder",
+                "name": "root",
+                "path": "",
+                "drivewsid": "root",
+            }
+        ],
+        batches=[
+            (
+                [
+                    {
+                        "id": "file-1",
+                        "name": "File1.txt",
+                        "path": "/Docs/File1.txt",
+                        "extension": "txt",
+                        "contentType": "text/plain",
+                        "size": 10,
+                        "content_text": "one",
+                    },
+                    {
+                        "id": "file-2",
+                        "name": "File2.txt",
+                        "path": "/Docs/File2.txt",
+                        "extension": "txt",
+                        "contentType": "text/plain",
+                        "size": 11,
+                        "content_text": "two",
+                    },
+                    {
+                        "id": "file-3",
+                        "name": "File3.txt",
+                        "path": "/Docs/File3.txt",
+                        "extension": "txt",
+                        "contentType": "text/plain",
+                        "size": 12,
+                        "content_text": "three",
+                    },
+                ],
+                [],
+                True,
+            )
+        ],
+    )
+    recorded_running_payloads: list[dict[str, object]] = []
+    real_apply_running_job_lease_update = job_runner_module.apply_running_job_lease_update
+
+    def recording_apply_running_job_lease_update(
+        session,
+        *,
+        job_id: int,
+        expected_payload_json: str | None,
+        next_status: str,
+        next_payload_json: str,
+        error_message: str | None,
+    ):
+        result = real_apply_running_job_lease_update(
+            session,
+            job_id=job_id,
+            expected_payload_json=expected_payload_json,
+            next_status=next_status,
+            next_payload_json=next_payload_json,
+            error_message=error_message,
+        )
+        if next_status == JOB_STATUS_RUNNING:
+            recorded_running_payloads.append(json.loads(next_payload_json))
+        return result
+
+    monkeypatch.setattr(
+        job_runner_module,
+        "apply_running_job_lease_update",
+        recording_apply_running_job_lease_update,
+    )
+    monkeypatch.setattr(job_runner_module, "get_refresh_progress_heartbeat_items", lambda: 1)
+    monkeypatch.setattr(job_runner_module, "get_refresh_progress_heartbeat_seconds", lambda: 3600)
+
+    try:
+        enqueue_metadata_refresh(session)
+        completed_job = run_next_job(session, client=client, worker_id="worker-a")
+    finally:
+        session.close()
+
+    assert completed_job is not None
+    assert completed_job.status == JOB_STATUS_COMPLETED
+    completed_payload = json.loads(completed_job.payload_json or "{}")
+    assert completed_payload["items_seen"] == 3
+    assert completed_payload["last_batch_size"] == 3
+    assert isinstance(completed_payload["last_batch_duration_seconds"], float)
+    assert "batch_stage" not in completed_payload
+    assert any(
+        payload.get("batch_stage") == "extracting"
+        and payload.get("current_batch_items_processed") == 1
+        and payload.get("items_seen") == 1
+        for payload in recorded_running_payloads
+    )
+    assert any(
+        payload.get("batch_stage") == "extracting"
+        and payload.get("current_batch_items_processed") == 3
+        and payload.get("items_seen") == 3
+        for payload in recorded_running_payloads
+    )
 
 
 def test_run_next_job_persists_file_records_and_extracted_content_from_refresh_results(

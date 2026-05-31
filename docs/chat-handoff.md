@@ -81,6 +81,32 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - `batch_count=17`
   - `frontier_length=2218`
   - `error_message=null`
+- issue [#4](https://github.com/NeonButrfly/iCloudPlugin/issues/4) is now
+  fixed live on `tichuml1`:
+  - `/refresh/status` now exposes batch-liveness and timing fields including:
+    - `heartbeat_at`
+    - `heartbeat_age_seconds`
+    - `batch_started_at`
+    - `batch_age_seconds`
+    - `last_progress_at`
+    - `progress_age_seconds`
+    - `batch_stage`
+    - `current_batch_size`
+    - `current_batch_items_processed`
+    - `current_batch_items_remaining`
+  - the refresh worker now persists mid-batch progress during extraction-heavy
+    work instead of waiting for the full batch boundary
+  - live proof on 2026-05-31 AKDT after worker recovery showed one running
+    batch with:
+    - `batch_count=377`
+    - `items_seen=37700 -> 37701 -> 37719 -> 37768`
+    - `current_batch_items_processed=0 -> 1 -> 19 -> 68`
+    - `batch_stage=extracting`
+    while the batch stayed in flight
+  - the live API and refresh worker on `tichuml1` are currently being served by
+    the role-based cloudsync compose path:
+    - `cloudsync-service-1`
+    - `cloudsync-worker-1`
 - `clouddrive.neonbutterfly.net` now proxies to `192.168.50.196:8080`
 - `tichuml1` classifier health is OK
 - `tichuml1` classifier containers were recreated from the monorepo compose on
@@ -589,13 +615,10 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   bogus `financial -> financial` manual-note-move row for that receipt source
 - `kayraspi` now carries only the legacy cloudsync Postgres database for the
   compute-only cutover; the old service and worker are stopped there
-- a pause was requested for the current aggregate background scan so manual
-  feedback-learning work can proceed without more crawl churn
-- public `clouddrive.neonbutterfly.net/refresh/status` has been flat at
-  `items_seen=13000` and `frontier_length=23934` since that pause request
-- direct SSH reachability from the workstation to both `kayraspi` and
-  `tichuml1` timed out during the pause attempt, so host-level confirmation of
-  the worker stop is still pending
+- an earlier pause request for the aggregate background scan was not kept as the
+  live steady state; the scan is active again on `tichuml1`
+- live proof on 2026-05-31 AKDT showed the public scan progressing inside one
+  running batch rather than only at full batch boundaries
 - `classification-worker` on `kayraspi` is intentionally stopped after reset
 - aggregate mirror indexing has picked up both `google1` and `google2`
 - `document-vault` is the canonical local Obsidian vault

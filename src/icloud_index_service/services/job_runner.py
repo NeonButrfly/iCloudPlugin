@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import weakref
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import inspect, or_, select, text, update
@@ -39,10 +40,21 @@ DEFAULT_MAX_ATTEMPTS = 3
 REFRESH_ENQUEUE_LOCK_KEY = 61001
 DEFAULT_REFRESH_BATCH_FILE_LIMIT = 100
 DEFAULT_BACKGROUND_REFRESH_INTERVAL_SECONDS = 1800
+DEFAULT_REFRESH_PROGRESS_HEARTBEAT_SECONDS = 10
+DEFAULT_REFRESH_PROGRESS_HEARTBEAT_ITEMS = 10
 _SCHEMA_READY_CACHE: weakref.WeakKeyDictionary[object, bool] = weakref.WeakKeyDictionary()
 FRONTIER_FIELD = "frontier"
 ITEMS_SEEN_FIELD = "items_seen"
 BATCH_COUNT_FIELD = "batch_count"
+BATCH_FILE_LIMIT_FIELD = "batch_file_limit"
+BATCH_STAGE_FIELD = "batch_stage"
+BATCH_STARTED_AT_FIELD = "batch_started_at"
+LAST_PROGRESS_AT_FIELD = "last_progress_at"
+CURRENT_BATCH_SIZE_FIELD = "current_batch_size"
+CURRENT_BATCH_ITEMS_PROCESSED_FIELD = "current_batch_items_processed"
+LAST_BATCH_COMPLETED_AT_FIELD = "last_batch_completed_at"
+LAST_BATCH_SIZE_FIELD = "last_batch_size"
+LAST_BATCH_DURATION_SECONDS_FIELD = "last_batch_duration_seconds"
 BACKGROUND_REFRESH_SOURCE = "background-scan"
 
 
@@ -178,6 +190,28 @@ def get_background_refresh_interval_seconds() -> int:
     return max(parsed_value, 0)
 
 
+def get_refresh_progress_heartbeat_seconds() -> int:
+    raw_value = os.getenv("ICLOUD_REFRESH_PROGRESS_HEARTBEAT_SECONDS")
+    if raw_value is None:
+        return DEFAULT_REFRESH_PROGRESS_HEARTBEAT_SECONDS
+    try:
+        parsed_value = int(raw_value)
+    except ValueError:
+        return DEFAULT_REFRESH_PROGRESS_HEARTBEAT_SECONDS
+    return max(parsed_value, 1)
+
+
+def get_refresh_progress_heartbeat_items() -> int:
+    raw_value = os.getenv("ICLOUD_REFRESH_PROGRESS_HEARTBEAT_ITEMS")
+    if raw_value is None:
+        return DEFAULT_REFRESH_PROGRESS_HEARTBEAT_ITEMS
+    try:
+        parsed_value = int(raw_value)
+    except ValueError:
+        return DEFAULT_REFRESH_PROGRESS_HEARTBEAT_ITEMS
+    return max(parsed_value, 1)
+
+
 def _acquire_refresh_enqueue_lock(session: Session) -> None:
     if session.get_bind().dialect.name != "postgresql":
         return
@@ -293,8 +327,16 @@ def _persist_refresh_results(
     raw_items: list[dict[str, object]],
     normalized_items: list[dict[str, object]],
     sync_run_id: int,
+    progress_callback: Callable[[int], None] | None = None,
 ) -> list[dict[str, str]]:
     extraction_failures: list[dict[str, str]] = []
+    processed_items = 0
+
+    def record_progress() -> None:
+        nonlocal processed_items
+        processed_items += 1
+        if callable(progress_callback):
+            progress_callback(processed_items)
 
     for raw_item, normalized_item in zip(raw_items, normalized_items, strict=True):
         file_record = _upsert_file_record(
@@ -310,6 +352,7 @@ def _persist_refresh_results(
             if extracted_content is not None:
                 session.delete(extracted_content)
                 session.flush()
+            record_progress()
             continue
 
         try:
@@ -326,11 +369,13 @@ def _persist_refresh_results(
                     "error": f"{type(exc).__name__}: {exc}",
                 }
             )
+            record_progress()
             continue
         if not extracted_text:
             if extracted_content is not None:
                 session.delete(extracted_content)
                 session.flush()
+            record_progress()
             continue
 
         content_hash = hashlib.sha256(extracted_text.encode("utf-8")).hexdigest()
@@ -345,6 +390,7 @@ def _persist_refresh_results(
             extracted_content.content_text = extracted_text
             extracted_content.content_hash = content_hash
         session.flush()
+        record_progress()
 
     return extraction_failures
 
@@ -665,6 +711,53 @@ def get_refresh_status_snapshot(session: Session) -> dict[str, object]:
     }
     if FRONTIER_FIELD in payload and isinstance(payload[FRONTIER_FIELD], list):
         snapshot["frontier_length"] = len(payload[FRONTIER_FIELD])
+    claimed_at = _parse_claimed_at(payload)
+    heartbeat_at = _parse_heartbeat_at(payload)
+    batch_started_at = _parse_iso_timestamp(payload.get(BATCH_STARTED_AT_FIELD))
+    last_progress_at = _parse_iso_timestamp(payload.get(LAST_PROGRESS_AT_FIELD))
+    last_batch_completed_at = _parse_iso_timestamp(payload.get(LAST_BATCH_COMPLETED_AT_FIELD))
+    now = _utc_now()
+    if claimed_at is not None:
+        snapshot["claimed_at"] = claimed_at.isoformat()
+    if heartbeat_at is not None:
+        snapshot["heartbeat_at"] = heartbeat_at.isoformat()
+        snapshot["heartbeat_age_seconds"] = max(
+            int((now - heartbeat_at).total_seconds()),
+            0,
+        )
+    if batch_started_at is not None:
+        snapshot["batch_started_at"] = batch_started_at.isoformat()
+        snapshot["batch_age_seconds"] = max(
+            int((now - batch_started_at).total_seconds()),
+            0,
+        )
+    if last_progress_at is not None:
+        snapshot["last_progress_at"] = last_progress_at.isoformat()
+        snapshot["progress_age_seconds"] = max(
+            int((now - last_progress_at).total_seconds()),
+            0,
+        )
+    if last_batch_completed_at is not None:
+        snapshot["last_batch_completed_at"] = last_batch_completed_at.isoformat()
+    if isinstance(payload.get(BATCH_FILE_LIMIT_FIELD), int):
+        snapshot["batch_file_limit"] = payload[BATCH_FILE_LIMIT_FIELD]
+    if isinstance(payload.get(BATCH_STAGE_FIELD), str):
+        snapshot["batch_stage"] = payload[BATCH_STAGE_FIELD]
+    if isinstance(payload.get(CURRENT_BATCH_SIZE_FIELD), int):
+        snapshot["current_batch_size"] = payload[CURRENT_BATCH_SIZE_FIELD]
+    if isinstance(payload.get(CURRENT_BATCH_ITEMS_PROCESSED_FIELD), int):
+        processed_items = max(payload[CURRENT_BATCH_ITEMS_PROCESSED_FIELD], 0)
+        snapshot["current_batch_items_processed"] = processed_items
+        if isinstance(payload.get(CURRENT_BATCH_SIZE_FIELD), int):
+            snapshot["current_batch_items_remaining"] = max(
+                payload[CURRENT_BATCH_SIZE_FIELD] - processed_items,
+                0,
+            )
+    if isinstance(payload.get(LAST_BATCH_SIZE_FIELD), int):
+        snapshot["last_batch_size"] = payload[LAST_BATCH_SIZE_FIELD]
+    last_batch_duration_seconds = payload.get(LAST_BATCH_DURATION_SECONDS_FIELD)
+    if isinstance(last_batch_duration_seconds, (int, float)):
+        snapshot["last_batch_duration_seconds"] = float(last_batch_duration_seconds)
     return snapshot
 
 
@@ -691,22 +784,52 @@ def run_next_job(
 
     lease_payload_json = job.payload_json
 
-    def heartbeat() -> None:
+    def update_running_payload(mutator: Callable[[dict[str, object]], None]) -> None:
         nonlocal lease_payload_json
-        renewed_job = renew_refresh_job_heartbeat(
+        payload = _deserialize_payload(lease_payload_json)
+        mutator(payload)
+        updated_job = apply_running_job_lease_update(
             session,
-            job.id,
+            job_id=job.id,
             expected_payload_json=lease_payload_json,
+            next_status=JOB_STATUS_RUNNING,
+            next_payload_json=_serialize_payload(payload),
+            error_message=job.error_message,
         )
-        if renewed_job is None:
+        if updated_job is None:
             raise LostLeaseError(
-                "Refresh job lease was lost during crawl heartbeat; aborting stale worker."
+                "Refresh job lease was lost while saving mid-batch progress; aborting stale worker."
             )
-        lease_payload_json = renewed_job.payload_json
+        lease_payload_json = updated_job.payload_json
+
+    def heartbeat() -> None:
+        current_time = _utc_now()
+
+        def apply_heartbeat(payload: dict[str, object]) -> None:
+            payload[HEARTBEAT_AT_FIELD] = current_time.isoformat()
+            payload[LAST_PROGRESS_AT_FIELD] = current_time.isoformat()
+            if not isinstance(payload.get(BATCH_STAGE_FIELD), str):
+                payload[BATCH_STAGE_FIELD] = "crawling"
+
+        update_running_payload(apply_heartbeat)
 
     try:
         active_client = client or create_icloud_web_client()
         payload = _deserialize_payload(lease_payload_json)
+        batch_started_at = _utc_now()
+        batch_file_limit = get_refresh_batch_file_limit()
+
+        def mark_batch_started(running_payload: dict[str, object]) -> None:
+            running_payload["source"] = str(running_payload.get("source") or "refresh-endpoint")
+            running_payload["auth_mode"] = active_client.auth_mode
+            running_payload[BATCH_FILE_LIMIT_FIELD] = batch_file_limit
+            running_payload[BATCH_STAGE_FIELD] = "crawling"
+            running_payload[BATCH_STARTED_AT_FIELD] = batch_started_at.isoformat()
+            running_payload[CURRENT_BATCH_ITEMS_PROCESSED_FIELD] = 0
+            running_payload.pop(CURRENT_BATCH_SIZE_FIELD, None)
+            running_payload[LAST_PROGRESS_AT_FIELD] = batch_started_at.isoformat()
+
+        update_running_payload(mark_batch_started)
         can_resume_in_batches = (
             getattr(active_client, "_service", None) is not None
             or type(active_client).list_drive_items_batch is not ICloudWebClient.list_drive_items_batch
@@ -727,20 +850,86 @@ def run_next_job(
             completed_snapshot = True
             sync_run = _ensure_running_sync_run(session, job)
         items = [normalize_remote_item(item) for item in raw_items]
+        payload = _deserialize_payload(lease_payload_json)
+        base_items_seen = int(payload.get(ITEMS_SEEN_FIELD, 0))
+        batch_size = len(items)
+        last_progress_persisted_at = batch_started_at
+        last_progress_persisted_count = 0
+        progress_heartbeat_seconds = get_refresh_progress_heartbeat_seconds()
+        progress_heartbeat_items = get_refresh_progress_heartbeat_items()
+
+        def mark_batch_extracting(running_payload: dict[str, object]) -> None:
+            running_payload["source"] = str(running_payload.get("source") or "refresh-endpoint")
+            running_payload["auth_mode"] = active_client.auth_mode
+            running_payload[BATCH_FILE_LIMIT_FIELD] = batch_file_limit
+            running_payload[BATCH_STAGE_FIELD] = "extracting"
+            running_payload[CURRENT_BATCH_SIZE_FIELD] = batch_size
+            running_payload[CURRENT_BATCH_ITEMS_PROCESSED_FIELD] = 0
+            running_payload[LAST_PROGRESS_AT_FIELD] = _utc_now().isoformat()
+
+        update_running_payload(mark_batch_extracting)
+
+        def persist_mid_batch_progress(processed_count: int) -> None:
+            nonlocal last_progress_persisted_at
+            nonlocal last_progress_persisted_count
+            current_time = _utc_now()
+            processed_delta = processed_count - last_progress_persisted_count
+            elapsed_seconds = (current_time - last_progress_persisted_at).total_seconds()
+            should_persist = (
+                processed_count >= batch_size
+                or processed_delta >= progress_heartbeat_items
+                or elapsed_seconds >= progress_heartbeat_seconds
+            )
+            if not should_persist:
+                return
+
+            def apply_mid_batch_progress(running_payload: dict[str, object]) -> None:
+                running_payload["source"] = str(
+                    running_payload.get("source") or "refresh-endpoint"
+                )
+                running_payload["auth_mode"] = active_client.auth_mode
+                running_payload[BATCH_FILE_LIMIT_FIELD] = batch_file_limit
+                running_payload[BATCH_STAGE_FIELD] = "extracting"
+                running_payload[CURRENT_BATCH_SIZE_FIELD] = batch_size
+                running_payload[CURRENT_BATCH_ITEMS_PROCESSED_FIELD] = processed_count
+                running_payload[ITEMS_SEEN_FIELD] = base_items_seen + processed_count
+                running_payload[HEARTBEAT_AT_FIELD] = current_time.isoformat()
+                running_payload[LAST_PROGRESS_AT_FIELD] = current_time.isoformat()
+
+            update_running_payload(apply_mid_batch_progress)
+            last_progress_persisted_at = current_time
+            last_progress_persisted_count = processed_count
+
         extraction_failures = _persist_refresh_results(
             session,
             raw_items=raw_items,
             normalized_items=items,
             sync_run_id=sync_run.id,
+            progress_callback=persist_mid_batch_progress,
         )
         payload = _deserialize_payload(lease_payload_json)
         payload.pop(CLAIMED_AT_FIELD, None)
         payload.pop(HEARTBEAT_AT_FIELD, None)
         payload.pop(WORKER_ID_FIELD, None)
         payload["source"] = str(payload.get("source") or "refresh-endpoint")
-        payload[ITEMS_SEEN_FIELD] = int(payload.get(ITEMS_SEEN_FIELD, 0)) + len(items)
+        payload[ITEMS_SEEN_FIELD] = max(
+            int(payload.get(ITEMS_SEEN_FIELD, 0)),
+            base_items_seen + len(items),
+        )
         payload[BATCH_COUNT_FIELD] = int(payload.get(BATCH_COUNT_FIELD, 0)) + 1
         payload["auth_mode"] = active_client.auth_mode
+        batch_completed_at = _utc_now()
+        payload[LAST_PROGRESS_AT_FIELD] = batch_completed_at.isoformat()
+        payload[LAST_BATCH_COMPLETED_AT_FIELD] = batch_completed_at.isoformat()
+        payload[LAST_BATCH_SIZE_FIELD] = len(items)
+        payload[LAST_BATCH_DURATION_SECONDS_FIELD] = round(
+            (batch_completed_at - batch_started_at).total_seconds(),
+            3,
+        )
+        payload.pop(BATCH_STAGE_FIELD, None)
+        payload.pop(BATCH_STARTED_AT_FIELD, None)
+        payload.pop(CURRENT_BATCH_SIZE_FIELD, None)
+        payload.pop(CURRENT_BATCH_ITEMS_PROCESSED_FIELD, None)
         if extraction_failures:
             payload["extraction_failures"] = extraction_failures
         if completed_snapshot:
