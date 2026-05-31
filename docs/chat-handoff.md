@@ -104,6 +104,9 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     need to stitch multiple follow-up calls together for common analysis flows
   - the Cloudflare Worker scaffold proxies those same surfaces and can hand off
     original files through `/download/{file_id}`
+  - the Worker now also supports an optional client-facing bearer gate via
+    `WORKER_API_TOKEN` and exposes non-secret health metadata at `/` and
+    `/healthz` for deployment verification
   - this slice was validated locally with Python tests plus Worker TypeScript
     type-check
   - the on-prem origin half of the slice is now deployed live on `tichuml1`

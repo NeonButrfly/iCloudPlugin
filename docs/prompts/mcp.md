@@ -33,3 +33,9 @@
     - indexed file metadata and excerpt
     - generated note content
     - canonical source-link / download-handoff metadata
+- Follow-up implementation slice:
+  - harden the Cloudflare Worker for private real-world use with:
+    - optional client-to-Worker bearer auth via `WORKER_API_TOKEN`
+    - public non-secret health metadata at `/` and `/healthz`
+    - explicit documentation that this private-token mode is the bootstrap path
+      before a fuller OAuth front door such as Cloudflare Access

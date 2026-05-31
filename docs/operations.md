@@ -771,12 +771,17 @@ first production-shaped external MCP slice in
 - The Worker expects:
   - `ORIGIN_BASE_URL`
   - `ORIGIN_API_TOKEN`
+  - optional `WORKER_API_TOKEN` for client-to-Worker bearer auth
+  - optional `HEALTH_ROUTE`, default `/healthz`
 - The Worker exposes a `/mcp` route plus a proxied file handoff route:
   - `/download/{file_id}`
+  - and public health metadata at `/` and `/healthz`
 
 Recommended deployment shape:
 
-- keep the Worker behind Cloudflare Access or another OAuth front door
+- use `WORKER_API_TOKEN` for private bootstrap testing and non-public operator use
+- keep the Worker behind Cloudflare Access or another OAuth front door for the
+  production auth model
 - keep bearer auth enabled between Worker and origin via `PLUGIN_API_TOKEN`
 
 At the end of the current slice, the repo contains the Worker scaffold and

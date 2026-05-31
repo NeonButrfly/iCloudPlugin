@@ -5,11 +5,20 @@ import { z } from "zod";
 type Env = {
   ORIGIN_BASE_URL: string;
   ORIGIN_API_TOKEN: string;
+  WORKER_API_TOKEN?: string;
   MCP_ROUTE?: string;
   DOWNLOAD_ROUTE_PREFIX?: string;
+  HEALTH_ROUTE?: string;
 };
 
 type JsonObject = Record<string, unknown>;
+
+const WORKER_NAME = "iCloudPlugin Remote MCP";
+const WORKER_VERSION = "0.1.0";
+
+type TimingSafeSubtleCrypto = SubtleCrypto & {
+  timingSafeEqual?: (a: BufferSource, b: BufferSource) => boolean;
+};
 
 function buildOriginUrl(baseUrl: string, path: string): string {
   const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
@@ -50,6 +59,85 @@ function jsonToolResult(payload: JsonObject) {
       },
     ],
     structuredContent: payload,
+  };
+}
+
+async function sha256Bytes(value: string): Promise<Uint8Array> {
+  return new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)),
+  );
+}
+
+async function hasValidWorkerApiToken(request: Request, env: Env): Promise<boolean> {
+  const expectedToken = env.WORKER_API_TOKEN?.trim();
+  if (!expectedToken) {
+    return true;
+  }
+
+  const authorizationHeader = request.headers.get("Authorization") || "";
+  const bearerPrefix = "Bearer ";
+  if (!authorizationHeader.startsWith(bearerPrefix)) {
+    return false;
+  }
+
+  const providedToken = authorizationHeader.slice(bearerPrefix.length).trim();
+  if (!providedToken) {
+    return false;
+  }
+
+  const [providedDigest, expectedDigest] = await Promise.all([
+    sha256Bytes(providedToken),
+    sha256Bytes(expectedToken),
+  ]);
+
+  const subtle = crypto.subtle as TimingSafeSubtleCrypto;
+  if (typeof subtle.timingSafeEqual !== "function") {
+    throw new Error("timingSafeEqual is unavailable in this Worker runtime");
+  }
+  return subtle.timingSafeEqual(
+    providedDigest as unknown as BufferSource,
+    expectedDigest as unknown as BufferSource,
+  );
+}
+
+function getAuthMode(env: Env): "worker-api-token" | "origin-only" {
+  return env.WORKER_API_TOKEN?.trim() ? "worker-api-token" : "origin-only";
+}
+
+function jsonResponse(payload: JsonObject, status = 200): Response {
+  return new Response(JSON.stringify(payload, null, 2), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "private, no-store",
+    },
+  });
+}
+
+function unauthorizedResponse(): Response {
+  return jsonResponse(
+    {
+      error: "unauthorized",
+      detail: "A valid bearer token is required for this remote MCP server.",
+    },
+    401,
+  );
+}
+
+function buildHealthPayload(env: Env, request: Request): JsonObject {
+  const mcpRoute = env.MCP_ROUTE || "/mcp";
+  const downloadRoutePrefix = env.DOWNLOAD_ROUTE_PREFIX || "/download";
+  const healthRoute = env.HEALTH_ROUTE || "/healthz";
+  return {
+    status: "ok",
+    name: WORKER_NAME,
+    version: WORKER_VERSION,
+    auth_mode: getAuthMode(env),
+    mcp_route: new URL(mcpRoute, request.url).toString(),
+    download_route_prefix: new URL(downloadRoutePrefix, request.url).toString(),
+    health_route: new URL(healthRoute, request.url).toString(),
+    has_origin_base_url: Boolean(env.ORIGIN_BASE_URL?.trim()),
+    has_origin_api_token: Boolean(env.ORIGIN_API_TOKEN?.trim()),
   };
 }
 
@@ -350,17 +438,31 @@ async function proxyDownload(request: Request, env: Env): Promise<Response> {
 }
 
 export default {
-  fetch(request: Request, env: Env, ctx: ExecutionContext) {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const url = new URL(request.url);
     const mcpRoute = env.MCP_ROUTE || "/mcp";
     const downloadPrefix = env.DOWNLOAD_ROUTE_PREFIX || "/download";
+    const healthRoute = env.HEALTH_ROUTE || "/healthz";
+
+    if (url.pathname === healthRoute) {
+      return jsonResponse(buildHealthPayload(env, request));
+    }
 
     if (url.pathname.startsWith(`${downloadPrefix}/`)) {
+      if (!(await hasValidWorkerApiToken(request, env))) {
+        return unauthorizedResponse();
+      }
       return proxyDownload(request, env);
     }
 
     if (url.pathname === "/") {
-      return new Response("iCloudPlugin Remote MCP", { status: 200 });
+      return jsonResponse(buildHealthPayload(env, request));
+    }
+
+    if (url.pathname === mcpRoute) {
+      if (!(await hasValidWorkerApiToken(request, env))) {
+        return unauthorizedResponse();
+      }
     }
 
     const server = createServer(env, request);

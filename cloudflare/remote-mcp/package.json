@@ -6,7 +6,7 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev",
-    "type-check": "node ./node_modules/typescript/bin/tsc --noEmit"
+    "type-check": "node ./node_modules/typescript/lib/tsc.js --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",

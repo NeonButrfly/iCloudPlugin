@@ -34,8 +34,34 @@ bearer token:
 - `ORIGIN_BASE_URL`
 - `ORIGIN_API_TOKEN`
 
-Recommended: keep the Worker itself behind Cloudflare Access or another OAuth
-front door rather than deploying it as a public authless MCP endpoint.
+The Worker can also enforce its own bearer token for client-to-Worker access:
+
+- `WORKER_API_TOKEN`
+
+If `WORKER_API_TOKEN` is set, clients must send:
+
+```http
+Authorization: Bearer <worker token>
+```
+
+on both:
+
+- `/mcp`
+- `/download/<file_id>`
+
+Public status endpoints:
+
+- `/`
+- `/healthz`
+
+These return non-secret route and auth-mode metadata that help with deployment
+verification.
+
+Recommended long-term deployment shape:
+
+- use `WORKER_API_TOKEN` for private bootstrap / operator testing
+- move to Cloudflare Access OAuth or another OAuth front door before calling
+  the external MCP path production-complete
 
 ## Local development
 
@@ -51,6 +77,7 @@ npm run dev
 npm install
 npx wrangler secret put ORIGIN_BASE_URL
 npx wrangler secret put ORIGIN_API_TOKEN
+npx wrangler secret put WORKER_API_TOKEN
 npm run deploy
 ```
 
@@ -61,3 +88,7 @@ The resulting remote MCP endpoint lives at:
 The download handoff route lives at:
 
 - `https://<worker>.<account>.workers.dev/download/<file_id>`
+
+The public health endpoint lives at:
+
+- `https://<worker>.<account>.workers.dev/healthz`

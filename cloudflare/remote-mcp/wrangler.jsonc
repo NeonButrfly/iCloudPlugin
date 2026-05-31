@@ -9,6 +9,7 @@
   },
   "vars": {
     "MCP_ROUTE": "/mcp",
-    "DOWNLOAD_ROUTE_PREFIX": "/download"
+    "DOWNLOAD_ROUTE_PREFIX": "/download",
+    "HEALTH_ROUTE": "/healthz"
   }
 }
