@@ -269,6 +269,23 @@ SUDO_PASSWORD=... bash ./deploy/roles/cloudsync/install_storage_host_sync_assets
 - `CLASSIFICATION_MAX_ATTEMPTS` controls retry budget
 - `CLASSIFICATION_RETRY_BACKOFF_SECONDS` controls when retriable failures can
   be claimed again; the current default is `0`
+
+This is now live on `tichuml1`, not just planned:
+
+- durable `classification_jobs` and `classification_states` back the queue
+- priority buckets prefer higher-yield document/text-backed work before lower-
+  yield image-heavy work
+- `classification-worker` runs in parallel with metadata refresh
+- unchanged files with matching completed fingerprints are skipped instead of
+  being resubmitted
+- authenticated `GET /status/summary` currently reports live queue activity
+  alongside refresh progress
+
+Current validation for the submission agent includes:
+
+- `tests/test_classification_submission.py`
+- `tests/test_status_api.py`
+- `tests/test_health_api.py`
 - Codex arbitration is opt-in only. Keep `CODEX_ARBITER_ENABLED=0` unless an
   operator intentionally enables the Codex final-arbiter path tracked in issue
   #20. With the default value, classifier submissions do not pass the Codex

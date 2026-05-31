@@ -146,6 +146,17 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `provider_counts={icloud:37866, google1:1991, google2:1409}`
     - refresh is actively crawling while the runtime is in
       filesystem-mirror mode
+- issue [#7](https://github.com/NeonButrfly/iCloudPlugin/issues/7) is now also
+  closure-ready:
+  - durable `classification_jobs` and `classification_states` already exist and
+    are actively used by `classification-worker`
+  - backfill plus ongoing submission are already live in parallel with refresh
+  - priority buckets and fingerprint-based skip logic are already covered by
+    `tests/test_classification_submission.py`
+  - live proof on 2026-05-31 AKDT from authenticated `GET /status/summary`:
+    - `classification_job_counts={completed:97, failed:2, queued:84, running:1}`
+    - `classification_state_counts={completed:65, queued:85}`
+    - refresh remained active at the same time
 - `clouddrive.neonbutterfly.net` now proxies to `192.168.50.196:8080`
 - `tichuml1` classifier health is OK
 - `tichuml1` classifier containers were recreated from the monorepo compose on
