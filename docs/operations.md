@@ -813,6 +813,10 @@ plugin-authenticated snapshot covering:
 - provider counts
 - generated vault output counts
 
+The service role now also receives `CLASSIFIER_API_URL` and
+`CLASSIFIER_API_TOKEN` so `GET /status/summary` can report live classifier
+health instead of falling back to `classifier-api-token-missing`.
+
 ## Cloudflare remote MCP
 
 Issue [#48](https://github.com/NeonButrfly/iCloudPlugin/issues/48) adds the
@@ -876,6 +880,8 @@ live on `tichuml1`:
 - `/search`, `POST /refresh`, and `/files/*` now require the plugin bearer token
 - `GET /files/{id}/note` and `GET /files/{id}/source` are live
 - `GET /files/{id}/source/download` is live
+- `GET /search/bundles` is live
+- `GET /status/summary` is live
 
 Live proof used file `23`
 (`/icloud/Downloads/ACE_ASD_Agreement_2024_2027.pdf`):
@@ -891,6 +897,16 @@ Live proof used file `23`
   - `download_path=/files/23/source/download`
   - canonical source metadata
   - Windows UNC `source_link`
+- authenticated `GET /status/summary` returned:
+  - `service_health.status=ok`
+  - `auth_status.status=configured`
+  - `refresh_status.status=running`
+  - `refresh_status.items_seen=27400`
+  - `refresh_status.frontier_length=11953`
+  - `classifier_health.ok=true`
+  - `classification_job_counts={completed:49, failed:2, queued:36, running:1}`
+  - `provider_counts={icloud:37866, google1:1991, google2:1409}`
+  - `vault_counts={classified_files:9, needs_review_files:6, attachments_files:0, extracted_markdown_files:15}`
 
 Cloudflare account-side deployment is still blocked from this environment:
 

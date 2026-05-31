@@ -139,11 +139,28 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - download proxying
     - worker download URL enrichment
     - digest-compare fallback when `crypto.subtle.timingSafeEqual` is absent
-  - the new status-summary slice is currently repo-validated only:
+  - the new status-summary slice is now deployed live on `tichuml1`:
+    - origin `GET /status/summary` is live
+    - local MCP `get_icloud_system_status` points at it
+    - Cloudflare Worker `get_icloud_system_status` is wired to it in repo
+  - local validation for that slice passed:
     - Python API/client tests passed locally
     - Worker type-check passed locally
     - Worker Vitest suite still passed locally
-    - it has not been deployed live to `tichuml1` yet
+  - live proof on 2026-05-31 AKDT:
+    - authenticated `GET /status/summary` returned:
+      - `service_health.status=ok`
+      - `auth_status.status=configured`
+      - `refresh_status.status=running`
+      - `refresh_status.items_seen=27400`
+      - `refresh_status.frontier_length=11953`
+      - `classifier_health.ok=true`
+      - `classification_job_counts={completed:49, failed:2, queued:36, running:1}`
+      - `provider_counts={icloud:37866, google1:1991, google2:1409}`
+      - `vault_counts={classified_files:9, needs_review_files:6, attachments_files:0, extracted_markdown_files:15}`
+    - the service role also now needs `CLASSIFIER_API_URL` and
+      `CLASSIFIER_API_TOKEN` in its env so that summary route can report live
+      classifier health
   - follow-up issue [#50](https://github.com/NeonButrfly/iCloudPlugin/issues/50)
     is now implemented, verified live, and closed:
     - `deploy/roles/cloudsync/report_live_status.sh` prints one unified live
