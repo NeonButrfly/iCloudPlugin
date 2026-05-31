@@ -26,12 +26,14 @@ from packages.classification.ocr_pipeline import (
     extract_pdf_text_with_metadata,
 )
 from packages.classification.retrieval_metadata import build_retrieval_metadata
+from packages.runtime import load_classifier_runtime_settings
 from packages.vault.naming import (
     build_attachment_filename,
     build_extracted_markdown_filename,
     build_note_filename,
 )
 
+from .codex_arbiter import run_codex_final_arbiter
 from .category_manager import (
     find_reviewed_label_override,
     format_examples_for_prompt,
@@ -55,6 +57,7 @@ from .hybrid_runtime import (
 )
 
 ALASKA_TZ = ZoneInfo("America/Anchorage")
+RUNTIME_SETTINGS = load_classifier_runtime_settings()
 
 SUPPORTED_EXTENSIONS = {
     ".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt",
@@ -229,6 +232,43 @@ def vault_category_parts(primary: str, secondary: List[Any]) -> List[str]:
 
 def vault_category_label(parts: List[str]) -> str:
     return " - ".join(parts)
+
+
+def apply_codex_arbiter_if_enabled(
+    *,
+    enabled: bool,
+    source_path: Path,
+    markdown: str,
+    local_classification: Dict[str, Any],
+    heuristic_classification: Optional[Dict[str, Any]],
+    hybrid_live_source: str,
+) -> tuple[Dict[str, Any], str, Dict[str, Any]]:
+    if not enabled:
+        return local_classification, hybrid_live_source, {"status": "disabled", "applied": False}
+
+    candidate_categories: List[str] = []
+    for item in [
+        *(local_classification.get("candidate_categories_used", []) or []),
+        local_classification.get("primary_label", ""),
+        *((local_classification.get("secondary_labels", []) or [])),
+        str((heuristic_classification or {}).get("primary_label", "") or ""),
+        "needs-review",
+        "unknown",
+    ]:
+        tag = obsidian_tag(str(item))
+        if tag and tag not in candidate_categories:
+            candidate_categories.append(tag)
+
+    classification, meta = run_codex_final_arbiter(
+        source_path=source_path,
+        markdown=markdown,
+        local_classification=local_classification,
+        candidate_categories=candidate_categories,
+        command=RUNTIME_SETTINGS.codex_arbiter_command,
+        timeout_seconds=RUNTIME_SETTINGS.codex_arbiter_timeout_seconds,
+    )
+    live_source = "codex-final-arbiter" if meta.get("applied") else hybrid_live_source
+    return classification, live_source, meta
 
 
 def yaml_list(items: List[Any]) -> str:
@@ -2175,6 +2215,20 @@ def main() -> int:
                     fallback_confidence=fallback_confidence,
                     fallback_secondary=[str((heuristic_classification or {}).get("primary_label") or "")],
                 )
+                hybrid_live_source = str(((hybrid_meta or {}).get("decision") or {}).get("live_source", "") or "")
+                classification, hybrid_live_source, codex_arbiter_meta = apply_codex_arbiter_if_enabled(
+                    enabled=bool(args.enable_codex_arbiter),
+                    source_path=source_path,
+                    markdown=markdown or "",
+                    local_classification=classification,
+                    heuristic_classification=heuristic_classification,
+                    hybrid_live_source=hybrid_live_source,
+                )
+                timing["codex_arbiter_status"] = codex_arbiter_meta.get("status", "disabled")
+                timing["codex_arbiter_applied"] = bool(codex_arbiter_meta.get("applied"))
+                if codex_arbiter_meta.get("duration_ms") is not None:
+                    timing["codex_arbiter_ms"] = codex_arbiter_meta.get("duration_ms")
+                timing["final_live_source"] = hybrid_live_source
                 retrieval_text_source = "\n".join(
                     filter(
                         None,
@@ -2204,7 +2258,7 @@ def main() -> int:
                     last_seen_filename=args.last_seen_filename or None,
                     source_parser=str(timing.get("parser", "") or ""),
                     heuristic_primary_hint=str((heuristic_classification or {}).get("primary_label", "") or "unknown"),
-                    hybrid_live_source=str(((hybrid_meta or {}).get("decision") or {}).get("live_source", "") or ""),
+                    hybrid_live_source=hybrid_live_source,
                 )
                 timing["note_write_ms"] = elapsed_ms(note_started_at)
                 timing["primary_label"] = classification.get("primary_label", "unknown")

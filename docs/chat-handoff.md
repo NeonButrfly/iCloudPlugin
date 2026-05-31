@@ -60,6 +60,12 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - the reconciliation path now normalizes legacy hash-heavy generated note
   filenames back to clean human-readable names and rewrites stored note
   references accordingly
+- the repo now also has the first real Codex final-arbiter implementation path:
+  - still disabled by default behind `CODEX_ARBITER_ENABLED=0`
+  - bounded by `CODEX_ARBITER_TIMEOUT_SECONDS`
+  - driven by `CODEX_ARBITER_COMMAND` (default `codex exec`)
+  - falls back to the local classifier result on invalid JSON, timeout, or CLI
+    execution failure instead of breaking note generation
 
 ## Important Deployment Fixes Already Made
 

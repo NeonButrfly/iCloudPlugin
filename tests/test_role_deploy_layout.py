@@ -284,6 +284,8 @@ def test_classifier_role_compose_disables_shadow_worker_and_supports_multiple_ap
 
     assert "- ENABLE_SHADOW_WORKER=${ENABLE_SHADOW_WORKER:-0}" in compose_text
     assert "- CODEX_ARBITER_ENABLED=${CODEX_ARBITER_ENABLED:-0}" in compose_text
+    assert "- CODEX_ARBITER_COMMAND=${CODEX_ARBITER_COMMAND:-codex exec}" in compose_text
+    assert "- CODEX_ARBITER_TIMEOUT_SECONDS=${CODEX_ARBITER_TIMEOUT_SECONDS:-120}" in compose_text
     assert '- "${CLASSIFIER_API_WORKERS:-4}"' in compose_text
 
 
@@ -302,3 +304,5 @@ def test_combined_role_compose_includes_sync_and_classifier_services():
     services = json.loads(result.stdout)["services"]
     assert {"postgres", "service", "worker", "classification-worker", "ollama", "classifier-api"} <= set(services)
     assert services["classifier-api"]["environment"]["CODEX_ARBITER_ENABLED"] == "0"
+    assert services["classifier-api"]["environment"]["CODEX_ARBITER_COMMAND"] == "codex exec"
+    assert services["classifier-api"]["environment"]["CODEX_ARBITER_TIMEOUT_SECONDS"] == "120"

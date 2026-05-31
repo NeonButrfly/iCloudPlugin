@@ -33,6 +33,11 @@ Operational defaults:
 - `ENABLE_SHADOW_WORKER=0` to keep the API role focused on request handling
 - `CODEX_ARBITER_ENABLED=0` so Codex never participates in classifier
   decisions unless an operator explicitly enables it
+- `CODEX_ARBITER_COMMAND` defaults to `codex exec`; override it if the live
+  host needs extra non-interactive flags or a different Codex binary path
+- `CODEX_ARBITER_TIMEOUT_SECONDS=120` bounds a single Codex arbiter attempt so
+  a bad external call falls back to the local classifier result instead of
+  hanging the request forever
 - `CLASSIFIER_API_WORKERS=4` so health and metadata endpoints can still respond
   while concurrent long classification requests are running
 - keep `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors` aligned with the

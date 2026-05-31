@@ -67,6 +67,8 @@ class ClassifierRuntimeSettings:
     shadow_worker_enabled: bool
     shadow_worker_interval_seconds: int
     codex_arbiter_enabled: bool
+    codex_arbiter_command: str
+    codex_arbiter_timeout_seconds: int
 
     def resolve_existing_config_path(self, filename: str, *, include_artifact: bool = True) -> Path | None:
         candidates = []
@@ -200,6 +202,12 @@ def load_classifier_runtime_settings() -> ClassifierRuntimeSettings:
         shadow_worker_interval_seconds = int(interval_text)
     except ValueError:
         shadow_worker_interval_seconds = 15
+    codex_timeout_text = os.getenv("CODEX_ARBITER_TIMEOUT_SECONDS", "120").strip()
+    try:
+        codex_arbiter_timeout_seconds = int(codex_timeout_text)
+    except ValueError:
+        codex_arbiter_timeout_seconds = 120
+    codex_arbiter_timeout_seconds = max(codex_arbiter_timeout_seconds, 1)
 
     config_root = _default_path("CLASSIFIER_CONFIG_ROOT", "/config")
     output_root = _default_path("CLASSIFIER_OUTPUT_ROOT", "/output")
@@ -217,4 +225,6 @@ def load_classifier_runtime_settings() -> ClassifierRuntimeSettings:
         shadow_worker_enabled=_env_flag("ENABLE_SHADOW_WORKER", "1"),
         shadow_worker_interval_seconds=shadow_worker_interval_seconds,
         codex_arbiter_enabled=_env_flag("CODEX_ARBITER_ENABLED", "0"),
+        codex_arbiter_command=os.getenv("CODEX_ARBITER_COMMAND", "codex exec").strip() or "codex exec",
+        codex_arbiter_timeout_seconds=codex_arbiter_timeout_seconds,
     )

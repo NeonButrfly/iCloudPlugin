@@ -294,6 +294,14 @@ Current validation for the submission agent includes:
   operator intentionally enables the Codex final-arbiter path tracked in issue
   #20. With the default value, classifier submissions do not pass the Codex
   arbiter flag into the note-generation process.
+- when issue #20 is being tested intentionally:
+  - `CODEX_ARBITER_COMMAND` defaults to `codex exec`
+  - `CODEX_ARBITER_TIMEOUT_SECONDS` defaults to `120`
+  - a successful Codex override becomes the final `hybrid_live_source` as
+    `codex-final-arbiter`
+  - invalid JSON, nonzero exits, missing CLI access, and timeout paths all
+    fall back to the local classifier result instead of failing the document
+    run
 - `IMAGE_OCR_MIN_CHARS` controls when an image is routed through the OCR-backed
   document path instead of going straight to Qwen vision fallback.
 - the classifier role now also needs a read-only shared-source mount:

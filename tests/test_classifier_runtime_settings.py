@@ -79,3 +79,15 @@ def test_codex_arbiter_requires_explicit_enable_flag(monkeypatch):
 
     monkeypatch.setenv("CODEX_ARBITER_ENABLED", "1")
     assert module.load_classifier_runtime_settings().codex_arbiter_enabled is True
+
+
+def test_codex_arbiter_runtime_settings_support_command_and_timeout_overrides(monkeypatch):
+    module = import_module("packages.runtime.classifier_settings")
+
+    monkeypatch.setenv("CODEX_ARBITER_COMMAND", "codex exec --skip-git-repo-check")
+    monkeypatch.setenv("CODEX_ARBITER_TIMEOUT_SECONDS", "45")
+
+    settings = module.load_classifier_runtime_settings()
+
+    assert settings.codex_arbiter_command == "codex exec --skip-git-repo-check"
+    assert settings.codex_arbiter_timeout_seconds == 45
