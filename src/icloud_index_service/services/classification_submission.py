@@ -175,6 +175,11 @@ def get_classification_targeted_requeue_limit() -> int:
     return max(parsed_value, 0)
 
 
+def get_classifier_api_token() -> str | None:
+    token = (os.getenv("CLASSIFIER_API_TOKEN") or "").strip()
+    return token or None
+
+
 def _normalize_extension(extension: str | None, *, file_name: str | None = None) -> str:
     raw_value = (extension or "").strip().lower().lstrip(".")
     if raw_value:
@@ -704,9 +709,14 @@ class ClassifierApiClient:
 
 
 def create_classifier_api_client() -> ClassifierApiClient:
+    api_token = get_classifier_api_token()
+    if get_classification_submission_enabled() and not api_token:
+        raise ClassifierSubmissionNotReadyError(
+            "CLASSIFIER_API_TOKEN is required when classification submission is enabled."
+        )
     return ClassifierApiClient(
         base_url=(os.getenv("CLASSIFIER_API_URL") or DEFAULT_CLASSIFIER_API_URL).strip(),
-        api_token=(os.getenv("CLASSIFIER_API_TOKEN") or "").strip() or None,
+        api_token=api_token,
     )
 
 

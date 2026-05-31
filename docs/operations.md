@@ -158,6 +158,15 @@ it successfully.
 - it submits mirror-relative source paths to `CLASSIFIER_API_URL` using
   `CLASSIFIER_API_TOKEN` for normal real-folder ingestion, so the classifier
   reads the shared source file directly instead of staging a duplicate upload
+- if `CLASSIFICATION_SUBMISSION_ENABLED=true` and `CLASSIFIER_API_TOKEN` is
+  blank, the submission path now fails fast with a clear configuration error
+  instead of surfacing only later as classifier API `401` responses
+- on the live compute-only deployment, the cloudsync role token must match the
+  classifier role token; this was re-proven on 2026-05-31 AKDT when file `8213`
+  (`/google1/Aetna Life Insurance Company - APPEAL 1 FFS.docx`) completed,
+  rewrote its note into `01 Classified/medical/appeals/...`, returned
+  `note_available=true` from `/files/8213/note`, and kept `90 Attachments`
+  empty
 - it persists per-file classification state so unchanged files are not
   resubmitted
 - it reads files from the mirrored filesystem source instead of re-downloading

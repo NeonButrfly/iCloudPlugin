@@ -125,6 +125,20 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `npx wrangler whoami` reports `Not logged in`
     - non-interactive Cloudflare deploy/list flows require
       `CLOUDFLARE_API_TOKEN`
+  - follow-up bug [#49](https://github.com/NeonButrfly/iCloudPlugin/issues/49)
+    is now fixed in repo, repaired live on `tichuml1`, and closed:
+    - the live cloudsync env had `CLASSIFIER_API_TOKEN` blank, which broke
+      real-folder classifier submission with classifier API `401`
+    - the token is now synced from the classifier role env
+    - the cloudsync `classification-worker` is running again
+    - fresh smoke file `8213`
+      (`/google1/Aetna Life Insurance Company - APPEAL 1 FFS.docx`) completed
+      successfully and regenerated:
+      - `01 Classified/medical/appeals/Aetna Life Insurance Company - APPEAL 1 FFS - medical - appeals.md`
+      - `attachment_mode=canonical-source-link`
+      - UNC `source_link` back to `\\192.168.50.86\cloud-vault\mirrors\google1\...`
+      - `/files/8213/note` now returns `note_available=true`
+      - `90 Attachments` stayed at `0` files during the smoke proof
 - live classifier readiness recovered and is green again:
   - `model_exists=true`
   - `real_ingestion_allowed=true`

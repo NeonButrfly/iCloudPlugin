@@ -23,6 +23,7 @@ from icloud_index_service.services.classification_submission import (
     DEFAULT_CLASSIFICATION_MAX_ATTEMPTS,
     DEFAULT_CLASSIFICATION_SUBMISSION_CONCURRENCY,
     compute_source_fingerprint,
+    create_classifier_api_client,
     enqueue_classification_backfill,
     enqueue_targeted_reclassification_from_manual_feedback,
     get_classification_backfill_enabled,
@@ -506,6 +507,19 @@ def test_classifier_api_client_treats_real_folder_readiness_conflict_as_retryabl
 
     with pytest.raises(ClassifierSubmissionNotReadyError):
         client.submit_file(file_path=local_file, file_name=local_file.name)
+
+
+def test_create_classifier_api_client_requires_token_when_submission_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("CLASSIFICATION_SUBMISSION_ENABLED", "true")
+    monkeypatch.delenv("CLASSIFIER_API_TOKEN", raising=False)
+
+    with pytest.raises(
+        ClassifierSubmissionNotReadyError,
+        match="CLASSIFIER_API_TOKEN is required",
+    ):
+        create_classifier_api_client()
 
 
 def test_classification_worker_once_processes_up_to_configured_concurrency(

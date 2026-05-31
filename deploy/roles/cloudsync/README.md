@@ -63,6 +63,13 @@ For the compute-only deployment on `tichuml1`:
 - leave `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors` so the container path
   stays stable
 - keep `CLASSIFIER_API_URL=http://192.168.50.196:4319`
+- set `CLASSIFIER_API_TOKEN` to the same live classifier API token used by the
+  classifier role; real-folder submission will fail fast if it is blank while
+  classification submission is enabled
+- when the host is using a remote Postgres instance and you only need to bring
+  up `classification-worker`, prefer `docker start icloudplugin-classification-worker-1`
+  or `docker compose ... up -d --no-deps classification-worker` so compose does
+  not try to recreate the local `postgres` service unnecessarily
 - prefer `docker compose -p icloudplugin --env-file deploy/roles/cloudsync/.env.live`
   so the cloudsync project name remains stable during cutover
 
