@@ -1113,6 +1113,15 @@ Recommended deployment shape:
       - `CLOUDFLARE_API_TOKEN`
       - `REMOTE_MCP_ORIGIN_BASE_URL`
       - `REMOTE_MCP_ORIGIN_API_TOKEN`
+  - partial bootstrap follow-up on 2026-05-31 AKDT:
+    - repo secret `REMOTE_MCP_ORIGIN_BASE_URL` is now set to the live public
+      origin base URL `https://clouddrive.neonbutterfly.net`
+    - rerun `deploy-and-verify` proof:
+      - `https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26726168346`
+    - preflight now reports only:
+      - `CLOUDFLARE_API_TOKEN`
+      - `REMOTE_MCP_ORIGIN_API_TOKEN`
+      as still missing
 - `cloudflare/remote-mcp/scripts/bootstrap-github-secrets.mjs` now provides the
   canonical bootstrap path for those GitHub-side deploy prerequisites:
   - plan only:

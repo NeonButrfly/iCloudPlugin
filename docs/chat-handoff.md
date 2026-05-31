@@ -336,6 +336,15 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
             - `CLOUDFLARE_API_TOKEN`
             - `REMOTE_MCP_ORIGIN_BASE_URL`
             - `REMOTE_MCP_ORIGIN_API_TOKEN`
+        - partial secret bootstrap follow-up on 2026-05-31 AKDT:
+          - repo secret `REMOTE_MCP_ORIGIN_BASE_URL` is now populated with the
+            live public origin base URL `https://clouddrive.neonbutterfly.net`
+          - rerun `deploy-and-verify` proof:
+            - `https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26726168346`
+          - preflight now shows `ORIGIN_BASE_URL` present and only these values
+            still missing:
+            - `CLOUDFLARE_API_TOKEN`
+            - `REMOTE_MCP_ORIGIN_API_TOKEN`
       - the workflow now uses `actions/checkout@v6` and `actions/setup-node@v6`
         to avoid the Node 20 GitHub Actions runtime deprecation warning seen in
         the first plan/deploy attempts
