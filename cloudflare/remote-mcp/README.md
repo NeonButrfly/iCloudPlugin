@@ -85,6 +85,14 @@ This repo follows that shape: the Worker stays stateless, and Access is the
 recommended production auth front door instead of pushing more auth logic into
 the Worker itself.
 
+Implementation note:
+
+- the Worker now uses a small in-repo stateless handler built directly on
+  `@modelcontextprotocol/sdk`'s Web Standard Streamable HTTP transport
+- it no longer depends on Cloudflare's broader `agents` package at runtime
+- that keeps the Worker aligned with the stateless MCP guidance while making
+  local end-to-end verification possible in plain Node/Vitest
+
 ## Local development
 
 ```bash
@@ -93,6 +101,13 @@ npm test
 npm run type-check
 npm run dev
 ```
+
+The local test suite now includes an end-to-end MCP proof:
+
+- a real MCP client connects to the Worker route
+- `tools/list` succeeds
+- `get_icloud_system_status` succeeds
+- bundled search responses rewrite `worker_download_url` correctly
 
 Local secret/example file:
 

@@ -83,3 +83,9 @@
   - support custom verify headers so the same verifier can work through
     Cloudflare Access or other front-door auth layers, not just the temporary
     Worker bearer gate
+- Follow-up implementation slice:
+  - replace the Worker's MCP route dependency on Cloudflare's broader `agents`
+    package with a lighter in-repo stateless handler built directly on the MCP
+    SDK Web Standard transport
+  - use that slimmer handler to enable a real local end-to-end MCP test path in
+    plain Node/Vitest while keeping the Cloudflare Worker shape intact

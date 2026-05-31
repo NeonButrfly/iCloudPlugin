@@ -138,6 +138,16 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
         the temporary Worker bearer token gate
     - `deploy-and-verify.mjs` now chains that `/mcp` smoke step after deploy by
       default instead of stopping at `/healthz`
+    - the Worker runtime no longer depends on Cloudflare's broader `agents`
+      package for MCP request handling; it now uses an in-repo stateless
+      handler built directly on the MCP SDK's Web Standard Streamable HTTP
+      transport
+    - local end-to-end proof now exists in
+      `cloudflare/remote-mcp/tests/mcp-e2e.test.ts`
+      - real MCP client -> Worker route
+      - `tools/list`
+      - `get_icloud_system_status`
+      - bundled-search `worker_download_url` rewriting
     - `print-access-bootstrap.mjs` emits ready-to-run Cloudflare Access
       bootstrap commands for the recommended self-hosted Access model
     - `.dev.vars.example` documents the local Worker secret shape for

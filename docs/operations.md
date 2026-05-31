@@ -830,6 +830,10 @@ first production-shaped external MCP slice in
   `search_icloud_notes_and_files` in addition to the single-file tools.
 - The Worker now also exposes `get_icloud_system_status` so external MCP
   clients can inspect the live cloud-vault runtime without shell access.
+- The Worker now uses an in-repo stateless Streamable HTTP handler built
+  directly on `@modelcontextprotocol/sdk`, which keeps the runtime lighter and
+  makes local end-to-end MCP verification possible without Cloudflare account
+  access.
 - The Worker expects:
   - `ORIGIN_BASE_URL`
   - `ORIGIN_API_TOKEN`
@@ -864,6 +868,11 @@ Recommended deployment shape:
     errors
   - optional custom auth headers for front doors such as Cloudflare Access
     service-token flows
+- Local Worker verification now also has a true end-to-end test path:
+  - `cloudflare/remote-mcp/tests/mcp-e2e.test.ts`
+  - it connects a real MCP client to the Worker route, runs `tools/list`,
+    calls `get_icloud_system_status`, and verifies Worker download URL
+    rewriting in bundled search results
 - `cloudflare/remote-mcp/scripts/print-access-bootstrap.mjs` now emits
   ready-to-run Cloudflare Access bootstrap commands for the recommended
   self-hosted Access application model, including the documented optional

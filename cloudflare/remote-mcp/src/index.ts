@@ -1,4 +1,3 @@
-import { createMcpHandler } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
@@ -8,6 +7,7 @@ import {
   type JsonObject,
   withWorkerDownloadUrl,
 } from "./runtime";
+import { createMcpHandler } from "./mcpHandler";
 
 function jsonToolResult(payload: JsonObject) {
   return {
@@ -259,6 +259,6 @@ export default {
     }
 
     const server = createServer(env, request);
-    return createMcpHandler(server, { route: mcpRoute })(request, env, ctx);
+    return createMcpHandler(server, { route: mcpRoute })(request);
   },
 } satisfies ExportedHandler<Env>;
