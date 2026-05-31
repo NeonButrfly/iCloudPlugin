@@ -1,0 +1,143 @@
+name: Remote MCP Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Which remote MCP workflow action to run
+        required: true
+        default: deploy-and-verify
+        type: choice
+        options:
+          - deploy-and-verify
+          - mcp-verify-only
+          - plan
+      base_url:
+        description: Optional public Worker base URL override
+        required: false
+        type: string
+      probe_tool:
+        description: Optional probe tool override for mcp-verify-only
+        required: false
+        default: get_icloud_product_readiness
+        type: string
+      probe_args_json:
+        description: Optional JSON arguments for the probe tool
+        required: false
+        default: "{}"
+        type: string
+      verify_headers_json:
+        description: Optional JSON object of verification headers
+        required: false
+        type: string
+      skip_health_check:
+        description: Skip the public health preflight
+        required: false
+        default: false
+        type: boolean
+      skip_mcp_check:
+        description: Skip the remote MCP smoke verification after deploy
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remote-mcp-deploy
+  cancel-in-progress: false
+
+jobs:
+  remote-mcp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: cloudflare/remote-mcp
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ORIGIN_BASE_URL: ${{ secrets.REMOTE_MCP_ORIGIN_BASE_URL }}
+      ORIGIN_API_TOKEN: ${{ secrets.REMOTE_MCP_ORIGIN_API_TOKEN }}
+      WORKER_API_TOKEN: ${{ secrets.REMOTE_MCP_WORKER_API_TOKEN }}
+      REMOTE_MCP_PUBLIC_BASE_URL: ${{ secrets.REMOTE_MCP_PUBLIC_BASE_URL }}
+      REMOTE_MCP_VERIFY_HEADERS_JSON: ${{ secrets.REMOTE_MCP_VERIFY_HEADERS_JSON }}
+      CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+      CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+      CF_ACCESS_TOKEN: ${{ secrets.CF_ACCESS_TOKEN }}
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: cloudflare/remote-mcp/package-lock.json
+
+      - name: Install Worker dependencies
+        run: npm ci
+
+      - name: Apply workflow input overrides
+        run: |
+          if [[ -n "${{ inputs.base_url }}" ]]; then
+            echo "REMOTE_MCP_PUBLIC_BASE_URL=${{ inputs.base_url }}" >> "$GITHUB_ENV"
+          fi
+          if [[ -n "${{ inputs.verify_headers_json }}" ]]; then
+            {
+              echo "REMOTE_MCP_VERIFY_HEADERS_JSON<<EOF"
+              echo '${{ inputs.verify_headers_json }}'
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+          fi
+
+      - name: Validate Worker contract
+        run: |
+          npm run submission:verify
+          npm test
+          npm run type-check
+
+      - name: Preflight deploy secrets
+        if: ${{ inputs.action == 'deploy-and-verify' }}
+        run: |
+          missing=()
+          [[ -n "${CLOUDFLARE_API_TOKEN}" ]] || missing+=("CLOUDFLARE_API_TOKEN")
+          [[ -n "${ORIGIN_BASE_URL}" ]] || missing+=("REMOTE_MCP_ORIGIN_BASE_URL")
+          [[ -n "${ORIGIN_API_TOKEN}" ]] || missing+=("REMOTE_MCP_ORIGIN_API_TOKEN")
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Missing required GitHub Actions secrets: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Plan remote MCP deploy
+        if: ${{ inputs.action == 'plan' }}
+        run: node scripts/deploy-and-verify.mjs --plan --json
+
+      - name: Deploy and verify remote MCP Worker
+        if: ${{ inputs.action == 'deploy-and-verify' }}
+        run: |
+          cmd=(node scripts/deploy-and-verify.mjs --sync-secrets --json)
+          if [[ "${{ inputs.skip_health_check }}" == "true" ]]; then
+            cmd+=(--skip-health-check)
+          fi
+          if [[ "${{ inputs.skip_mcp_check }}" == "true" ]]; then
+            cmd+=(--skip-mcp-check)
+          fi
+          if [[ -n "${REMOTE_MCP_PUBLIC_BASE_URL}" ]]; then
+            cmd+=(--base-url "${REMOTE_MCP_PUBLIC_BASE_URL}")
+          fi
+          "${cmd[@]}"
+
+      - name: Verify hosted remote MCP only
+        if: ${{ inputs.action == 'mcp-verify-only' }}
+        run: |
+          if [[ -z "${REMOTE_MCP_PUBLIC_BASE_URL}" ]]; then
+            echo "REMOTE_MCP_PUBLIC_BASE_URL is required for mcp-verify-only." >&2
+            exit 1
+          fi
+          cmd=(node scripts/verify-mcp-tools.mjs --base-url "${REMOTE_MCP_PUBLIC_BASE_URL}" --probe-tool "${{ inputs.probe_tool }}" --probe-args '${{ inputs.probe_args_json }}' --json)
+          if [[ "${{ inputs.skip_health_check }}" == "true" ]]; then
+            cmd+=(--skip-health)
+          fi
+          "${cmd[@]}"

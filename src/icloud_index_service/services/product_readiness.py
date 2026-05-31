@@ -101,6 +101,9 @@ def collect_repo_surface_facts(repo_root: Path) -> dict[str, Any]:
     deploy_helper = worker_dir / "scripts" / "deploy-and-verify.mjs"
     local_verify_helper = worker_dir / "scripts" / "dev-and-verify.mjs"
     smoke_verify_helper = worker_dir / "scripts" / "verify-mcp-tools.mjs"
+    github_actions_workflow = (
+        repo_root / ".github" / "workflows" / "remote-mcp-deploy.yml"
+    )
     codex_readiness_helper = (
         repo_root / "deploy" / "roles" / "classifier" / "report_codex_arbiter_readiness.sh"
     )
@@ -121,6 +124,7 @@ def collect_repo_surface_facts(repo_root: Path) -> dict[str, Any]:
         "remote_mcp_deploy_helper_present": deploy_helper.is_file(),
         "remote_mcp_local_verify_helper_present": local_verify_helper.is_file(),
         "remote_mcp_smoke_verify_helper_present": smoke_verify_helper.is_file(),
+        "remote_mcp_github_actions_workflow_present": github_actions_workflow.is_file(),
         "codex_readiness_helper_present": codex_readiness_helper.is_file(),
         "codex_smoke_helper_present": codex_smoke_helper.is_file(),
         "legacy_note_reconciliation_helper_present": targeted_batch_helper.is_file(),
@@ -350,15 +354,27 @@ def _evaluate_auth_and_deploy_story(
     if not repo_facts.get("remote_mcp_deploy_helper_present"):
         return ReadinessCheck("blocked", "Remote MCP deploy helper is missing.")
 
+    if repo_facts.get("remote_mcp_github_actions_workflow_present") is not True:
+        return ReadinessCheck(
+            "blocked",
+            "Remote MCP GitHub-hosted deploy workflow is missing.",
+        )
+
     if cloudflare_api_token_present:
         return ReadinessCheck(
             "in_progress",
             "Cloudflare deploy auth is present, but hosted proof still needs to be run.",
+            {
+                "github_actions_workflow_present": True,
+            },
         )
 
     return ReadinessCheck(
         "blocked",
         "Cloudflare deploy auth is not present in this environment.",
+        {
+            "github_actions_workflow_present": True,
+        },
     )
 
 

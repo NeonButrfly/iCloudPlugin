@@ -312,6 +312,12 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
         runtime status
     - `deploy-and-verify.mjs` now chains that `/mcp` smoke step after deploy by
       default instead of stopping at `/healthz`
+    - `.github/workflows/remote-mcp-deploy.yml` now provides a manual
+      GitHub-hosted path for:
+      - `deploy-and-verify`
+      - `mcp-verify-only`
+      - `plan`
+      using repo secrets instead of workstation-local Cloudflare auth
     - the Worker runtime no longer depends on Cloudflare's broader `agents`
       package for MCP request handling; it now uses an in-repo stateless
       handler built directly on the MCP SDK's Web Standard Streamable HTTP

@@ -1083,6 +1083,27 @@ Recommended deployment shape:
   - post-deploy `/healthz` verification
   - post-deploy `/mcp` smoke verification through a real Streamable HTTP MCP
     client, defaulting to `get_icloud_product_readiness`
+- `.github/workflows/remote-mcp-deploy.yml` now provides the canonical
+  GitHub-hosted manual path when local Cloudflare auth is unavailable:
+  - `workflow_dispatch` actions:
+    - `deploy-and-verify`
+    - `mcp-verify-only`
+    - `plan`
+  - expected GitHub secrets:
+    - `CLOUDFLARE_API_TOKEN`
+    - `REMOTE_MCP_ORIGIN_BASE_URL`
+    - `REMOTE_MCP_ORIGIN_API_TOKEN`
+    - optional `REMOTE_MCP_WORKER_API_TOKEN`
+    - optional `REMOTE_MCP_PUBLIC_BASE_URL`
+    - optional `REMOTE_MCP_VERIFY_HEADERS_JSON`
+    - optional `CF_ACCESS_CLIENT_ID`
+    - optional `CF_ACCESS_CLIENT_SECRET`
+    - optional `CF_ACCESS_TOKEN`
+  - the workflow reruns:
+    - `npm run submission:verify`
+    - `npm test`
+    - `npm run type-check`
+    before any hosted deploy or verify action
 - `cloudflare/remote-mcp/scripts/verify-mcp-tools.mjs` is now the canonical
   smoke verifier for the remote MCP route itself:
   - optional `/healthz` preflight when a public base URL is available

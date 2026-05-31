@@ -199,6 +199,29 @@ Trim that flow only when you mean to:
 - `--skip-mcp-check`
 - repeated `--verify-header 'Name: Value'` for the MCP verification step
 
+GitHub-hosted deploy path:
+
+- `.github/workflows/remote-mcp-deploy.yml` now provides a manual
+  `workflow_dispatch` path for:
+  - `deploy-and-verify`
+  - `mcp-verify-only`
+  - `plan`
+- expected GitHub Actions secrets:
+  - `CLOUDFLARE_API_TOKEN`
+  - `REMOTE_MCP_ORIGIN_BASE_URL`
+  - `REMOTE_MCP_ORIGIN_API_TOKEN`
+  - optional `REMOTE_MCP_WORKER_API_TOKEN`
+  - optional `REMOTE_MCP_PUBLIC_BASE_URL`
+  - optional `REMOTE_MCP_VERIFY_HEADERS_JSON`
+  - optional `CF_ACCESS_CLIENT_ID`
+  - optional `CF_ACCESS_CLIENT_SECRET`
+  - optional `CF_ACCESS_TOKEN`
+- the workflow always re-runs:
+  - `npm run submission:verify`
+  - `npm test`
+  - `npm run type-check`
+  before any hosted deploy or verification action
+
 Verify the deployed `/mcp` route like a real MCP client by listing tools and
 calling one probe tool:
 

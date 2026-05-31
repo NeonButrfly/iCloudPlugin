@@ -254,6 +254,35 @@ def test_product_readiness_report_script_exists_and_docs_reference_it():
     assert "report_product_readiness.py" in handoff_doc.read_text(encoding="utf-8")
 
 
+def test_remote_mcp_deploy_workflow_exists_and_uses_repo_verify_helpers():
+    repo_root = Path(__file__).resolve().parents[1]
+    workflow = repo_root / ".github" / "workflows" / "remote-mcp-deploy.yml"
+    operations_doc = repo_root / "docs" / "operations.md"
+    handoff_doc = repo_root / "docs" / "chat-handoff.md"
+
+    workflow_text = workflow.read_text(encoding="utf-8")
+
+    assert workflow.exists()
+    assert "workflow_dispatch:" in workflow_text
+    assert "deploy-and-verify" in workflow_text
+    assert "mcp-verify-only" in workflow_text
+    assert "plan" in workflow_text
+    assert "node scripts/deploy-and-verify.mjs --plan --json" in workflow_text
+    assert "node scripts/deploy-and-verify.mjs --sync-secrets --json" in workflow_text
+    assert "node scripts/verify-mcp-tools.mjs" in workflow_text
+    assert "CLOUDFLARE_API_TOKEN" in workflow_text
+    assert "REMOTE_MCP_ORIGIN_BASE_URL" in workflow_text
+    assert "REMOTE_MCP_ORIGIN_API_TOKEN" in workflow_text
+    assert "REMOTE_MCP_PUBLIC_BASE_URL" in workflow_text
+    assert "REMOTE_MCP_VERIFY_HEADERS_JSON" in workflow_text
+    assert "CF_ACCESS_CLIENT_ID" in workflow_text
+    assert "CF_ACCESS_CLIENT_SECRET" in workflow_text
+    assert "CF_ACCESS_TOKEN" in workflow_text
+    assert "remote-mcp-deploy" in workflow_text
+    assert "remote-mcp-deploy.yml" in operations_doc.read_text(encoding="utf-8")
+    assert "remote-mcp-deploy.yml" in handoff_doc.read_text(encoding="utf-8")
+
+
 def test_role_compose_files_exist_for_cloudsync_classifier_and_combined():
     repo_root = Path(__file__).resolve().parents[1]
     expected = [
