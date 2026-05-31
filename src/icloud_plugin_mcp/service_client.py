@@ -77,6 +77,17 @@ class ICloudIndexServiceClient:
             payload["content_truncated"] = True
         return payload
 
+    def get_file_note(self, *, file_id: int, max_chars: int = 20_000) -> dict[str, Any]:
+        payload = self._request("GET", f"/files/{file_id}/note")
+        note_content = payload.get("note_content")
+        if isinstance(note_content, str) and len(note_content) > max_chars:
+            payload["note_content"] = note_content[:max_chars]
+            payload["note_truncated"] = True
+        return payload
+
+    def get_file_source(self, *, file_id: int) -> dict[str, Any]:
+        return self._request("GET", f"/files/{file_id}/source")
+
     def refresh_index(self) -> dict[str, Any]:
         return self._request("POST", "/refresh")
 

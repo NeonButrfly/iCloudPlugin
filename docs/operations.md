@@ -722,7 +722,52 @@ python -m apps.classifier.classify_to_obsidian --process-shadow-queue
 
 1. Run `python -m pip install -e .` from the repo root.
 2. Keep the service reachable at `ICLOUD_INDEX_SERVICE_URL`, or leave it on the default `http://127.0.0.1:8080`.
-3. Use the repo-local plugin in `plugins/icloud-drive`.
+3. If `PLUGIN_API_TOKEN` is set on the service, set the same value locally as
+   `ICLOUD_INDEX_API_TOKEN`.
+4. Use the repo-local plugin in `plugins/icloud-drive`.
+
+The local MCP bridge now exposes:
+
+- `search_icloud_files`
+- `get_icloud_file`
+- `get_icloud_file_excerpt`
+- `get_icloud_note`
+- `get_icloud_source_reference`
+- `get_icloud_file_bundle`
+- `refresh_icloud_index`
+
+The backing service now exposes plugin-facing note/source routes:
+
+- `GET /files/{id}/note`
+- `GET /files/{id}/source`
+- `GET /files/{id}/source/download`
+
+`GET /files/{id}/source/download` streams the original mirrored file with
+plugin-token auth and `Cache-Control: private, no-store`.
+
+## Cloudflare remote MCP
+
+Issue [#48](https://github.com/NeonButrfly/iCloudPlugin/issues/48) adds the
+first production-shaped external MCP slice in
+`cloudflare/remote-mcp`.
+
+- It is a Cloudflare Worker MCP facade over the on-prem index/classifier
+  service.
+- The origin service remains the source of truth.
+- The Worker expects:
+  - `ORIGIN_BASE_URL`
+  - `ORIGIN_API_TOKEN`
+- The Worker exposes a `/mcp` route plus a proxied file handoff route:
+  - `/download/{file_id}`
+
+Recommended deployment shape:
+
+- keep the Worker behind Cloudflare Access or another OAuth front door
+- keep bearer auth enabled between Worker and origin via `PLUGIN_API_TOKEN`
+
+At the end of the current slice, the repo contains the Worker scaffold and
+validated local type-check, but Cloudflare account-side deployment validation
+was blocked in-session because the Cloudflare API tool required account auth.
 
 ## Degraded mode
 

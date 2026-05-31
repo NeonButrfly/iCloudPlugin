@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from icloud_index_service.api.security import require_plugin_api_token
 from icloud_index_service.db import get_session
 from icloud_index_service.services.job_runner import (
     SchemaNotReadyError,
@@ -13,7 +14,11 @@ from icloud_index_service.services.job_runner import (
 router = APIRouter(prefix="/refresh", tags=["refresh"])
 
 
-@router.post("", status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "",
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(require_plugin_api_token)],
+)
 def request_refresh(session: Session = Depends(get_session)) -> dict[str, object]:
     try:
         job = enqueue_metadata_refresh(session)

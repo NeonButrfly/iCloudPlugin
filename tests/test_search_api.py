@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import Request
@@ -329,6 +330,171 @@ def test_file_endpoint_caps_large_content_payloads(tmp_path, monkeypatch):
         content_length=MAX_FILE_CONTENT_CHARS + 25,
         content_truncated=True,
     )
+
+
+def test_file_note_and_source_endpoints_return_vault_and_source_metadata(tmp_path, monkeypatch):
+    vault_root = tmp_path / "document-vault"
+    note_path = vault_root / "01 Classified" / "financial" / "Budget - financial.md"
+    note_path.parent.mkdir(parents=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'canonical_source_path: "/srv/cloud-vault/mirrors/google1/Finance/Budget.txt"',
+                'source_link: "[Budget.txt](file://192.168.50.86/cloud-vault/mirrors/google1/Finance/Budget.txt)"',
+                'attachment_mode: "canonical-source-link"',
+                "---",
+                "",
+                "# Budget",
+                "",
+                "Quarterly budget note body.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    source_root = tmp_path / "mirrors"
+    source_path = source_root / "google1" / "Finance" / "Budget.txt"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("Budget source body", encoding="utf-8")
+
+    session_factory = _build_session_factory(tmp_path)
+    file_id = _seed_indexed_file(
+        session_factory,
+        external_id="budget-file",
+        name="Budget.txt",
+        path="/google1/Finance/Budget.txt",
+        content_text="Budget source body",
+        classification_state={
+            "classifier_note_path": "/vault/01 Classified/financial/Budget - financial.md",
+            "primary_label": "financial",
+            "classifier_manifest_record": json.dumps(
+                {
+                    "canonical_source_path": str(source_path),
+                    "source_link": "[Budget.txt](file://192.168.50.86/cloud-vault/mirrors/google1/Finance/Budget.txt)",
+                    "attachment_mode": "canonical-source-link",
+                }
+            ),
+        },
+    )
+
+    def override_get_session():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(source_root))
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = override_get_session
+
+    try:
+        with TestClient(main_module.app) as client:
+            note_response = client.get(f"/files/{file_id}/note")
+            source_response = client.get(f"/files/{file_id}/source")
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert note_response.status_code == 200
+    assert note_response.json()["note_available"] is True
+    assert note_response.json()["note_relative_path"] == "01 Classified/financial/Budget - financial.md"
+    assert "Quarterly budget note body." in note_response.json()["note_content"]
+    assert note_response.json()["canonical_source_path"] == str(source_path)
+
+    assert source_response.status_code == 200
+    assert source_response.json()["source_exists"] is True
+    assert source_response.json()["canonical_source_path"] == str(source_path)
+    assert source_response.json()["download_path"] == f"/files/{file_id}/source/download"
+
+
+def test_file_source_download_endpoint_streams_original_file(tmp_path, monkeypatch):
+    source_root = tmp_path / "mirrors"
+    source_path = source_root / "icloud" / "Scanned" / "botox.pdf"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_bytes(b"pdf-bytes")
+
+    session_factory = _build_session_factory(tmp_path)
+    file_id = _seed_indexed_file(
+        session_factory,
+        external_id="botox-file",
+        name="botox.pdf",
+        path="/icloud/Scanned/botox.pdf",
+        content_text="botox text",
+        classification_state={
+            "classifier_manifest_record": json.dumps(
+                {
+                    "canonical_source_path": str(source_path),
+                    "attachment_mode": "canonical-source-link",
+                }
+            ),
+        },
+    )
+
+    def override_get_session():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(source_root))
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = override_get_session
+
+    try:
+        with TestClient(main_module.app) as client:
+            response = client.get(f"/files/{file_id}/source/download")
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.content == b"pdf-bytes"
+    assert response.headers["cache-control"] == "private, no-store"
+
+
+def test_search_and_file_endpoints_require_bearer_auth_when_plugin_token_is_set(
+    tmp_path,
+    monkeypatch,
+):
+    session_factory = _build_session_factory(tmp_path)
+    file_id = _seed_indexed_file(session_factory)
+
+    def override_get_session():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    monkeypatch.setenv("PLUGIN_API_TOKEN", "secret-token")
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = override_get_session
+
+    try:
+        with TestClient(main_module.app) as client:
+            unauthorized_search = client.get("/search", params={"query": "budget", "limit": 5})
+            authorized_search = client.get(
+                "/search",
+                params={"query": "budget", "limit": 5},
+                headers={"Authorization": "Bearer secret-token"},
+            )
+            unauthorized_file = client.get(f"/files/{file_id}")
+            authorized_file = client.get(
+                f"/files/{file_id}",
+                headers={"Authorization": "Bearer secret-token"},
+            )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert unauthorized_search.status_code == 401
+    assert authorized_search.status_code == 200
+    assert unauthorized_file.status_code == 401
+    assert authorized_file.status_code == 200
 
 
 def test_search_endpoint_treats_percent_and_underscore_as_literal_query_characters(

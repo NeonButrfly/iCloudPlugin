@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from icloud_index_service.api.security import require_plugin_api_token
 from icloud_index_service.db import get_session
 from icloud_index_service.services.search_service import (
     build_database_unavailable_detail,
@@ -48,7 +49,10 @@ def _get_search_session(
             close()
 
 
-@router.get("", dependencies=[Depends(_ensure_search_database_available)])
+@router.get(
+    "",
+    dependencies=[Depends(_ensure_search_database_available), Depends(require_plugin_api_token)],
+)
 def search(
     query: str = Query(min_length=1),
     limit: int = Query(default=10, ge=1, le=50),

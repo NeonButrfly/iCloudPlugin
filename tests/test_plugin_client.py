@@ -139,3 +139,63 @@ def test_refresh_index_posts_to_refresh_endpoint():
     assert captured_request is not None
     assert captured_request.method == "POST"
     assert str(captured_request.url) == "http://service.test/refresh"
+
+
+def test_get_file_note_trims_note_content_locally():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "http://service.test/files/9/note"
+        return httpx.Response(
+            200,
+            json={
+                "file_id": 9,
+                "note_available": True,
+                "note_content": "Generated note content for the file",
+                "note_length": 35,
+                "note_truncated": False,
+                "note_excerpt": "Generated note content for the file",
+            },
+        )
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.get_file_note(file_id=9, max_chars=12)
+    finally:
+        client.close()
+
+    assert payload["note_content"] == "Generated no"
+    assert payload["note_truncated"] is True
+
+
+def test_get_file_source_uses_source_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(
+            200,
+            json={
+                "file_id": 4,
+                "canonical_source_path": "/srv/cloud-vault/mirrors/google1/test.txt",
+                "download_path": "/files/4/source/download",
+            },
+        )
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.get_file_source(file_id=4)
+    finally:
+        client.close()
+
+    assert payload["download_path"] == "/files/4/source/download"
+    assert captured_request is not None
+    assert captured_request.method == "GET"
+    assert str(captured_request.url) == "http://service.test/files/4/source"

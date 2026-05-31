@@ -86,6 +86,24 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - `tichuml1` classifier containers were recreated from the monorepo compose on
   2026-05-29 AKDT while preserving the existing trained runtime/output
   directories under `/opt/local-doc-classifier` for continuity
+- the repo now contains the first Cloudflare remote MCP slice under
+  `cloudflare/remote-mcp` from issue
+  [#48](https://github.com/NeonButrfly/iCloudPlugin/issues/48)
+  - the on-prem service now has plugin-token-protected file/note/source routes:
+    - `GET /files/{id}`
+    - `GET /files/{id}/note`
+    - `GET /files/{id}/source`
+    - `GET /files/{id}/source/download`
+  - the repo-local MCP bridge now exposes:
+    - `get_icloud_note`
+    - `get_icloud_source_reference`
+    - `get_icloud_file_bundle`
+  - the Cloudflare Worker scaffold proxies those same surfaces and can hand off
+    original files through `/download/{file_id}`
+  - this slice was validated locally with Python tests plus Worker TypeScript
+    type-check
+  - Cloudflare account-side deployment was **not** validated in-session because
+    the Cloudflare API tool required account auth
 - live classifier readiness recovered and is green again:
   - `model_exists=true`
   - `real_ingestion_allowed=true`
@@ -424,6 +442,11 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   cutover soaks cleanly
 - finish an explicit host-level stop of the current background scan once direct
   reachability to `kayraspi` or `tichuml1` recovers
+- deploy and validate the new Cloudflare remote MCP slice once Cloudflare
+  account auth is available in-session
+- decide whether the Worker itself will sit behind Cloudflare Access, another
+  OAuth front door, or a different auth product before calling the external MCP
+  path production-ready
 
 ## Recent Commits That Matter
 

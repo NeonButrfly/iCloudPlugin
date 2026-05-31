@@ -8,9 +8,11 @@ from mcp.server.fastmcp import FastMCP
 from .service_client import build_service_client_from_env
 from .tool_schemas import (
     DEFAULT_EXCERPT_MAX_CHARS,
+    DEFAULT_NOTE_MAX_CHARS,
     DEFAULT_SEARCH_LIMIT,
     ExcerptMaxChars,
     FileId,
+    NoteMaxChars,
     PathScope,
     SearchLimit,
     SearchQuery,
@@ -53,6 +55,41 @@ def get_icloud_file_excerpt(
     """Return file details with locally trimmed content text for lighter responses."""
     with build_service_client_from_env() as client:
         return client.get_file_excerpt(file_id=file_id, max_chars=max_chars)
+
+
+@mcp.tool()
+def get_icloud_note(
+    file_id: FileId,
+    max_chars: NoteMaxChars = DEFAULT_NOTE_MAX_CHARS,
+) -> dict[str, Any]:
+    """Return generated note content and note-layer metadata for a single indexed file."""
+    with build_service_client_from_env() as client:
+        return client.get_file_note(file_id=file_id, max_chars=max_chars)
+
+
+@mcp.tool()
+def get_icloud_source_reference(file_id: FileId) -> dict[str, Any]:
+    """Return canonical source-path, source-link, and download-handoff metadata for a file."""
+    with build_service_client_from_env() as client:
+        return client.get_file_source(file_id=file_id)
+
+
+@mcp.tool()
+def get_icloud_file_bundle(
+    file_id: FileId,
+    max_chars: ExcerptMaxChars = DEFAULT_EXCERPT_MAX_CHARS,
+    note_max_chars: NoteMaxChars = DEFAULT_NOTE_MAX_CHARS,
+) -> dict[str, Any]:
+    """Return file metadata, trimmed source excerpt, generated note content, and source-reference metadata together."""
+    with build_service_client_from_env() as client:
+        file_payload = client.get_file_excerpt(file_id=file_id, max_chars=max_chars)
+        note_payload = client.get_file_note(file_id=file_id, max_chars=note_max_chars)
+        source_payload = client.get_file_source(file_id=file_id)
+    return {
+        "file": file_payload,
+        "note": note_payload,
+        "source": source_payload,
+    }
 
 
 @mcp.tool()

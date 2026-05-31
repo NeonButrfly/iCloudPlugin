@@ -22,4 +22,7 @@ The plugin exposes:
 - `search_icloud_files`
 - `get_icloud_file`
 - `get_icloud_file_excerpt`
+- `get_icloud_note`
+- `get_icloud_source_reference`
+- `get_icloud_file_bundle`
 - `refresh_icloud_index`

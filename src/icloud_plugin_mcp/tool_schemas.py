@@ -6,6 +6,7 @@ from pydantic import Field
 
 DEFAULT_SEARCH_LIMIT = 5
 DEFAULT_EXCERPT_MAX_CHARS = 1000
+DEFAULT_NOTE_MAX_CHARS = 20_000
 
 SearchQuery = Annotated[
     str,
@@ -42,5 +43,14 @@ ExcerptMaxChars = Annotated[
         ge=1,
         le=10_000,
         description="Maximum number of content characters to keep in the returned excerpt payload.",
+    ),
+]
+
+NoteMaxChars = Annotated[
+    int,
+    Field(
+        ge=1,
+        le=50_000,
+        description="Maximum number of note characters to keep in the returned note payload.",
     ),
 ]

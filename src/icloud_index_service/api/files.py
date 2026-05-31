@@ -3,10 +3,17 @@ from __future__ import annotations
 from collections.abc import Generator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import FileResponse
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from icloud_index_service.api.security import require_plugin_api_token
 from icloud_index_service.db import get_session
+from icloud_index_service.services.file_access_service import (
+    get_file_note_details,
+    get_file_source_details,
+    resolve_file_source_path,
+)
 from icloud_index_service.services.search_service import (
     build_database_unavailable_detail,
     get_file_details,
@@ -48,7 +55,10 @@ def _get_files_session(
             close()
 
 
-@router.get("/{file_id}", dependencies=[Depends(_ensure_files_database_available)])
+@router.get(
+    "/{file_id}",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
 def get_file(
     file_id: int,
     session: Session = Depends(_get_files_session),
@@ -66,3 +76,77 @@ def get_file(
     if payload is None:
         raise HTTPException(status_code=404, detail="File not found")
     return payload
+
+
+@router.get(
+    "/{file_id}/note",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def get_file_note(
+    file_id: int,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        payload = get_file_note_details(session, file_id=file_id)
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=build_database_unavailable_detail(
+                operation="files",
+                startup_validation_error=str(exc),
+            ),
+        ) from exc
+    if payload is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    return payload
+
+
+@router.get(
+    "/{file_id}/source",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def get_file_source(
+    file_id: int,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        payload = get_file_source_details(session, file_id=file_id)
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=build_database_unavailable_detail(
+                operation="files",
+                startup_validation_error=str(exc),
+            ),
+        ) from exc
+    if payload is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    return payload
+
+
+@router.get(
+    "/{file_id}/source/download",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def download_file_source(
+    file_id: int,
+    session: Session = Depends(_get_files_session),
+) -> FileResponse:
+    try:
+        source_path = resolve_file_source_path(session, file_id=file_id)
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=build_database_unavailable_detail(
+                operation="files",
+                startup_validation_error=str(exc),
+            ),
+        ) from exc
+    if source_path is None:
+        raise HTTPException(status_code=404, detail="Source file not found")
+    return FileResponse(
+        path=source_path,
+        filename=source_path.name,
+        media_type="application/octet-stream",
+        headers={"Cache-Control": "private, no-store"},
+    )
