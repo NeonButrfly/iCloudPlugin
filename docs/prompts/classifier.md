@@ -112,6 +112,11 @@
   manual-note feedback export should derive parser and heuristic-hint context
   from the live source file itself so the correction still teaches LightGBM
   and the heuristic gate.
+- Legacy-note-repair note: if a generated note itself still lacks
+  `source_parser`, `heuristic_primary_hint`, or `hybrid_live_source` and there
+  is no matching state payload left to recover, the bounded vault
+  reconciliation pass should derive that missing note context from the live
+  source file too, not just the manual-feedback export path.
 - Canonical-path note: when generated notes store canonical mirror paths such
   as `/srv/cloud-vault/mirrors/...`, the classifier-side manual-feedback pass
   must translate those paths back into its mounted source root (for example

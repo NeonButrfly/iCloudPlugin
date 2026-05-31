@@ -470,6 +470,10 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   frontmatter in older generated notes from stored classification-state
   payloads, so pre-existing manual note moves can export richer training
   signals without recreating the note first
+- if those note fields are still missing and there is no surviving
+  `classification_state` payload to recover from, the same reconciliation path
+  now derives the missing context from the live source file itself and
+  backfills only the missing fields instead of leaving the note context-poor
 - a bounded live reconciliation pass on 2026-05-29 AKDT repaired `24` out of
   `25` completed-state notes scanned and reduced generated notes missing that
   newer classifier-context frontmatter from `42` to `19`
@@ -731,10 +735,12 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 
 ## Not Finished Yet
 
-- decide how to backfill richer classifier context for the remaining legacy
-  generated notes that still lack `source_parser` / `heuristic_primary_hint` /
-  `hybrid_live_source` because their state rows are either still queued or are
-  missing entirely ([#1](https://github.com/NeonButrfly/iCloudPlugin/issues/1))
+- prove and, if needed, finish the new source-derived repair path for the
+  remaining legacy generated notes that still lack `source_parser` /
+  `heuristic_primary_hint` / `hybrid_live_source` when their state rows are
+  still queued or missing entirely
+  ([#52](https://github.com/NeonButrfly/iCloudPlugin/issues/52),
+  [#1](https://github.com/NeonButrfly/iCloudPlugin/issues/1))
 - retire/archive the old standalone `local-doc-classifier` checkout after safe
   soak period ([#1](https://github.com/NeonButrfly/iCloudPlugin/issues/1))
 - optionally move cloudsync Postgres off `kayraspi` later if the compute-only

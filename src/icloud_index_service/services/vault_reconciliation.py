@@ -803,6 +803,7 @@ def _derive_generated_note_feedback_context(
             "parser": existing_parser,
             "heuristic_primary": existing_heuristic,
             "hybrid_live_source": existing_live_source,
+            "source_resolved": "false",
         }
 
     source_path = _resolve_generated_note_source_path(source_path_text)
@@ -811,6 +812,7 @@ def _derive_generated_note_feedback_context(
             "parser": existing_parser or "obsidian-generated-note",
             "heuristic_primary": existing_heuristic or "unknown",
             "hybrid_live_source": existing_live_source,
+            "source_resolved": "false",
         }
 
     parser = existing_parser
@@ -875,7 +877,56 @@ def _derive_generated_note_feedback_context(
         "parser": parser or "obsidian-generated-note",
         "heuristic_primary": heuristic_primary or "unknown",
         "hybrid_live_source": hybrid_live_source,
+        "source_resolved": "true",
     }
+
+
+def _load_known_labels_for_reconciliation() -> list[str]:
+    try:
+        from apps.classifier.category_manager import load_categories
+
+        return [str(item).strip() for item in load_categories() if str(item).strip()]
+    except Exception:
+        return []
+
+
+def _backfill_generated_note_context_from_source(
+    metadata: dict[str, str],
+    *,
+    known_labels: list[str] | None = None,
+) -> dict[str, str]:
+    source_path_text = (
+        str(metadata.get("canonical_source_path", "")).strip()
+        or str(metadata.get("source_file", "")).strip()
+    )
+    if not source_path_text:
+        return metadata
+
+    existing_parser = str(metadata.get("source_parser", "")).strip()
+    existing_heuristic = str(metadata.get("heuristic_primary_hint", "")).strip()
+    existing_live_source = str(metadata.get("hybrid_live_source", "")).strip()
+    if existing_parser and existing_heuristic and existing_live_source:
+        return metadata
+
+    derived_context = _derive_generated_note_feedback_context(
+        source_path_text=source_path_text,
+        metadata=metadata,
+        known_labels=known_labels or _load_known_labels_for_reconciliation(),
+    )
+    if str(derived_context.get("source_resolved", "")).strip().lower() != "true":
+        return metadata
+
+    updated_metadata = dict(metadata)
+    derived_parser = str(derived_context.get("parser", "")).strip()
+    derived_heuristic = str(derived_context.get("heuristic_primary", "")).strip()
+    derived_live_source = str(derived_context.get("hybrid_live_source", "")).strip()
+    if not existing_parser and derived_parser and derived_parser != "obsidian-generated-note":
+        updated_metadata["source_parser"] = derived_parser
+    if not existing_heuristic and derived_heuristic:
+        updated_metadata["heuristic_primary_hint"] = derived_heuristic
+    if not existing_live_source and derived_live_source:
+        updated_metadata["hybrid_live_source"] = derived_live_source
+    return updated_metadata
 
 
 def _manual_feedback_fingerprint(
@@ -1324,6 +1375,7 @@ def run_vault_reconciliation_once(
             active_metadata,
             state_metadata=state_metadata,
         )
+        active_metadata = _backfill_generated_note_context_from_source(active_metadata)
         if active_note_path is None or not active_note_path.exists() or not active_note_path.is_file():
             result["skipped"] += 1
             continue
@@ -1404,6 +1456,7 @@ def run_vault_reconciliation_once(
             active_metadata.get("canonical_source_hash", "") or canonical_source_hash or _sha256_file(replacement_path)
         )
         refreshed_metadata["last_seen_filename"] = replacement_path.name
+        refreshed_metadata = _backfill_generated_note_context_from_source(refreshed_metadata)
         refreshed_note_text, _ = _repair_note_links(updated_note, refreshed_metadata)
         active_note_path.write_text(refreshed_note_text, encoding="utf-8")
         state_repaired = True

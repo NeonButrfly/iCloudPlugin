@@ -261,6 +261,10 @@ SUDO_PASSWORD=... bash ./deploy/roles/cloudsync/install_storage_host_sync_assets
   - `source_parser`
   - `heuristic_primary_hint`
   - `hybrid_live_source`
+- if those note fields are still missing and there is no surviving
+  `classification_state` payload to recover from, the same reconciliation pass
+  now derives the missing context from the live source file itself and backfills
+  only the missing fields
 - the same reconciliation path now also normalizes legacy generated note
   filenames that still expose hash-heavy suffixes or staged-upload hash
   prefixes, and it updates stored `classifier_note_path` references to the

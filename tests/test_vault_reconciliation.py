@@ -632,6 +632,168 @@ def test_run_vault_reconciliation_once_backfills_missing_classifier_context_into
     assert 'hybrid_live_source: "manual-correction-override"' in updated_note
 
 
+def test_run_vault_reconciliation_once_derives_missing_classifier_context_from_source_when_state_payload_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from icloud_index_service.services.vault_reconciliation import run_vault_reconciliation_once
+
+    mirror_root = tmp_path / "mirror"
+    live_file = mirror_root / "google1" / "Docs" / "Appeal.txt"
+    live_file.parent.mkdir(parents=True, exist_ok=True)
+    live_file.write_text(
+        "\n".join(
+            [
+                "Appeal Request",
+                "Please review the denied insurance coverage decision.",
+                "Supporting policy and claim references are attached.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    vault_root = tmp_path / "vault"
+    note_path = vault_root / "01 Classified" / "insurance" / "Appeal - insurance.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'type: "classified-document"',
+                'primary_label: "insurance"',
+                f'canonical_source_path: {json.dumps(str(live_file))}',
+                'canonical_source_hash: "abc123"',
+                'last_seen_filename: "Appeal.txt"',
+                'attachment_mode: "canonical-source-link"',
+                'compatibility_attachment_path: ""',
+                "---",
+                "",
+                "# Appeal.txt",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    try:
+        file_record = _add_file(
+            session,
+            external_id="file-1",
+            name="Appeal.txt",
+            path="/google1/Docs/Appeal.txt",
+            mime_type="text/plain",
+            extension="txt",
+        )
+        session.add(
+            ClassificationState(
+                file_id=file_record.id,
+                submission_status="completed",
+                classifier_note_path="/vault/01 Classified/insurance/Appeal - insurance.md",
+                classifier_manifest_record="",
+                response_payload_json="",
+            )
+        )
+        session.commit()
+
+        result = run_vault_reconciliation_once(session, limit=10)
+        updated_note = note_path.read_text(encoding="utf-8")
+    finally:
+        session.close()
+
+    assert result["repaired"] == 1
+    assert 'source_parser: "plain-text"' in updated_note
+    assert 'heuristic_primary_hint: "unknown"' in updated_note
+    assert 'hybrid_live_source: ""' in updated_note
+
+
+def test_run_vault_reconciliation_once_preserves_existing_note_context_when_deriving_missing_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from icloud_index_service.services.vault_reconciliation import run_vault_reconciliation_once
+
+    mirror_root = tmp_path / "mirror"
+    live_file = mirror_root / "icloud" / "Scanned" / "notes.txt"
+    live_file.parent.mkdir(parents=True, exist_ok=True)
+    live_file.write_text(
+        "\n".join(
+            [
+                "Technical Notes",
+                "Deployment settings",
+                "Terminal output",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    vault_root = tmp_path / "vault"
+    note_path = vault_root / "01 Classified" / "technical" / "notes - technical.md"
+    note_path.parent.mkdir(parents=True, exist_ok=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'type: "classified-document"',
+                'primary_label: "technical"',
+                f'canonical_source_path: {json.dumps(str(live_file))}',
+                'canonical_source_hash: "abc123"',
+                'last_seen_filename: "notes.txt"',
+                'attachment_mode: "canonical-source-link"',
+                'compatibility_attachment_path: ""',
+                'source_parser: "manual-parser"',
+                "---",
+                "",
+                "# notes.txt",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    try:
+        file_record = _add_file(
+            session,
+            external_id="file-1",
+            name="notes.txt",
+            path="/icloud/Scanned/notes.txt",
+            mime_type="text/plain",
+            extension="txt",
+        )
+        session.add(
+            ClassificationState(
+                file_id=file_record.id,
+                submission_status="completed",
+                classifier_note_path="/vault/01 Classified/technical/notes - technical.md",
+                classifier_manifest_record="",
+                response_payload_json="",
+            )
+        )
+        session.commit()
+
+        result = run_vault_reconciliation_once(session, limit=10)
+        updated_note = note_path.read_text(encoding="utf-8")
+    finally:
+        session.close()
+
+    assert result["repaired"] == 1
+    assert 'source_parser: "manual-parser"' in updated_note
+    assert 'heuristic_primary_hint: "unknown"' in updated_note
+
+
 def test_sync_manual_note_feedback_exports_changed_manual_notes(
     tmp_path: Path,
 ):
