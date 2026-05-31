@@ -1104,6 +1104,14 @@ Recommended deployment shape:
     - `npm test`
     - `npm run type-check`
     before any hosted deploy or verify action
+  - first GitHub-hosted proof on 2026-05-31 AKDT:
+    - `plan` succeeded:
+      - `https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26725919393`
+    - `deploy-and-verify` failed fast at preflight because these repo secrets
+      are still unset:
+      - `CLOUDFLARE_API_TOKEN`
+      - `REMOTE_MCP_ORIGIN_BASE_URL`
+      - `REMOTE_MCP_ORIGIN_API_TOKEN`
 - `cloudflare/remote-mcp/scripts/verify-mcp-tools.mjs` is now the canonical
   smoke verifier for the remote MCP route itself:
   - optional `/healthz` preflight when a public base URL is available

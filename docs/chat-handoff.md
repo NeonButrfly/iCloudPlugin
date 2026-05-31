@@ -318,6 +318,18 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       - `mcp-verify-only`
       - `plan`
       using repo secrets instead of workstation-local Cloudflare auth
+      - first external proof on 2026-05-31 AKDT:
+        - safe `plan` run succeeded:
+          - `https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26725919393`
+        - real `deploy-and-verify` run failed fast at secrets preflight:
+          - `https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26725879668`
+          - missing required GitHub Actions secrets:
+            - `CLOUDFLARE_API_TOKEN`
+            - `REMOTE_MCP_ORIGIN_BASE_URL`
+            - `REMOTE_MCP_ORIGIN_API_TOKEN`
+      - the workflow now uses `actions/checkout@v6` and `actions/setup-node@v6`
+        to avoid the Node 20 GitHub Actions runtime deprecation warning seen in
+        the first plan/deploy attempts
     - the Worker runtime no longer depends on Cloudflare's broader `agents`
       package for MCP request handling; it now uses an in-repo stateless
       handler built directly on the MCP SDK's Web Standard Streamable HTTP
