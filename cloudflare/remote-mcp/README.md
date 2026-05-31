@@ -9,6 +9,7 @@ remote MCP tools over Streamable HTTP at `/mcp`.
 
 - `search_icloud_files`
 - `search_icloud_notes_and_files`
+- `get_icloud_system_status`
 - `get_icloud_file`
 - `get_icloud_file_excerpt`
 - `get_icloud_note`
@@ -29,6 +30,10 @@ workflows by searching once, then expanding the strongest matches into bundled:
 That bundled response now comes from the origin service's `/search/bundles`
 endpoint, which keeps the bundle assembly logic in one place instead of
 duplicating it in each client.
+
+The live-status tool now comes from the origin service's `/status/summary`
+endpoint, so external MCP callers can fetch one consolidated cloud-vault
+status snapshot without SSH or several stitched probes.
 
 ## Required origin configuration
 

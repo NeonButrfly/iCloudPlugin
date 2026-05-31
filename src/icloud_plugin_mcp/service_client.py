@@ -104,6 +104,9 @@ class ICloudIndexServiceClient:
         params["note_max_chars"] = note_max_chars
         return self._request("GET", "/search/bundles", params=params)
 
+    def get_system_status(self) -> dict[str, Any]:
+        return self._request("GET", "/status/summary")
+
     def refresh_index(self) -> dict[str, Any]:
         return self._request("POST", "/refresh")
 

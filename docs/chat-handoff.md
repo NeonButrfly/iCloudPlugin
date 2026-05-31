@@ -96,6 +96,7 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `GET /files/{id}/source/download`
   - the repo-local MCP bridge now exposes:
     - `search_icloud_notes_and_files`
+    - `get_icloud_system_status`
     - `get_icloud_note`
     - `get_icloud_source_reference`
     - `get_icloud_file_bundle`
@@ -105,6 +106,20 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - that combined retrieval path is now also first-class on the origin service
     through `GET /search/bundles`, so both the local bridge and the Cloudflare
     Worker reuse the same bundle assembly path
+  - the repo now also has a first-class consolidated status surface for MCP
+    callers through:
+    - origin `GET /status/summary`
+    - local MCP `get_icloud_system_status`
+    - Cloudflare Worker `get_icloud_system_status`
+  - the origin summary payload now includes:
+    - service health
+    - auth status
+    - refresh progress
+    - classifier health
+    - `classification_jobs` counts
+    - `classification_states` counts
+    - provider counts
+    - generated vault output counts
   - the Cloudflare Worker scaffold proxies those same surfaces and can hand off
     original files through `/download/{file_id}`
   - the Worker now also supports an optional client-facing bearer gate via
@@ -124,6 +139,11 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - download proxying
     - worker download URL enrichment
     - digest-compare fallback when `crypto.subtle.timingSafeEqual` is absent
+  - the new status-summary slice is currently repo-validated only:
+    - Python API/client tests passed locally
+    - Worker type-check passed locally
+    - Worker Vitest suite still passed locally
+    - it has not been deployed live to `tichuml1` yet
   - follow-up issue [#50](https://github.com/NeonButrfly/iCloudPlugin/issues/50)
     is now implemented, verified live, and closed:
     - `deploy/roles/cloudsync/report_live_status.sh` prints one unified live

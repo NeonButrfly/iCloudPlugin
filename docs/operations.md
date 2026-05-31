@@ -767,6 +767,7 @@ The local MCP bridge now exposes:
 
 - `search_icloud_files`
 - `search_icloud_notes_and_files`
+- `get_icloud_system_status`
 - `get_icloud_file`
 - `get_icloud_file_excerpt`
 - `get_icloud_note`
@@ -780,6 +781,7 @@ The backing service now exposes plugin-facing note/source routes:
 - `GET /files/{id}/source`
 - `GET /files/{id}/source/download`
 - `GET /search/bundles`
+- `GET /status/summary`
 
 `GET /files/{id}/source/download` streams the original mirrored file with
 plugin-token auth and `Cache-Control: private, no-store`.
@@ -799,6 +801,18 @@ That hydration now happens on the origin service itself through
 `GET /search/bundles`, so the repo-local MCP bridge and the Cloudflare Worker
 can both reuse the same bundle assembly path.
 
+The live status tool now uses `GET /status/summary`, which returns one
+plugin-authenticated snapshot covering:
+
+- service health
+- auth status
+- refresh progress
+- classifier health
+- `classification_jobs` counts
+- `classification_states` counts
+- provider counts
+- generated vault output counts
+
 ## Cloudflare remote MCP
 
 Issue [#48](https://github.com/NeonButrfly/iCloudPlugin/issues/48) adds the
@@ -810,6 +824,8 @@ first production-shaped external MCP slice in
 - The origin service remains the source of truth.
 - The Worker now exposes the same combined retrieval workflow through
   `search_icloud_notes_and_files` in addition to the single-file tools.
+- The Worker now also exposes `get_icloud_system_status` so external MCP
+  clients can inspect the live cloud-vault runtime without shell access.
 - The Worker expects:
   - `ORIGIN_BASE_URL`
   - `ORIGIN_API_TOKEN`

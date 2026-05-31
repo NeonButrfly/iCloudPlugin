@@ -221,6 +221,19 @@ export function createServer(env: Env, request: Request): McpServer {
   );
 
   server.registerTool(
+    "get_icloud_system_status",
+    {
+      description:
+        "Get live cloud-vault service health, refresh progress, classifier readiness, and queue counts.",
+      inputSchema: {},
+    },
+    async () => {
+      const payload = await fetchOriginJson(env, "/status/summary");
+      return jsonToolResult(payload);
+    },
+  );
+
+  server.registerTool(
     "refresh_icloud_index",
     {
       description: "Queue a metadata refresh on the backing cloud-vault index service.",

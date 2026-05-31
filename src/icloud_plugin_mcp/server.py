@@ -116,6 +116,13 @@ def search_icloud_notes_and_files(
 
 
 @mcp.tool()
+def get_icloud_system_status() -> dict[str, Any]:
+    """Return live cloud-vault health, refresh progress, classifier readiness, and queue counts."""
+    with build_service_client_from_env() as client:
+        return client.get_system_status()
+
+
+@mcp.tool()
 def refresh_icloud_index() -> dict[str, Any]:
     """Queue an iCloud Drive metadata refresh on the backing service."""
     with build_service_client_from_env() as client:

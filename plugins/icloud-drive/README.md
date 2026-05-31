@@ -21,6 +21,7 @@ The plugin exposes:
 
 - `search_icloud_files`
 - `search_icloud_notes_and_files`
+- `get_icloud_system_status`
 - `get_icloud_file`
 - `get_icloud_file_excerpt`
 - `get_icloud_note`
@@ -30,3 +31,7 @@ The plugin exposes:
 
 The combined search tool now uses the backing service's `/search/bundles`
 endpoint instead of stitching separate note/source lookups client-side.
+
+The live-status tool uses the backing service's `/status/summary` endpoint so
+external callers can inspect refresh progress, classifier readiness, queue
+counts, provider counts, and vault output counts without shell access.

@@ -52,3 +52,16 @@
   - keep the Worker itself stateless and align the production auth model with
     Cloudflare's recommended self-hosted Access application flow instead of
     growing custom auth logic inside the Worker
+- Follow-up implementation slice:
+  - add a first-class live status surface for external MCP callers through:
+    - origin `GET /status/summary`
+    - local MCP `get_icloud_system_status`
+    - Cloudflare Worker `get_icloud_system_status`
+  - status payload should expose:
+    - service health
+    - auth/session status
+    - refresh progress
+    - classifier health/readiness
+    - classification queue and state counts
+    - provider counts
+    - generated vault output counts

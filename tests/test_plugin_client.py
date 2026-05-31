@@ -296,3 +296,36 @@ def test_search_notes_and_files_hydrates_top_results():
     assert captured_urls == [
         "http://service.test/search/bundles?query=appeal&limit=2&path_scope=%2Fgoogle1&hydrate_limit=1&max_chars=12&note_max_chars=10",
     ]
+
+
+def test_get_system_status_uses_status_summary_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(
+            200,
+            json={
+                "service_health": {"status": "ok", "database": "ok"},
+                "refresh_status": {"status": "running", "items_seen": 42},
+                "classification_job_counts": {"queued": 2},
+            },
+        )
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.get_system_status()
+    finally:
+        client.close()
+
+    assert payload["service_health"] == {"status": "ok", "database": "ok"}
+    assert payload["refresh_status"] == {"status": "running", "items_seen": 42}
+    assert payload["classification_job_counts"] == {"queued": 2}
+    assert captured_request is not None
+    assert captured_request.method == "GET"
+    assert str(captured_request.url) == "http://service.test/status/summary"

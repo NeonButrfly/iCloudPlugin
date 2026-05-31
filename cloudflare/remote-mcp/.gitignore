@@ -1,3 +1,4 @@
 .dev.vars
 .deploy-state.json
 .wrangler/
+node_modules/
