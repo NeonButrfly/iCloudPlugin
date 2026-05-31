@@ -26,6 +26,8 @@ LIVE_SUMMARY_LIMIT="${LIVE_SUMMARY_LIMIT:-10}"
 DRY_RUN="${DRY_RUN:-0}"
 RUN_LIVE_SUMMARY="${RUN_LIVE_SUMMARY:-0}"
 TARGETED_FEEDBACK_ONLY="${TARGETED_FEEDBACK_ONLY:-0}"
+RECONCILIATION_ONLY="${RECONCILIATION_ONLY:-0}"
+RECONCILIATION_LIMIT="${RECONCILIATION_LIMIT:-}"
 SUMMARY_JSON_PATH="${SUMMARY_JSON_PATH:-}"
 SUMMARY_PYTHON="${SUMMARY_PYTHON:-python3}"
 TEMP_DEFER_ERROR="${TEMP_DEFER_ERROR:-Temporarily deferred to prioritize targeted bounded batch helper.}"
@@ -44,6 +46,9 @@ AFTER_QUEUED_JSON='[]'
 BEFORE_RECENT_JSON='[]'
 AFTER_RECENT_JSON='[]'
 AFTER_LIVE_SUMMARY_JSON='[]'
+BEFORE_GENERATED_NOTE_CONTEXT_JSON='{}'
+AFTER_GENERATED_NOTE_CONTEXT_JSON='{}'
+RECONCILIATION_RESULT_JSON='{}'
 
 usage() {
   cat <<'EOF'
@@ -64,6 +69,8 @@ Options:
   --live-summary-limit N      Number of newest completed rows in live summary mode. Default: 10
   --run-live-summary          Print a global newest-completed summary after the batch.
   --targeted-feedback-only    Disable broad backfill seeding during this bounded run.
+  --reconciliation-only       Skip queue processing and run only one bounded vault reconciliation pass.
+  --reconciliation-limit N    Override the bounded reconciliation pass limit for this run.
   --summary-json PATH         Write a machine-readable JSON summary artifact.
   --dry-run                   Show what would run without mutating queue state.
   --help                      Show this help text.
@@ -76,6 +83,11 @@ Examples:
     --focus-prefix /icloud/Scanned/ \
     --defer-prefix /icloud/Downloads/ \
     --max-polls 2
+
+  ./deploy/roles/cloudsync/run_targeted_classification_batch.sh \
+    --reconciliation-only \
+    --reconciliation-limit 25 \
+    --summary-json /tmp/reconciliation-proof.json
 EOF
 }
 
@@ -116,6 +128,17 @@ assert_safe_sql_literal() {
   local value="$1"
   if [[ "${value}" == *"'"* ]]; then
     fail "Single quotes are not supported in SQL-bound prefixes: ${value}"
+  fi
+}
+
+assert_optional_non_negative_integer() {
+  local value="$1"
+  local label="$2"
+  if [[ -z "${value}" ]]; then
+    return 0
+  fi
+  if [[ ! "${value}" =~ ^[0-9]+$ ]]; then
+    fail "${label} must be a non-negative integer: ${value}"
   fi
 }
 
@@ -342,17 +365,56 @@ capture_before_state() {
   BEFORE_COUNTS_JSON="$(psql_json "$(counts_json_sql)")"
   BEFORE_QUEUED_JSON="$(psql_json "$(queued_preview_json_sql)")"
   BEFORE_RECENT_JSON="$(psql_json "$(recent_completed_json_sql)")"
+  BEFORE_GENERATED_NOTE_CONTEXT_JSON="$(capture_generated_note_context_json)"
 }
 
 capture_after_state() {
   AFTER_COUNTS_JSON="$(psql_json "$(counts_json_sql)")"
   AFTER_QUEUED_JSON="$(psql_json "$(queued_preview_json_sql)")"
   AFTER_RECENT_JSON="$(psql_json "$(recent_completed_json_sql)")"
+  AFTER_GENERATED_NOTE_CONTEXT_JSON="$(capture_generated_note_context_json)"
   if [[ "${RUN_LIVE_SUMMARY}" == "1" ]]; then
     AFTER_LIVE_SUMMARY_JSON="$(psql_json "$(overall_recent_completed_json_sql)")"
   else
     AFTER_LIVE_SUMMARY_JSON='[]'
   fi
+}
+
+capture_generated_note_context_json() {
+  local python_command
+  python_command=$'import json\nfrom icloud_index_service.db import get_session_factory\nfrom icloud_index_service.services.status_service import collect_generated_note_context_gaps\nsession = get_session_factory()()\ntry:\n    print(json.dumps(collect_generated_note_context_gaps(session), sort_keys=True))\nfinally:\n    session.close()'
+  docker_compose \
+    run --rm --no-deps \
+    "${CLASSIFICATION_SERVICE}" \
+    uv run python -c "${python_command}"
+}
+
+print_generated_note_context_summary() {
+  local label="$1"
+  local payload="$2"
+  export GENERATED_NOTE_CONTEXT_SUMMARY_PAYLOAD="${payload}"
+  local summary
+  summary="$("${SUMMARY_PYTHON}" - <<'PY'
+import json
+import os
+
+payload = os.environ.get("GENERATED_NOTE_CONTEXT_SUMMARY_PAYLOAD", "")
+try:
+    data = json.loads(payload) if payload else {}
+except json.JSONDecodeError:
+    data = {}
+
+parts = [
+    f"total_generated_notes={data.get('total_generated_notes', 0)}",
+    f"notes_missing_any_context={data.get('notes_missing_any_context', 0)}",
+    f"missing_context_with_matching_completed_state={data.get('missing_context_with_matching_completed_state', 0)}",
+    f"missing_context_without_matching_state={data.get('missing_context_without_matching_state', 0)}",
+    f"missing_context_source_file_present={data.get('missing_context_source_file_present', 0)}",
+]
+print(", ".join(parts))
+PY
+)"
+  log_line "${label}: ${summary}"
 }
 
 write_summary_json() {
@@ -363,7 +425,9 @@ write_summary_json() {
   export RUN_STARTED_AT RUN_FINISHED_AT FOCUS_PREFIX DEFER_PREFIX CONCURRENCY MAX_POLLS \
     POLL_INTERVAL_SECONDS WORKER_TIMEOUT_SECONDS DRY_RUN RUN_LIVE_SUMMARY WORKER_EXIT_STATUS \
     WORKER_TIMED_OUT SUMMARY_JSON_PATH BEFORE_COUNTS_JSON AFTER_COUNTS_JSON BEFORE_QUEUED_JSON \
-    AFTER_QUEUED_JSON BEFORE_RECENT_JSON AFTER_RECENT_JSON AFTER_LIVE_SUMMARY_JSON
+    AFTER_QUEUED_JSON BEFORE_RECENT_JSON AFTER_RECENT_JSON AFTER_LIVE_SUMMARY_JSON \
+    BEFORE_GENERATED_NOTE_CONTEXT_JSON AFTER_GENERATED_NOTE_CONTEXT_JSON \
+    RECONCILIATION_RESULT_JSON RECONCILIATION_ONLY RECONCILIATION_LIMIT
   "${SUMMARY_PYTHON}" - <<'PY'
 import json
 import os
@@ -393,6 +457,12 @@ summary = {
     "run_live_summary": os.environ.get("RUN_LIVE_SUMMARY", "0") == "1",
     "worker_exit_status": int(os.environ.get("WORKER_EXIT_STATUS", "0") or "0"),
     "worker_timed_out": os.environ.get("WORKER_TIMED_OUT", "0") == "1",
+    "reconciliation_only": os.environ.get("RECONCILIATION_ONLY", "0") == "1",
+    "reconciliation_limit": (
+        int(os.environ.get("RECONCILIATION_LIMIT", "0") or "0")
+        if os.environ.get("RECONCILIATION_LIMIT", "")
+        else None
+    ),
     "before_counts": parse_json_env("BEFORE_COUNTS_JSON", {}),
     "after_counts": parse_json_env("AFTER_COUNTS_JSON", {}),
     "before_queued_preview": parse_json_env("BEFORE_QUEUED_JSON", []),
@@ -400,6 +470,9 @@ summary = {
     "before_recent_completed": parse_json_env("BEFORE_RECENT_JSON", []),
     "after_recent_completed": parse_json_env("AFTER_RECENT_JSON", []),
     "after_live_summary": parse_json_env("AFTER_LIVE_SUMMARY_JSON", []),
+    "before_generated_note_context_gaps": parse_json_env("BEFORE_GENERATED_NOTE_CONTEXT_JSON", {}),
+    "after_generated_note_context_gaps": parse_json_env("AFTER_GENERATED_NOTE_CONTEXT_JSON", {}),
+    "reconciliation_result": parse_json_env("RECONCILIATION_RESULT_JSON", {}),
 }
 
 target = Path(os.environ["SUMMARY_JSON_PATH"])
@@ -480,6 +553,24 @@ run_worker_command() {
     uv run python -c "${python_command}"
 }
 
+run_reconciliation_command() {
+  local reconciliation_limit_literal="None"
+  local python_command
+
+  if [[ -n "${RECONCILIATION_LIMIT}" ]]; then
+    reconciliation_limit_literal="${RECONCILIATION_LIMIT}"
+  fi
+
+  python_command="import json; from icloud_index_service.db import get_session_factory; from icloud_index_service.services.vault_reconciliation import run_vault_reconciliation_once; session = get_session_factory()();"
+  python_command+=" result = run_vault_reconciliation_once(session, limit=${reconciliation_limit_literal});"
+  python_command+=" print(json.dumps(result, sort_keys=True)); session.close()"
+
+  docker_compose \
+    run --rm --no-deps \
+    "${CLASSIFICATION_SERVICE}" \
+    uv run python -c "${python_command}"
+}
+
 run_worker_pass() {
   local worker_pid elapsed_seconds
 
@@ -515,6 +606,18 @@ run_worker_pass() {
   if [[ "${WORKER_EXIT_STATUS}" != "0" ]]; then
     fail "Worker command failed with exit code ${WORKER_EXIT_STATUS}"
   fi
+}
+
+run_reconciliation_pass() {
+  if [[ "${DRY_RUN}" == "1" ]]; then
+    log_line "Dry run enabled; skipping reconciliation execution."
+    RECONCILIATION_RESULT_JSON='{}'
+    return 0
+  fi
+
+  log_line "Starting bounded vault reconciliation pass"
+  RECONCILIATION_RESULT_JSON="$(run_reconciliation_command)"
+  log_line "Reconciliation result: ${RECONCILIATION_RESULT_JSON}"
 }
 
 parse_args() {
@@ -564,6 +667,14 @@ parse_args() {
         TARGETED_FEEDBACK_ONLY="1"
         shift
         ;;
+      --reconciliation-only)
+        RECONCILIATION_ONLY="1"
+        shift
+        ;;
+      --reconciliation-limit)
+        RECONCILIATION_LIMIT="$2"
+        shift 2
+        ;;
       --summary-json)
         SUMMARY_JSON_PATH="$2"
         shift 2
@@ -594,12 +705,15 @@ main() {
   assert_safe_sql_literal "${FOCUS_PREFIX}"
   assert_safe_sql_literal "${DEFER_PREFIX}"
   assert_safe_sql_literal "${TEMP_DEFER_ERROR}"
+  assert_optional_non_negative_integer "${RECONCILIATION_LIMIT}" "Reconciliation limit"
 
   log_line "Targeted bounded classification batch helper"
   log_line "Repo root: ${REPO_ROOT}"
   log_line "Focus prefix: ${FOCUS_PREFIX:-<all queued rows>}"
   log_line "Deferred prefix: ${DEFER_PREFIX:-<none>}"
   log_line "Targeted feedback only: ${TARGETED_FEEDBACK_ONLY}"
+  log_line "Reconciliation only: ${RECONCILIATION_ONLY}"
+  log_line "Reconciliation limit: ${RECONCILIATION_LIMIT:-<default worker limit>}"
   log_line "Concurrency: ${CONCURRENCY}; max polls: ${MAX_POLLS}; timeout: ${WORKER_TIMEOUT_SECONDS}s"
 
   log_line "Queue counts before:"
@@ -607,17 +721,24 @@ main() {
   capture_before_state
   print_queue_counts
   print_focus_previews
+  print_generated_note_context_summary "Generated note context gaps before" "${BEFORE_GENERATED_NOTE_CONTEXT_JSON}"
 
-  apply_defer_prefix
-  run_worker_pass
-  clear_defer_prefix
-  cleanup_worker_containers
+  if [[ "${RECONCILIATION_ONLY}" == "1" ]]; then
+    log_line "Skipping queue defer/apply path because reconciliation-only mode is enabled"
+    run_reconciliation_pass
+  else
+    apply_defer_prefix
+    run_worker_pass
+    clear_defer_prefix
+    cleanup_worker_containers
+  fi
 
   log_line "Queue counts after:"
   RUN_FINISHED_AT="$(date -Is)"
   capture_after_state
   print_queue_counts
   print_focus_previews
+  print_generated_note_context_summary "Generated note context gaps after" "${AFTER_GENERATED_NOTE_CONTEXT_JSON}"
   print_live_summary
   write_summary_json
 }

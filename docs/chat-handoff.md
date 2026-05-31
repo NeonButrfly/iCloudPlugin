@@ -476,6 +476,10 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   `classification_state` payload to recover from, the same reconciliation path
   now derives the missing context from the live source file itself and
   backfills only the missing fields instead of leaving the note context-poor
+- `deploy/roles/cloudsync/run_targeted_classification_batch.sh` can now also
+  run a bounded `--reconciliation-only` proof pass and capture before/after
+  generated-note context-gap summaries plus the direct reconciliation result in
+  one JSON artifact, which is the intended live-proof path for issue `#52`
 - a bounded live reconciliation pass on 2026-05-29 AKDT repaired `24` out of
   `25` completed-state notes scanned and reduced generated notes missing that
   newer classifier-context frontmatter from `42` to `19`

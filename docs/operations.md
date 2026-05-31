@@ -429,14 +429,35 @@ while shifting the expensive API and refresh worker load onto `tichuml1`.
   - add `--targeted-feedback-only` when you want the bounded run to process
     strong manual-feedback requeues plus reconciliation without seeding broader
     backfill work
+  - add `--reconciliation-only` when you want one bounded vault reconciliation
+    proof run without also advancing the queue
+  - add `--reconciliation-limit N` to override the reconciliation scan bound
+    for that proof run
   - when `--summary-json` is provided, the helper also writes a machine-readable
-    artifact with before/after counts, queue previews, recent completions, and
-    timeout status for the bounded run
+    artifact with before/after counts, queue previews, recent completions,
+    generated-note context-gap summaries, reconciliation results, and timeout
+    status for the bounded run
   - on the compute-only `tichuml1` deployment, the helper now talks to the
     configured remote Postgres through a disposable `postgres:16` client
     container instead of requiring a local compose `postgres` service
   - if Docker access on the compute host requires elevation, run the helper
     with passwordless `sudo` or `SUDO_PASSWORD=...`
+
+For a bounded reconciliation-only proof of legacy-note context repair:
+
+```bash
+  cd /opt/iCloudPlugin
+  ENV_FILE=/opt/iCloudPlugin/deploy/roles/cloudsync/.env.live \
+  SUDO_PASSWORD=... \
+  ./deploy/roles/cloudsync/run_targeted_classification_batch.sh \
+    --reconciliation-only \
+    --reconciliation-limit 25 \
+    --summary-json /tmp/reconciliation-proof.json
+```
+
+  - the helper prints before/after generated-note classifier-context gap counts
+  - the JSON artifact captures both the gap summaries and the direct
+    reconciliation result payload from `run_vault_reconciliation_once()`
 
 - for one unified live operator status read on the compute host, use:
 

@@ -130,11 +130,25 @@ def test_cloudsync_targeted_batch_helper_restores_queue_state():
     assert "--run-live-summary" in script_text
     assert "TARGETED_FEEDBACK_ONLY" in script_text
     assert "--targeted-feedback-only" in script_text
+    assert "RECONCILIATION_ONLY" in script_text
+    assert "--reconciliation-only" in script_text
+    assert "RECONCILIATION_LIMIT" in script_text
+    assert "--reconciliation-limit" in script_text
     assert 'CLASSIFICATION_BACKFILL_ENABLED=$([[ "${TARGETED_FEEDBACK_ONLY}" == "1" ]] && printf false || printf true)' in script_text
     assert "Recent completed rows overall:" in script_text
     assert "SUMMARY_JSON_PATH" in script_text
     assert "--summary-json" in script_text
     assert "write_summary_json" in script_text
+    assert "capture_generated_note_context_json()" in script_text
+    assert "collect_generated_note_context_gaps" in script_text
+    assert "print_generated_note_context_summary" in script_text
+    assert '"before_generated_note_context_gaps": parse_json_env("BEFORE_GENERATED_NOTE_CONTEXT_JSON", {})' in script_text
+    assert '"after_generated_note_context_gaps": parse_json_env("AFTER_GENERATED_NOTE_CONTEXT_JSON", {})' in script_text
+    assert '"reconciliation_result": parse_json_env("RECONCILIATION_RESULT_JSON", {})' in script_text
+    assert "run_reconciliation_command()" in script_text
+    assert "run_vault_reconciliation_once" in script_text
+    assert "run_reconciliation_pass()" in script_text
+    assert "Skipping queue defer/apply path because reconciliation-only mode is enabled" in script_text
     assert "'path', cj.path" in script_text
     assert "'path', cs.path" in script_text
     assert "'path', f.path" not in script_text

@@ -160,10 +160,16 @@ If the host account is not in the Docker group, the helper can also use:
 That helper can:
 
 - print before/after queue summaries
+- print before/after generated-note classifier-context gap summaries
 - temporarily defer one queued path prefix such as `/icloud/Downloads/`
 - run a bounded `classification-worker` pass
 - optionally run in `--targeted-feedback-only` mode so strong manual Obsidian
   corrections can process without seeding broader backfill work
+- optionally run in `--reconciliation-only` mode so one bounded vault
+  reconciliation pass can be proven without also advancing the classification
+  queue
+- optionally override the reconciliation scan limit with
+  `--reconciliation-limit N`
 - optionally print newest completed rows across the whole queue with `--run-live-summary`
 - optionally write a machine-readable JSON run summary with `--summary-json /path/to/output.json`
 - restore deferred jobs automatically on exit
