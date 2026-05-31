@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "access:plan": "node ./scripts/print-access-bootstrap.mjs",
+    "bootstrap:github": "node ./scripts/bootstrap-github-secrets.mjs",
     "deploy": "wrangler deploy",
     "deploy:plan": "node ./scripts/deploy-and-verify.mjs --plan",
     "deploy:verify": "node ./scripts/deploy-and-verify.mjs",

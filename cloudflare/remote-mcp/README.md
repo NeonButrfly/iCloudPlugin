@@ -211,16 +211,33 @@ GitHub-hosted deploy path:
   - `REMOTE_MCP_ORIGIN_BASE_URL`
   - `REMOTE_MCP_ORIGIN_API_TOKEN`
   - optional `REMOTE_MCP_WORKER_API_TOKEN`
-  - optional `REMOTE_MCP_PUBLIC_BASE_URL`
   - optional `REMOTE_MCP_VERIFY_HEADERS_JSON`
   - optional `CF_ACCESS_CLIENT_ID`
   - optional `CF_ACCESS_CLIENT_SECRET`
   - optional `CF_ACCESS_TOKEN`
+- expected GitHub Actions variable:
+  - optional `REMOTE_MCP_PUBLIC_BASE_URL`
 - the workflow always re-runs:
   - `npm run submission:verify`
   - `npm test`
   - `npm run type-check`
   before any hosted deploy or verification action
+- bootstrap helper for that path:
+  - `npm run bootstrap:github -- --secrets-file .dev.vars --json`
+  - reads the same `.env`-style secret material used by local Worker tooling
+  - maps it to the GitHub repo names expected by `remote-mcp-deploy.yml`
+  - writes:
+    - required secrets:
+      - `CLOUDFLARE_API_TOKEN`
+      - `REMOTE_MCP_ORIGIN_BASE_URL`
+      - `REMOTE_MCP_ORIGIN_API_TOKEN`
+    - optional secret/variable values such as:
+      - `REMOTE_MCP_WORKER_API_TOKEN`
+      - `REMOTE_MCP_PUBLIC_BASE_URL`
+      - `CF_ACCESS_CLIENT_ID`
+      - `CF_ACCESS_CLIENT_SECRET`
+      - `CF_ACCESS_TOKEN`
+  - add `--apply` to actually run `gh secret set` / `gh variable set`
 
 Verify the deployed `/mcp` route like a real MCP client by listing tools and
 calling one probe tool:

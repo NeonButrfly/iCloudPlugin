@@ -318,6 +318,15 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       - `mcp-verify-only`
       - `plan`
       using repo secrets instead of workstation-local Cloudflare auth
+      - `cloudflare/remote-mcp/scripts/bootstrap-github-secrets.mjs` now
+        provides the matching GitHub secret/variable bootstrap path from local
+        `.env`-style values
+        - required mappings:
+          - `CLOUDFLARE_API_TOKEN`
+          - `ORIGIN_BASE_URL -> REMOTE_MCP_ORIGIN_BASE_URL`
+          - `ORIGIN_API_TOKEN -> REMOTE_MCP_ORIGIN_API_TOKEN`
+        - `REMOTE_MCP_PUBLIC_BASE_URL` is written as a repo variable and the
+          workflow now reads it from `vars.REMOTE_MCP_PUBLIC_BASE_URL`
       - first external proof on 2026-05-31 AKDT:
         - safe `plan` run succeeded:
           - `https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26725919393`

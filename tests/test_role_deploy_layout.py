@@ -257,12 +257,17 @@ def test_product_readiness_report_script_exists_and_docs_reference_it():
 def test_remote_mcp_deploy_workflow_exists_and_uses_repo_verify_helpers():
     repo_root = Path(__file__).resolve().parents[1]
     workflow = repo_root / ".github" / "workflows" / "remote-mcp-deploy.yml"
+    bootstrap_helper = (
+        repo_root / "cloudflare" / "remote-mcp" / "scripts" / "bootstrap-github-secrets.mjs"
+    )
     operations_doc = repo_root / "docs" / "operations.md"
     handoff_doc = repo_root / "docs" / "chat-handoff.md"
 
     workflow_text = workflow.read_text(encoding="utf-8")
+    bootstrap_text = bootstrap_helper.read_text(encoding="utf-8")
 
     assert workflow.exists()
+    assert bootstrap_helper.exists()
     assert "workflow_dispatch:" in workflow_text
     assert "deploy-and-verify" in workflow_text
     assert "mcp-verify-only" in workflow_text
@@ -274,13 +279,22 @@ def test_remote_mcp_deploy_workflow_exists_and_uses_repo_verify_helpers():
     assert "REMOTE_MCP_ORIGIN_BASE_URL" in workflow_text
     assert "REMOTE_MCP_ORIGIN_API_TOKEN" in workflow_text
     assert "REMOTE_MCP_PUBLIC_BASE_URL" in workflow_text
+    assert "${{ vars.REMOTE_MCP_PUBLIC_BASE_URL }}" in workflow_text
     assert "REMOTE_MCP_VERIFY_HEADERS_JSON" in workflow_text
     assert "CF_ACCESS_CLIENT_ID" in workflow_text
     assert "CF_ACCESS_CLIENT_SECRET" in workflow_text
     assert "CF_ACCESS_TOKEN" in workflow_text
     assert "remote-mcp-deploy" in workflow_text
+    assert 'DEFAULT_REPO = "NeonButrfly/iCloudPlugin"' in bootstrap_text
+    assert '"REMOTE_MCP_ORIGIN_BASE_URL"' in bootstrap_text
+    assert '"REMOTE_MCP_ORIGIN_API_TOKEN"' in bootstrap_text
+    assert '"REMOTE_MCP_PUBLIC_BASE_URL"' in bootstrap_text
+    assert '["secret", "set", entry.target_name, "--repo", plan.repo]' in bootstrap_text
+    assert '["variable", "set", entry.target_name, "--repo", plan.repo]' in bootstrap_text
     assert "remote-mcp-deploy.yml" in operations_doc.read_text(encoding="utf-8")
+    assert "bootstrap-github-secrets.mjs" in operations_doc.read_text(encoding="utf-8")
     assert "remote-mcp-deploy.yml" in handoff_doc.read_text(encoding="utf-8")
+    assert "bootstrap-github-secrets.mjs" in handoff_doc.read_text(encoding="utf-8")
 
 
 def test_role_compose_files_exist_for_cloudsync_classifier_and_combined():

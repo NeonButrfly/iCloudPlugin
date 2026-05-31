@@ -1094,11 +1094,12 @@ Recommended deployment shape:
     - `REMOTE_MCP_ORIGIN_BASE_URL`
     - `REMOTE_MCP_ORIGIN_API_TOKEN`
     - optional `REMOTE_MCP_WORKER_API_TOKEN`
-    - optional `REMOTE_MCP_PUBLIC_BASE_URL`
     - optional `REMOTE_MCP_VERIFY_HEADERS_JSON`
     - optional `CF_ACCESS_CLIENT_ID`
     - optional `CF_ACCESS_CLIENT_SECRET`
     - optional `CF_ACCESS_TOKEN`
+  - expected GitHub variable:
+    - optional `REMOTE_MCP_PUBLIC_BASE_URL`
   - the workflow reruns:
     - `npm run submission:verify`
     - `npm test`
@@ -1112,6 +1113,16 @@ Recommended deployment shape:
       - `CLOUDFLARE_API_TOKEN`
       - `REMOTE_MCP_ORIGIN_BASE_URL`
       - `REMOTE_MCP_ORIGIN_API_TOKEN`
+- `cloudflare/remote-mcp/scripts/bootstrap-github-secrets.mjs` now provides the
+  canonical bootstrap path for those GitHub-side deploy prerequisites:
+  - plan only:
+    - `npm run bootstrap:github -- --secrets-file .dev.vars --json`
+  - apply to the current repo with `gh`:
+    - `npm run bootstrap:github -- --secrets-file .dev.vars --apply --json`
+  - it maps local Worker/operator env names to the GitHub names expected by
+    `remote-mcp-deploy.yml`
+  - it writes repo secrets for sensitive values and a repo variable for
+    `REMOTE_MCP_PUBLIC_BASE_URL`
 - `cloudflare/remote-mcp/scripts/verify-mcp-tools.mjs` is now the canonical
   smoke verifier for the remote MCP route itself:
   - optional `/healthz` preflight when a public base URL is available

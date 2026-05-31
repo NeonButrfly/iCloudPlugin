@@ -65,9 +65,16 @@ def test_product_readiness_report_marks_repo_surface_ready_but_cloudflare_auth_b
     assert criteria["external_ai_can_access_note_and_source_layers"]["status"] == "met"
     assert criteria["auth_and_deployment_story_is_real"]["status"] == "blocked"
     assert report["repo_facts"]["remote_mcp_github_actions_workflow_present"] is True
+    assert report["repo_facts"]["remote_mcp_github_secret_bootstrap_helper_present"] is True
     assert (
         criteria["auth_and_deployment_story_is_real"]["details"][
             "github_actions_workflow_present"
+        ]
+        is True
+    )
+    assert (
+        criteria["auth_and_deployment_story_is_real"]["details"][
+            "github_secret_bootstrap_helper_present"
         ]
         is True
     )
