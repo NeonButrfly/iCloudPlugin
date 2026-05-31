@@ -126,3 +126,5 @@
     - actual tool names
     - explicit annotations
     - review-facing positive and negative test cases
+  - add a generator/verification path so that artifact can be re-derived from
+    structured source data instead of drifting as a one-off hand edit

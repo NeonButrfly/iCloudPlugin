@@ -1085,6 +1085,10 @@ Recommended deployment shape:
   - current tool list
   - explicit tool-annotation expectations
   - positive and negative review test cases
+- `cloudflare/remote-mcp/scripts/generate-chatgpt-app-submission.mjs` now
+  verifies or rewrites that artifact from structured source data:
+  - `npm run submission:verify`
+  - `npm run submission:write`
 
 At the end of the current slice, the repo contains the Worker scaffold and
 validated local type-check.

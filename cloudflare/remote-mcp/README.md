@@ -286,6 +286,13 @@ Generate/review-facing ChatGPT Apps submission metadata for this MCP surface:
 
 - `chatgpt-app-submission.json`
 
+You can now verify or regenerate it from structured source data:
+
+```bash
+npm run submission:verify
+npm run submission:write
+```
+
 That file is intended to stay aligned with the actual remote MCP tool surface,
 including:
 
