@@ -118,3 +118,11 @@
     - `destructiveHint=false`
   - both the repo-local FastMCP bridge and the Cloudflare Worker tool surface
     should expose an `outputSchema` for every tool
+- Follow-up implementation slice:
+  - add a `chatgpt-app-submission.json` artifact for the remote MCP surface so
+    the current ChatGPT Apps submission-facing view of the product is checked
+    into the repo instead of being reconstructed from memory
+  - keep it aligned with:
+    - actual tool names
+    - explicit annotations
+    - review-facing positive and negative test cases

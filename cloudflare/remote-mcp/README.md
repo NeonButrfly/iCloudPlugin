@@ -282,6 +282,17 @@ That helper emits:
 - an optional `read_service_tokens_from_header: "Authorization"` update
 - an optional Access service-token create call
 
+Generate/review-facing ChatGPT Apps submission metadata for this MCP surface:
+
+- `chatgpt-app-submission.json`
+
+That file is intended to stay aligned with the actual remote MCP tool surface,
+including:
+
+- current tool names
+- explicit tool annotations
+- review-facing test cases and negative test cases
+
 ## Deployment
 
 ```bash

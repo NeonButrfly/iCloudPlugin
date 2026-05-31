@@ -309,6 +309,9 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       - explicit annotations/outputSchema visible on the descriptors
       - `get_icloud_system_status`
       - bundled-search `worker_download_url` rewriting
+    - `cloudflare/remote-mcp/chatgpt-app-submission.json` now captures the
+      current ChatGPT Apps submission-facing view of the hosted MCP surface so
+      app metadata, tool names, and review test cases are not left implicit
       - direct `GET /mcp` now returns `405 Allow: POST, DELETE` so
         streamable-http clients do not hang on a standalone SSE path
     - `print-access-bootstrap.mjs` emits ready-to-run Cloudflare Access

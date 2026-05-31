@@ -1079,6 +1079,12 @@ Recommended deployment shape:
   ready-to-run Cloudflare Access bootstrap commands for the recommended
   self-hosted Access application model, including the documented optional
   `read_service_tokens_from_header: "Authorization"` bootstrap path
+- `cloudflare/remote-mcp/chatgpt-app-submission.json` now captures the current
+  ChatGPT Apps submission-facing view of the remote MCP product surface:
+  - app info
+  - current tool list
+  - explicit tool-annotation expectations
+  - positive and negative review test cases
 
 At the end of the current slice, the repo contains the Worker scaffold and
 validated local type-check.
