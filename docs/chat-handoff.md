@@ -102,8 +102,19 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     original files through `/download/{file_id}`
   - this slice was validated locally with Python tests plus Worker TypeScript
     type-check
-  - Cloudflare account-side deployment was **not** validated in-session because
-    the Cloudflare API tool required account auth
+  - the on-prem origin half of the slice is now deployed live on `tichuml1`
+    as of 2026-05-31 AKDT:
+    - `/search`, `POST /refresh`, and `/files/*` enforce bearer auth
+    - `GET /files/{id}/note` is live
+    - `GET /files/{id}/source` is live
+    - `GET /files/{id}/source/download` is live
+    - live sample file `23` proved canonical source metadata and UNC
+      `source_link` output; `note_available` was correctly `false` because the
+      generated vault surfaces had been cleared before fresh ingestion
+  - Cloudflare account-side deployment is still **not** validated because:
+    - `npx wrangler whoami` reports `Not logged in`
+    - non-interactive Cloudflare deploy/list flows require
+      `CLOUDFLARE_API_TOKEN`
 - live classifier readiness recovered and is green again:
   - `model_exists=true`
   - `real_ingestion_allowed=true`

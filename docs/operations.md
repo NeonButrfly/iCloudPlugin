@@ -766,8 +766,34 @@ Recommended deployment shape:
 - keep bearer auth enabled between Worker and origin via `PLUGIN_API_TOKEN`
 
 At the end of the current slice, the repo contains the Worker scaffold and
-validated local type-check, but Cloudflare account-side deployment validation
-was blocked in-session because the Cloudflare API tool required account auth.
+validated local type-check.
+
+As of 2026-05-31 AKDT, the on-prem origin half of issue #48 is also deployed
+live on `tichuml1`:
+
+- `/search`, `POST /refresh`, and `/files/*` now require the plugin bearer token
+- `GET /files/{id}/note` and `GET /files/{id}/source` are live
+- `GET /files/{id}/source/download` is live
+
+Live proof used file `23`
+(`/icloud/Downloads/ACE_ASD_Agreement_2024_2027.pdf`):
+
+- unauthenticated `GET /search?query=budget&limit=1` returned `401`
+- authenticated `GET /files/23/note` returned:
+  - `note_available=false` because the generated vault surfaces were cleared
+  - canonical source metadata
+  - Windows UNC `source_link`
+  - `attachment_mode=canonical-source-link`
+- authenticated `GET /files/23/source` returned:
+  - `source_exists=true`
+  - `download_path=/files/23/source/download`
+  - canonical source metadata
+  - Windows UNC `source_link`
+
+Cloudflare account-side deployment is still blocked from this environment:
+
+- `npx wrangler whoami` reports `Not logged in`
+- non-interactive deploy/list flows require `CLOUDFLARE_API_TOKEN`
 
 ## Degraded mode
 
