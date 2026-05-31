@@ -2,3 +2,5 @@ ORIGIN_BASE_URL=http://127.0.0.1:8080
 ORIGIN_API_TOKEN=change-me-origin-token
 WORKER_API_TOKEN=change-me-worker-token
 REMOTE_MCP_PUBLIC_BASE_URL=https://icloudplugin-remote-mcp.example.workers.dev
+# Optional verifier-only header bundle for Access or another front door:
+# REMOTE_MCP_VERIFY_HEADERS_JSON={"CF-Access-Client-Id":"...","CF-Access-Client-Secret":"..."}

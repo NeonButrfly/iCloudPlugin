@@ -77,3 +77,9 @@
     - calls one live probe tool, defaulting to `get_icloud_system_status`
   - keep this separate from `/healthz` so operators can verify actual MCP
     usability instead of only Worker reachability
+- Follow-up implementation slice:
+  - fold the remote-MCP smoke verifier into the deploy helper so a successful
+    deploy can prove the actual `/mcp` surface in the same operator flow
+  - support custom verify headers so the same verifier can work through
+    Cloudflare Access or other front-door auth layers, not just the temporary
+    Worker bearer gate

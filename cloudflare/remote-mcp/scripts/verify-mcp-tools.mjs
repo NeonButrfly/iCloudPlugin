@@ -18,6 +18,11 @@ export const DEFAULT_EXPECTED_TOOLS = [
   "get_icloud_file_bundle",
   "refresh_icloud_index",
 ];
+export const DEFAULT_ACCESS_HEADER_MAP = {
+  "CF-Access-Client-Id": "CF_ACCESS_CLIENT_ID",
+  "CF-Access-Client-Secret": "CF_ACCESS_CLIENT_SECRET",
+  "cf-access-token": "CF_ACCESS_TOKEN",
+};
 
 function printHelp() {
   console.log(`Usage: node scripts/verify-mcp-tools.mjs [options]
@@ -32,6 +37,7 @@ Options:
   --probe-tool <name>       Tool to call after listTools (default: get_icloud_system_status)
   --probe-args <json>       JSON arguments for the probe tool (default: {})
   --expect-tools <csv>      Comma-separated expected tool names
+  --header <name:value>     Additional request header, repeatable
   --skip-health             Skip the preflight /healthz fetch
   --json                    Print the final summary as JSON
   --help                    Show this help text
@@ -40,6 +46,10 @@ Environment:
   REMOTE_MCP_MCP_URL        Optional default MCP endpoint URL
   REMOTE_MCP_PUBLIC_BASE_URL Optional Worker base URL used to derive /mcp and /healthz
   WORKER_API_TOKEN          Optional default bearer token for Worker auth
+  REMOTE_MCP_VERIFY_HEADERS_JSON Optional JSON object of extra headers
+  CF_ACCESS_CLIENT_ID       Optional Cloudflare Access client id header source
+  CF_ACCESS_CLIENT_SECRET   Optional Cloudflare Access client secret header source
+  CF_ACCESS_TOKEN           Optional Cloudflare Access token header source
   MCP_ROUTE                 Optional route override when deriving from --base-url
   HEALTH_ROUTE              Optional route override when deriving from --base-url
 `);
@@ -53,6 +63,7 @@ export function parseArgs(argv) {
     probeTool: "get_icloud_system_status",
     probeArgsRaw: "{}",
     expectToolsCsv: "",
+    headers: [],
     skipHealth: false,
     json: false,
   };
@@ -82,6 +93,10 @@ export function parseArgs(argv) {
         break;
       case "--expect-tools":
         options.expectToolsCsv = argv[index + 1] || "";
+        index += 1;
+        break;
+      case "--header":
+        options.headers.push(argv[index + 1] || "");
         index += 1;
         break;
       case "--skip-health":
@@ -150,6 +165,59 @@ export function buildAuthHeaders(token) {
   };
 }
 
+export function parseHeaderEntry(rawValue) {
+  const separatorIndex = rawValue.indexOf(":");
+  if (separatorIndex <= 0) {
+    throw new Error(`Header must use name:value format: ${rawValue}`);
+  }
+  const name = rawValue.slice(0, separatorIndex).trim();
+  const value = rawValue.slice(separatorIndex + 1).trim();
+  if (!name || !value) {
+    throw new Error(`Header must include both name and value: ${rawValue}`);
+  }
+  return { name, value };
+}
+
+export function parseHeadersJson(rawValue) {
+  const parsed = parseJsonObject(rawValue, "REMOTE_MCP_VERIFY_HEADERS_JSON");
+  const headers = {};
+  for (const [name, value] of Object.entries(parsed)) {
+    if (typeof value !== "string" || !value.trim()) {
+      throw new Error(
+        `REMOTE_MCP_VERIFY_HEADERS_JSON values must be non-empty strings: ${name}`,
+      );
+    }
+    headers[name] = value.trim();
+  }
+  return headers;
+}
+
+export function resolveExtraHeaders(options, env = process.env) {
+  const headers = {};
+
+  const envJson = trim(env.REMOTE_MCP_VERIFY_HEADERS_JSON);
+  if (envJson) {
+    Object.assign(headers, parseHeadersJson(envJson));
+  }
+
+  for (const rawHeader of options.headers || []) {
+    if (!trim(rawHeader)) {
+      continue;
+    }
+    const { name, value } = parseHeaderEntry(rawHeader);
+    headers[name] = value;
+  }
+
+  for (const [headerName, envName] of Object.entries(DEFAULT_ACCESS_HEADER_MAP)) {
+    const value = trim(env[envName]);
+    if (value && !headers[headerName]) {
+      headers[headerName] = value;
+    }
+  }
+
+  return headers;
+}
+
 export function summarizeProbeResult(result) {
   const contentPreview = Array.isArray(result?.content)
     ? result.content
@@ -207,6 +275,7 @@ export function resolveConfig(options, env = process.env) {
     mcpUrl,
     healthUrl,
     token: trim(options.token) || trim(env.WORKER_API_TOKEN),
+    headers: resolveExtraHeaders(options, env),
     probeTool,
     probeArgs,
     expectedTools,
@@ -224,6 +293,7 @@ export async function fetchHealthSummary(config) {
     headers: {
       Accept: "application/json",
       ...buildAuthHeaders(config.token),
+      ...(config.headers || {}),
     },
   });
   const text = await response.text();
@@ -239,7 +309,10 @@ export async function fetchHealthSummary(config) {
 
 export async function runVerification(config) {
   const health = await fetchHealthSummary(config);
-  const requestHeaders = buildAuthHeaders(config.token);
+  const requestHeaders = {
+    ...buildAuthHeaders(config.token),
+    ...(config.headers || {}),
+  };
   const client = new Client({
     name: "icloudplugin-remote-mcp-verifier",
     version: "0.1.0",
@@ -272,6 +345,7 @@ export async function runVerification(config) {
       mcp_url: config.mcpUrl,
       health_url: config.healthUrl || null,
       health,
+      request_header_names: Object.keys(requestHeaders).sort(),
       tool_count: availableTools.length,
       available_tools: availableTools,
       expected_tools: config.expectedTools,

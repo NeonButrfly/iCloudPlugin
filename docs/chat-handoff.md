@@ -133,6 +133,11 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `verify-mcp-tools.mjs` now smoke-tests the remote `/mcp` route itself by
       connecting over Streamable HTTP, listing tools, and calling one probe
       tool instead of stopping at `/healthz`
+      - it also now supports custom headers and Cloudflare Access env fallbacks
+        so the same smoke path can verify an Access-fronted Worker, not just
+        the temporary Worker bearer token gate
+    - `deploy-and-verify.mjs` now chains that `/mcp` smoke step after deploy by
+      default instead of stopping at `/healthz`
     - `print-access-bootstrap.mjs` emits ready-to-run Cloudflare Access
       bootstrap commands for the recommended self-hosted Access model
     - `.dev.vars.example` documents the local Worker secret shape for

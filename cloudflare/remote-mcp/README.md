@@ -113,11 +113,26 @@ Plan a deploy using secret values from a local `.env`-style file such as
 node scripts/deploy-and-verify.mjs --plan --sync-secrets --secrets-file .dev.vars --json
 ```
 
-Deploy with Wrangler and verify `/healthz` afterward:
+Deploy with Wrangler and verify `/healthz` plus the live `/mcp` tool surface
+afterward:
 
 ```bash
 npm run deploy:verify
 ```
+
+`deploy:verify` now proves, in one flow:
+
+- the Worker deployed
+- `/healthz` is healthy
+- `/mcp` accepts a real Streamable HTTP MCP client
+- the expected tool surface is present
+- `get_icloud_system_status` succeeds
+
+Trim that flow only when you mean to:
+
+- `--skip-health-check`
+- `--skip-mcp-check`
+- repeated `--verify-header 'Name: Value'` for the MCP verification step
 
 Verify the deployed `/mcp` route like a real MCP client by listing tools and
 calling one probe tool:
@@ -143,6 +158,16 @@ By default the verifier:
 - lists tools and confirms the expected tool surface exists
 - calls `get_icloud_system_status` as the probe tool
 
+It also supports richer auth than the Worker bootstrap token alone:
+
+- `WORKER_API_TOKEN` or `--token` for the current Worker bearer gate
+- repeated `--header 'Name: Value'` flags for custom front-door headers
+- `REMOTE_MCP_VERIFY_HEADERS_JSON` for a shell-driven header bundle
+- Cloudflare Access env fallbacks:
+  - `CF_ACCESS_CLIENT_ID`
+  - `CF_ACCESS_CLIENT_SECRET`
+  - `CF_ACCESS_TOKEN`
+
 You can override the probe tool and arguments when you want a deeper smoke run:
 
 ```bash
@@ -150,6 +175,16 @@ node scripts/verify-mcp-tools.mjs \
   --mcp-url https://<worker>.<account>.workers.dev/mcp \
   --probe-tool search_icloud_files \
   --probe-args '{"query":"appeal","limit":1}' \
+  --json
+```
+
+Example using Cloudflare Access service-token headers:
+
+```bash
+node scripts/verify-mcp-tools.mjs \
+  --base-url https://<worker>.<account>.workers.dev \
+  --header "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+  --header "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
   --json
 ```
 
@@ -174,7 +209,7 @@ That path:
 - reads `ORIGIN_API_TOKEN`
 - reads optional `WORKER_API_TOKEN`
 - pushes them with `wrangler secret bulk`
-- then runs the deploy and `/healthz` verification flow
+- then runs the deploy, `/healthz` verification, and remote MCP smoke flow
 
 Print ready-to-run Cloudflare Access bootstrap commands for the deployed
 Worker:

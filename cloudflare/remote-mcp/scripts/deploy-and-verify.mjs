@@ -5,6 +5,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { resolveConfig as resolveMcpVerifyConfig, runVerification } from "./verify-mcp-tools.mjs";
 
 const WORKER_ROOT = path.resolve(import.meta.dirname, "..");
 const DEFAULT_MCP_ROUTE = "/mcp";
@@ -22,6 +23,8 @@ Options:
   --sync-secrets        Push Worker secrets with wrangler before deploy
   --secrets-file <path> Load Worker secret values from a .env-style file before deploy
   --skip-health-check   Stop after deploy; do not call the public health endpoint
+  --skip-mcp-check      Stop after deploy; do not run the remote MCP smoke verifier
+  --verify-header <h>   Extra header for the MCP verifier, repeatable (name:value)
   --base-url <url>      Override the public Worker base URL used for verification
   --health-url <url>    Override the health URL directly
   --json                Print the final summary as JSON
@@ -32,6 +35,10 @@ Environment:
   ORIGIN_API_TOKEN            Required by the Worker
   WORKER_API_TOKEN            Optional client-to-Worker bearer token bootstrap
   REMOTE_MCP_PUBLIC_BASE_URL  Optional public base URL for post-deploy verification
+  REMOTE_MCP_VERIFY_HEADERS_JSON Optional JSON object of extra headers for MCP smoke verification
+  CF_ACCESS_CLIENT_ID         Optional Cloudflare Access client id for MCP smoke verification
+  CF_ACCESS_CLIENT_SECRET     Optional Cloudflare Access client secret for MCP smoke verification
+  CF_ACCESS_TOKEN             Optional Cloudflare Access token for MCP smoke verification
   CLOUDFLARE_API_TOKEN        Required for non-interactive wrangler deploys unless Wrangler is already logged in
 `);
 }
@@ -43,6 +50,8 @@ function parseArgs(argv) {
     syncSecrets: false,
     secretsFile: "",
     skipHealthCheck: false,
+    skipMcpCheck: false,
+    verifyHeaders: [],
     baseUrl: "",
     healthUrl: "",
     json: false,
@@ -66,6 +75,13 @@ function parseArgs(argv) {
         break;
       case "--skip-health-check":
         options.skipHealthCheck = true;
+        break;
+      case "--skip-mcp-check":
+        options.skipMcpCheck = true;
+        break;
+      case "--verify-header":
+        options.verifyHeaders.push(argv[index + 1] || "");
+        index += 1;
         break;
       case "--base-url":
         options.baseUrl = argv[index + 1] || "";
@@ -129,6 +145,23 @@ function summarizeConfig(options) {
     "";
   const healthUrl =
     options.healthUrl || (baseUrl ? buildUrl(baseUrl, routes.healthRoute) : "");
+  const verifyConfig =
+    baseUrl || options.baseUrl
+      ? resolveMcpVerifyConfig(
+          {
+            mcpUrl: "",
+            baseUrl: baseUrl || options.baseUrl,
+            token: "",
+            probeTool: "get_icloud_system_status",
+            probeArgsRaw: "{}",
+            expectToolsCsv: "",
+            headers: options.verifyHeaders || [],
+            skipHealth: false,
+            json: false,
+          },
+          process.env,
+        )
+      : null;
 
   return {
     workerName: "icloudplugin-remote-mcp",
@@ -144,12 +177,15 @@ function summarizeConfig(options) {
     baseUrl: baseUrl || null,
     healthUrl: healthUrl || null,
     mcpUrl: baseUrl ? buildUrl(baseUrl, routes.mcpRoute) : null,
+    mcpVerifyEnabled: !options.skipMcpCheck,
+    mcpVerifyHeaderNames: verifyConfig ? Object.keys(verifyConfig.headers || {}).sort() : [],
     downloadExampleUrl: baseUrl
       ? buildUrl(baseUrl, `${routes.downloadRoutePrefix}/123`)
       : null,
     routes,
     dryRun: options.dryRun,
     skipHealthCheck: options.skipHealthCheck,
+    skipMcpCheck: options.skipMcpCheck,
   };
 }
 
@@ -285,6 +321,24 @@ async function verifyHealth(healthUrl) {
   return payload;
 }
 
+async function verifyRemoteMcp(options, baseUrl) {
+  const config = resolveMcpVerifyConfig(
+    {
+      mcpUrl: "",
+      baseUrl,
+      token: "",
+      probeTool: "get_icloud_system_status",
+      probeArgsRaw: "{}",
+      expectToolsCsv: "",
+      headers: options.verifyHeaders || [],
+      skipHealth: true,
+      json: false,
+    },
+    process.env,
+  );
+  return runVerification(config);
+}
+
 async function syncSecrets(secretInputs) {
   const tempDir = mkdtempSync(path.join(tmpdir(), "icloudplugin-remote-mcp-"));
   const payloadPath = path.join(tempDir, "wrangler-secrets.json");
@@ -365,6 +419,15 @@ async function main() {
       );
     }
     summary.health = await verifyHealth(healthUrl);
+  }
+
+  if (!options.skipMcpCheck && !options.dryRun) {
+    if (!derivedBaseUrl) {
+      throw new Error(
+        "The Worker deployed, but no public base URL was available for MCP verification. Set REMOTE_MCP_PUBLIC_BASE_URL or pass --base-url.",
+      );
+    }
+    summary.mcp = await verifyRemoteMcp(options, derivedBaseUrl);
   }
 
   console.log(options.json ? JSON.stringify(summary, null, 2) : summary);

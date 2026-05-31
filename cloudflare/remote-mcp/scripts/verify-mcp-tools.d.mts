@@ -9,6 +9,7 @@ export type VerifyOptions = {
   probeTool: string;
   probeArgsRaw: string;
   expectToolsCsv: string;
+  headers: string[];
   skipHealth: boolean;
   json: boolean;
 };
@@ -17,6 +18,7 @@ export type VerifyConfig = {
   mcpUrl: string;
   healthUrl: string;
   token: string;
+  headers: Record<string, string>;
   probeTool: string;
   probeArgs: Record<string, unknown>;
   expectedTools: string[];
@@ -28,6 +30,12 @@ export function parseArgs(argv: string[]): VerifyOptions;
 export function buildDerivedUrls(baseUrl: string): { mcpUrl: string; healthUrl: string };
 export function parseJsonObject(rawValue: string, label: string): Record<string, unknown>;
 export function buildAuthHeaders(token: string): Record<string, string>;
+export function parseHeaderEntry(rawValue: string): { name: string; value: string };
+export function parseHeadersJson(rawValue: string): Record<string, string>;
+export function resolveExtraHeaders(
+  options: VerifyOptions,
+  env?: Record<string, string | undefined>,
+): Record<string, string>;
 export function summarizeProbeResult(result: {
   isError?: boolean;
   structuredContent?: unknown;
