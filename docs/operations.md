@@ -787,6 +787,8 @@ first production-shaped external MCP slice in
   - `ORIGIN_API_TOKEN`
   - optional `WORKER_API_TOKEN` for client-to-Worker bearer auth
   - optional `HEALTH_ROUTE`, default `/healthz`
+- local Worker development can use `cloudflare/remote-mcp/.dev.vars` copied
+  from `.dev.vars.example`
 - The Worker exposes a `/mcp` route plus a proxied file handoff route:
   - `/download/{file_id}`
   - and public health metadata at `/` and `/healthz`
@@ -797,6 +799,15 @@ Recommended deployment shape:
 - keep the Worker behind Cloudflare Access or another OAuth front door for the
   production auth model
 - keep bearer auth enabled between Worker and origin via `PLUGIN_API_TOKEN`
+- `cloudflare/remote-mcp/scripts/deploy-and-verify.mjs` is now the canonical
+  operator helper for:
+  - preflight planning
+  - `wrangler deploy --keep-vars`
+  - post-deploy `/healthz` verification
+- `cloudflare/remote-mcp/scripts/print-access-bootstrap.mjs` now emits
+  ready-to-run Cloudflare Access bootstrap commands for the recommended
+  self-hosted Access application model, including the documented optional
+  `read_service_tokens_from_header: "Authorization"` bootstrap path
 
 At the end of the current slice, the repo contains the Worker scaffold and
 validated local type-check.

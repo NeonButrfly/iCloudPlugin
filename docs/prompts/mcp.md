@@ -44,3 +44,11 @@
     - public non-secret health metadata at `/` and `/healthz`
     - explicit documentation that this private-token mode is the bootstrap path
       before a fuller OAuth front door such as Cloudflare Access
+- Follow-up implementation slice:
+  - add repo-local operator helpers so Cloudflare deployment stops depending on
+    shell memory:
+    - `cloudflare/remote-mcp/scripts/deploy-and-verify.mjs`
+    - `cloudflare/remote-mcp/scripts/print-access-bootstrap.mjs`
+  - keep the Worker itself stateless and align the production auth model with
+    Cloudflare's recommended self-hosted Access application flow instead of
+    growing custom auth logic inside the Worker

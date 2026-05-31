@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "access:plan": "node ./scripts/print-access-bootstrap.mjs",
     "deploy": "wrangler deploy",
+    "deploy:plan": "node ./scripts/deploy-and-verify.mjs --plan",
+    "deploy:verify": "node ./scripts/deploy-and-verify.mjs",
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "type-check": "node ./node_modules/typescript/lib/tsc.js --noEmit"

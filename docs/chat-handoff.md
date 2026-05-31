@@ -110,6 +110,13 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - the Worker now also supports an optional client-facing bearer gate via
     `WORKER_API_TOKEN` and exposes non-secret health metadata at `/` and
     `/healthz` for deployment verification
+  - repo-local operator helpers now exist in `cloudflare/remote-mcp/scripts`:
+    - `deploy-and-verify.mjs` plans/deploys/verifies the Worker without relying
+      on remembered Wrangler flags
+    - `print-access-bootstrap.mjs` emits ready-to-run Cloudflare Access
+      bootstrap commands for the recommended self-hosted Access model
+    - `.dev.vars.example` documents the local Worker secret shape for
+      `wrangler dev`
   - this slice was validated locally with Python tests plus Worker TypeScript
     type-check
   - the on-prem origin half of the slice is now deployed live on `tichuml1`

@@ -1,0 +1,3 @@
+.dev.vars
+.deploy-state.json
+.wrangler/

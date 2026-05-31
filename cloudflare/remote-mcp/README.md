@@ -67,6 +67,19 @@ Recommended long-term deployment shape:
 - move to Cloudflare Access OAuth or another OAuth front door before calling
   the external MCP path production-complete
 
+Cloudflare's current guidance for remote MCP is:
+
+- use a stateless `createMcpHandler()` Worker when tools do not need per-session
+  state
+- protect the deployed Worker with a self-hosted Cloudflare Access application
+  when you want Cloudflare to own the OAuth flow
+- optionally enable single-header service-token auth for operator/bootstrap use
+  on that Access application
+
+This repo follows that shape: the Worker stays stateless, and Access is the
+recommended production auth front door instead of pushing more auth logic into
+the Worker itself.
+
 ## Local development
 
 ```bash
@@ -74,6 +87,46 @@ npm install
 npm run type-check
 npm run dev
 ```
+
+Local secret/example file:
+
+- copy `.dev.vars.example` to `.dev.vars` for local `wrangler dev` work
+
+## Deployment helpers
+
+Plan the deploy and derived URLs without deploying:
+
+```bash
+npm run deploy:plan
+```
+
+Deploy with Wrangler and verify `/healthz` afterward:
+
+```bash
+npm run deploy:verify
+```
+
+This helper expects:
+
+- `ORIGIN_BASE_URL`
+- `ORIGIN_API_TOKEN`
+- optional `WORKER_API_TOKEN`
+- optional `REMOTE_MCP_PUBLIC_BASE_URL`
+- either `CLOUDFLARE_API_TOKEN` or an existing Wrangler login
+
+Print ready-to-run Cloudflare Access bootstrap commands for the deployed
+Worker:
+
+```bash
+npm run access:plan
+```
+
+That helper emits:
+
+- a self-hosted Access application create call
+- an application policy create call
+- an optional `read_service_tokens_from_header: "Authorization"` update
+- an optional Access service-token create call
 
 ## Deployment
 
@@ -96,3 +149,11 @@ The download handoff route lives at:
 The public health endpoint lives at:
 
 - `https://<worker>.<account>.workers.dev/healthz`
+
+Recommended production front door:
+
+- keep `WORKER_API_TOKEN` for bootstrap/private smoke use if helpful
+- place the public Worker behind Cloudflare Access as a self-hosted
+  application
+- use the emitted `access:plan` commands as the operator bootstrap for that
+  Access layer
