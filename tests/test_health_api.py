@@ -176,6 +176,29 @@ def test_compose_passes_filesystem_mirror_environment_to_service_and_worker():
     assert service_env["CLASSIFIER_VAULT_ROOT"] == "/srv/cloud-vault/document-vault"
 
 
+def test_service_receives_classifier_health_environment_for_status_summary():
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ | {
+        "CLASSIFIER_API_URL": "http://192.168.50.196:4319",
+        "CLASSIFIER_API_TOKEN": "top-secret",
+    }
+    result = subprocess.run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=repo_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    config = json.loads(result.stdout)
+    service_env = config["services"]["service"]["environment"]
+
+    assert service_env["CLASSIFIER_API_URL"] == "http://192.168.50.196:4319"
+    assert service_env["CLASSIFIER_API_TOKEN"] == "top-secret"
+
+
 def test_compose_mounts_cloud_vault_into_service_and_worker_for_mirror_mode():
     repo_root = Path(__file__).resolve().parents[1]
     result = subprocess.run(
