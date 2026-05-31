@@ -135,7 +135,7 @@ The local test suite now includes an end-to-end MCP proof:
 - a real MCP client connects to the Worker route
 - `tools/list` succeeds
 - tool annotations and `outputSchema` are present on the exposed descriptors
-- `get_icloud_system_status` succeeds
+- `get_icloud_product_readiness` succeeds
 - bundled search responses rewrite `worker_download_url` correctly
 
 Local secret/example file:
@@ -191,7 +191,7 @@ npm run deploy:verify
 - `/healthz` is healthy
 - `/mcp` accepts a real Streamable HTTP MCP client
 - the expected tool surface is present
-- `get_icloud_system_status` succeeds
+- `get_icloud_product_readiness` succeeds
 
 Trim that flow only when you mean to:
 
@@ -221,7 +221,7 @@ By default the verifier:
 - fetches `/healthz` first when a public base URL is available
 - connects to `/mcp` over Streamable HTTP
 - lists tools and confirms the expected tool surface exists
-- calls `get_icloud_system_status` as the probe tool
+- calls `get_icloud_product_readiness` as the probe tool
 
 It also supports richer auth than the Worker bootstrap token alone:
 

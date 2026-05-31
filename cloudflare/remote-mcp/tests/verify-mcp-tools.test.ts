@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_EXPECTED_TOOLS,
+  DEFAULT_PROBE_TOOL,
   buildAuthHeaders,
   buildDerivedUrls,
   parseHeaderEntry,
@@ -90,7 +91,7 @@ describe("verify-mcp-tools helpers", () => {
 
     expect(config.mcpUrl).toBe("https://worker.example.test/mcp");
     expect(config.healthUrl).toBe("https://worker.example.test/healthz");
-    expect(config.probeTool).toBe("get_icloud_system_status");
+    expect(config.probeTool).toBe(DEFAULT_PROBE_TOOL);
     expect(config.expectedTools).toEqual(DEFAULT_EXPECTED_TOOLS);
     expect(config.headers).toEqual({});
     expect(config.json).toBe(true);

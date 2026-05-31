@@ -307,6 +307,9 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       - it also now supports custom headers and Cloudflare Access env fallbacks
         so the same smoke path can verify an Access-fronted Worker, not just
         the temporary Worker bearer token gate
+      - the default probe tool is now `get_icloud_product_readiness`, so the
+        smoke path checks end-to-end completion state instead of only raw
+        runtime status
     - `deploy-and-verify.mjs` now chains that `/mcp` smoke step after deploy by
       default instead of stopping at `/healthz`
     - the Worker runtime no longer depends on Cloudflare's broader `agents`
@@ -318,7 +321,7 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       - real MCP client -> Worker route
       - `tools/list`
       - explicit annotations/outputSchema visible on the descriptors
-      - `get_icloud_system_status`
+      - `get_icloud_product_readiness`
       - bundled-search `worker_download_url` rewriting
     - `cloudflare/remote-mcp/chatgpt-app-submission.json` now captures the
       current ChatGPT Apps submission-facing view of the hosted MCP surface so

@@ -87,7 +87,7 @@
   - add a real remote-MCP smoke verifier that:
     - connects to the deployed `/mcp` route over Streamable HTTP
     - lists tools and confirms the expected external tool surface exists
-    - calls one live probe tool, defaulting to `get_icloud_system_status`
+    - calls one live probe tool, defaulting to `get_icloud_product_readiness`
   - keep this separate from `/healthz` so operators can verify actual MCP
     usability instead of only Worker reachability
 - Follow-up implementation slice:

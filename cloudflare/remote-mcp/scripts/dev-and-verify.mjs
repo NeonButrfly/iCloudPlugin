@@ -5,7 +5,11 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { resolveConfig as resolveMcpVerifyConfig, runVerification } from "./verify-mcp-tools.mjs";
+import {
+  DEFAULT_PROBE_TOOL,
+  resolveConfig as resolveMcpVerifyConfig,
+  runVerification,
+} from "./verify-mcp-tools.mjs";
 
 const WORKER_ROOT = path.resolve(import.meta.dirname, "..");
 const DEFAULT_HOST = "127.0.0.1";
@@ -336,7 +340,7 @@ async function main() {
           mcpUrl: "",
           baseUrl,
           token: "",
-          probeTool: "get_icloud_system_status",
+          probeTool: DEFAULT_PROBE_TOOL,
           probeArgsRaw: "{}",
           expectToolsCsv: "",
           headers: options.verifyHeaders || [],

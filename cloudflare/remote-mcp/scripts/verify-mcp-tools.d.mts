@@ -1,6 +1,7 @@
 export const DEFAULT_MCP_ROUTE: string;
 export const DEFAULT_HEALTH_ROUTE: string;
 export const DEFAULT_EXPECTED_TOOLS: string[];
+export const DEFAULT_PROBE_TOOL: string;
 
 export type VerifyOptions = {
   mcpUrl: string;

@@ -24,6 +24,7 @@ export const DEFAULT_ACCESS_HEADER_MAP = {
   "CF-Access-Client-Secret": "CF_ACCESS_CLIENT_SECRET",
   "cf-access-token": "CF_ACCESS_TOKEN",
 };
+export const DEFAULT_PROBE_TOOL = "get_icloud_product_readiness";
 
 function printHelp() {
   console.log(`Usage: node scripts/verify-mcp-tools.mjs [options]
@@ -35,7 +36,7 @@ Options:
   --mcp-url <url>           Full MCP endpoint URL (for example https://worker/mcp)
   --base-url <url>          Public Worker base URL; /mcp and /healthz are derived
   --token <token>           Bearer token for client-to-Worker auth
-  --probe-tool <name>       Tool to call after listTools (default: get_icloud_system_status)
+  --probe-tool <name>       Tool to call after listTools (default: get_icloud_product_readiness)
   --probe-args <json>       JSON arguments for the probe tool (default: {})
   --expect-tools <csv>      Comma-separated expected tool names
   --header <name:value>     Additional request header, repeatable
@@ -61,7 +62,7 @@ export function parseArgs(argv) {
     mcpUrl: "",
     baseUrl: "",
     token: "",
-    probeTool: "get_icloud_system_status",
+    probeTool: DEFAULT_PROBE_TOOL,
     probeArgsRaw: "{}",
     expectToolsCsv: "",
     headers: [],
@@ -263,7 +264,7 @@ export function resolveConfig(options, env = process.env) {
     healthUrl = buildDerivedUrls(explicitBaseUrl).healthUrl;
   }
 
-  const probeTool = trim(options.probeTool) || "get_icloud_system_status";
+  const probeTool = trim(options.probeTool) || DEFAULT_PROBE_TOOL;
   const probeArgs = parseJsonObject(options.probeArgsRaw || "{}", "--probe-args");
   const expectedTools = trim(options.expectToolsCsv)
     ? trim(options.expectToolsCsv)

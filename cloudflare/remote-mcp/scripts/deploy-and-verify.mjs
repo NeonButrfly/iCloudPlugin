@@ -5,7 +5,11 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
-import { resolveConfig as resolveMcpVerifyConfig, runVerification } from "./verify-mcp-tools.mjs";
+import {
+  DEFAULT_PROBE_TOOL,
+  resolveConfig as resolveMcpVerifyConfig,
+  runVerification,
+} from "./verify-mcp-tools.mjs";
 
 const WORKER_ROOT = path.resolve(import.meta.dirname, "..");
 const DEFAULT_MCP_ROUTE = "/mcp";
@@ -152,7 +156,7 @@ function summarizeConfig(options) {
             mcpUrl: "",
             baseUrl: baseUrl || options.baseUrl,
             token: "",
-            probeTool: "get_icloud_system_status",
+            probeTool: DEFAULT_PROBE_TOOL,
             probeArgsRaw: "{}",
             expectToolsCsv: "",
             headers: options.verifyHeaders || [],
@@ -327,7 +331,7 @@ async function verifyRemoteMcp(options, baseUrl) {
       mcpUrl: "",
       baseUrl,
       token: "",
-      probeTool: "get_icloud_system_status",
+      probeTool: DEFAULT_PROBE_TOOL,
       probeArgsRaw: "{}",
       expectToolsCsv: "",
       headers: options.verifyHeaders || [],

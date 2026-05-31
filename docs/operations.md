@@ -1082,12 +1082,12 @@ Recommended deployment shape:
   - `wrangler deploy --keep-vars`
   - post-deploy `/healthz` verification
   - post-deploy `/mcp` smoke verification through a real Streamable HTTP MCP
-    client, defaulting to `get_icloud_system_status`
+    client, defaulting to `get_icloud_product_readiness`
 - `cloudflare/remote-mcp/scripts/verify-mcp-tools.mjs` is now the canonical
   smoke verifier for the remote MCP route itself:
   - optional `/healthz` preflight when a public base URL is available
   - live `tools/list` verification over Streamable HTTP
-  - a real probe-tool call, defaulting to `get_icloud_system_status`
+  - a real probe-tool call, defaulting to `get_icloud_product_readiness`
   - nonzero exit when the expected tool surface is missing or the probe call
     errors
   - optional custom auth headers for front doors such as Cloudflare Access
@@ -1105,7 +1105,7 @@ Recommended deployment shape:
   - `cloudflare/remote-mcp/tests/mcp-e2e.test.ts`
   - it connects a real MCP client to the Worker route, runs `tools/list`,
     verifies explicit annotations/outputSchema, calls
-    `get_icloud_system_status`, and verifies Worker download URL rewriting in
+    `get_icloud_product_readiness`, and verifies Worker download URL rewriting in
     bundled search results
   - direct `GET /mcp` now returns `405 Allow: POST, DELETE` so streamable-http
     clients can fall through cleanly instead of hanging on a standalone SSE
