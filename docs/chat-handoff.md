@@ -128,6 +128,8 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - repo-local operator helpers now exist in `cloudflare/remote-mcp/scripts`:
     - `deploy-and-verify.mjs` plans/deploys/verifies the Worker without relying
       on remembered Wrangler flags
+      - it can now also push Worker secrets from shell env or a local
+        `.dev.vars`-style file before deploy
     - `print-access-bootstrap.mjs` emits ready-to-run Cloudflare Access
       bootstrap commands for the recommended self-hosted Access model
     - `.dev.vars.example` documents the local Worker secret shape for
@@ -204,6 +206,13 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `npx wrangler whoami` reports `Not logged in`
     - non-interactive Cloudflare deploy/list flows require
       `CLOUDFLARE_API_TOKEN`
+    - this turn re-proved that the local auth surfaces are still absent:
+      - `CLOUDFLARE_API_TOKEN=missing`
+      - `npx wrangler deployments list` still fails in non-interactive mode
+  - the deploy helper is stronger now despite that blocker:
+    - `--sync-secrets` can push Worker secrets before deploy
+    - `--secrets-file .dev.vars` lets the helper consume the same local secret
+      file used by `wrangler dev`
   - follow-up bug [#49](https://github.com/NeonButrfly/iCloudPlugin/issues/49)
     is now fixed in repo, repaired live on `tichuml1`, and closed:
     - the live cloudsync env had `CLASSIFIER_API_TOKEN` blank, which broke

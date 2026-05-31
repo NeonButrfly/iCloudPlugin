@@ -106,6 +106,13 @@ Plan the deploy and derived URLs without deploying:
 npm run deploy:plan
 ```
 
+Plan a deploy using secret values from a local `.env`-style file such as
+`.dev.vars` without pushing anything yet:
+
+```bash
+node scripts/deploy-and-verify.mjs --plan --sync-secrets --secrets-file .dev.vars --json
+```
+
 Deploy with Wrangler and verify `/healthz` afterward:
 
 ```bash
@@ -114,11 +121,26 @@ npm run deploy:verify
 
 This helper expects:
 
-- `ORIGIN_BASE_URL`
-- `ORIGIN_API_TOKEN`
+- `ORIGIN_BASE_URL` and `ORIGIN_API_TOKEN`, either:
+  - already present in the current shell environment
+  - or loaded from `--secrets-file <path>` when `--sync-secrets` is used
 - optional `WORKER_API_TOKEN`
 - optional `REMOTE_MCP_PUBLIC_BASE_URL`
 - either `CLOUDFLARE_API_TOKEN` or an existing Wrangler login
+
+If you want the helper to push Worker secrets before deploy, add:
+
+```bash
+node scripts/deploy-and-verify.mjs --sync-secrets --secrets-file .dev.vars
+```
+
+That path:
+
+- reads `ORIGIN_BASE_URL`
+- reads `ORIGIN_API_TOKEN`
+- reads optional `WORKER_API_TOKEN`
+- pushes them with `wrangler secret bulk`
+- then runs the deploy and `/healthz` verification flow
 
 Print ready-to-run Cloudflare Access bootstrap commands for the deployed
 Worker:

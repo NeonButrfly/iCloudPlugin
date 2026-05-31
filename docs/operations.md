@@ -850,6 +850,7 @@ Recommended deployment shape:
 - `cloudflare/remote-mcp/scripts/deploy-and-verify.mjs` is now the canonical
   operator helper for:
   - preflight planning
+  - optional Worker secret sync from shell env or `.dev.vars`-style files
   - `wrangler deploy --keep-vars`
   - post-deploy `/healthz` verification
 - `cloudflare/remote-mcp/scripts/print-access-bootstrap.mjs` now emits
@@ -912,6 +913,17 @@ Cloudflare account-side deployment is still blocked from this environment:
 
 - `npx wrangler whoami` reports `Not logged in`
 - non-interactive deploy/list flows require `CLOUDFLARE_API_TOKEN`
+
+When Cloudflare auth is available again, the preferred deploy path is now:
+
+```bash
+cd cloudflare/remote-mcp
+node scripts/deploy-and-verify.mjs --sync-secrets --secrets-file .dev.vars
+```
+
+That flow pushes `ORIGIN_BASE_URL`, `ORIGIN_API_TOKEN`, and optional
+`WORKER_API_TOKEN` into Worker secrets before the deploy, instead of requiring
+separate manual `wrangler secret put` steps.
 
 ## Degraded mode
 

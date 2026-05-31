@@ -65,3 +65,8 @@
     - classification queue and state counts
     - provider counts
     - generated vault output counts
+- Follow-up implementation slice:
+  - make the Cloudflare deploy helper push Worker secrets directly when auth is
+    available, instead of requiring manual `wrangler secret put` steps first
+  - support secret loading from shell env or a local `.dev.vars`-style file so
+    the same local dev secret source can drive real deploys

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 
@@ -18,6 +19,8 @@ Deploy the Cloudflare remote MCP Worker and verify its public health surface.
 Options:
   --plan                Print the derived deployment and verification plan without deploying
   --dry-run             Pass --dry-run through to wrangler deploy
+  --sync-secrets        Push Worker secrets with wrangler before deploy
+  --secrets-file <path> Load Worker secret values from a .env-style file before deploy
   --skip-health-check   Stop after deploy; do not call the public health endpoint
   --base-url <url>      Override the public Worker base URL used for verification
   --health-url <url>    Override the health URL directly
@@ -37,6 +40,8 @@ function parseArgs(argv) {
   const options = {
     plan: false,
     dryRun: false,
+    syncSecrets: false,
+    secretsFile: "",
     skipHealthCheck: false,
     baseUrl: "",
     healthUrl: "",
@@ -51,6 +56,13 @@ function parseArgs(argv) {
         break;
       case "--dry-run":
         options.dryRun = true;
+        break;
+      case "--sync-secrets":
+        options.syncSecrets = true;
+        break;
+      case "--secrets-file":
+        options.secretsFile = argv[index + 1] || "";
+        index += 1;
         break;
       case "--skip-health-check":
         options.skipHealthCheck = true;
@@ -110,6 +122,7 @@ function buildUrl(baseUrl, route) {
 
 function summarizeConfig(options) {
   const routes = deriveRoutes();
+  const secretInputs = resolveSecretInputs(options);
   const baseUrl =
     options.baseUrl ||
     getTrimmedEnv("REMOTE_MCP_PUBLIC_BASE_URL") ||
@@ -120,6 +133,9 @@ function summarizeConfig(options) {
   return {
     workerName: "icloudplugin-remote-mcp",
     workerRoot: WORKER_ROOT,
+    secretSyncEnabled: options.syncSecrets,
+    secretsFile: options.secretsFile || null,
+    availableSecretKeys: Object.keys(secretInputs),
     hasOriginBaseUrl: Boolean(getTrimmedEnv("ORIGIN_BASE_URL")),
     hasOriginApiToken: Boolean(getTrimmedEnv("ORIGIN_API_TOKEN")),
     authMode: getTrimmedEnv("WORKER_API_TOKEN") ? "worker-api-token" : "origin-only",
@@ -137,16 +153,69 @@ function summarizeConfig(options) {
   };
 }
 
-function ensureRequiredOriginEnv() {
+function ensureRequiredOriginEnv(secretInputs) {
   const missing = [];
-  if (!getTrimmedEnv("ORIGIN_BASE_URL")) {
+  if (!secretInputs.ORIGIN_BASE_URL) {
     missing.push("ORIGIN_BASE_URL");
   }
-  if (!getTrimmedEnv("ORIGIN_API_TOKEN")) {
+  if (!secretInputs.ORIGIN_API_TOKEN) {
     missing.push("ORIGIN_API_TOKEN");
   }
   if (missing.length) {
     throw new Error(`Missing required Worker secrets/env: ${missing.join(", ")}`);
+  }
+}
+
+function parseEnvStyleFile(filePath) {
+  const resolvedPath = path.resolve(WORKER_ROOT, filePath);
+  const parsed = {};
+  const raw = readFileSync(resolvedPath, "utf8");
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) {
+      continue;
+    }
+    const [rawKey, ...rest] = trimmed.split("=");
+    const key = rawKey.trim();
+    const value = rest.join("=").trim();
+    if (!key) {
+      continue;
+    }
+    parsed[key] = value.replace(/^['"]|['"]$/g, "");
+  }
+  return parsed;
+}
+
+function resolveSecretInputs(options) {
+  const secrets = {};
+  const candidateNames = ["ORIGIN_BASE_URL", "ORIGIN_API_TOKEN", "WORKER_API_TOKEN"];
+  for (const name of candidateNames) {
+    const value = getTrimmedEnv(name);
+    if (value) {
+      secrets[name] = value;
+    }
+  }
+
+  if (options.secretsFile) {
+    const fileSecrets = parseEnvStyleFile(options.secretsFile);
+    for (const name of candidateNames) {
+      const value = (fileSecrets[name] || "").trim();
+      if (value) {
+        secrets[name] = value;
+      }
+    }
+  }
+
+  return secrets;
+}
+
+function ensureSecretsAvailableForSync(secretInputs) {
+  const required = ["ORIGIN_BASE_URL", "ORIGIN_API_TOKEN"];
+  const missing = required.filter((name) => !secretInputs[name]);
+  if (missing.length) {
+    throw new Error(
+      `Secret sync requires these values before deploy: ${missing.join(", ")}.`,
+    );
   }
 }
 
@@ -216,6 +285,26 @@ async function verifyHealth(healthUrl) {
   return payload;
 }
 
+async function syncSecrets(secretInputs) {
+  const tempDir = mkdtempSync(path.join(tmpdir(), "icloudplugin-remote-mcp-"));
+  const payloadPath = path.join(tempDir, "wrangler-secrets.json");
+  try {
+    writeFileSync(payloadPath, JSON.stringify(secretInputs, null, 2), "utf8");
+    await runCommand(
+      process.platform === "win32" ? "npx.cmd" : "npx",
+      ["wrangler", "secret", "bulk", payloadPath],
+      {
+        cwd: WORKER_ROOT,
+        env: {
+          ...process.env,
+        },
+      },
+    );
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const plan = summarizeConfig(options);
@@ -224,8 +313,14 @@ async function main() {
     return;
   }
 
-  ensureRequiredOriginEnv();
+  const secretInputs = resolveSecretInputs(options);
+  ensureRequiredOriginEnv(secretInputs);
   ensureDeployAuthAvailable();
+
+  if (options.syncSecrets) {
+    ensureSecretsAvailableForSync(secretInputs);
+    await syncSecrets(secretInputs);
+  }
 
   const deployArgs = ["wrangler", "deploy", "--keep-vars"];
   if (options.dryRun) {
