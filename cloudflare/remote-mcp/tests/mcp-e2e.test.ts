@@ -150,6 +150,22 @@ describe("remote MCP worker end-to-end", () => {
     expect(toolNames).toContain("get_icloud_system_status");
     expect(toolNames).toContain("search_icloud_notes_and_files");
 
+    const readOnlyTool = toolList.tools.find((tool) => tool.name === "get_icloud_system_status");
+    expect(readOnlyTool?.outputSchema).toBeDefined();
+    expect(readOnlyTool?.annotations).toMatchObject({
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    });
+
+    const writeTool = toolList.tools.find((tool) => tool.name === "refresh_icloud_index");
+    expect(writeTool?.outputSchema).toBeDefined();
+    expect(writeTool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    });
+
     const result = await connectedClient.callTool({
       name: "get_icloud_system_status",
       arguments: {},

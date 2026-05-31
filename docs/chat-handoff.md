@@ -274,6 +274,17 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - the Worker now also supports an optional client-facing bearer gate via
     `WORKER_API_TOKEN` and exposes non-secret health metadata at `/` and
     `/healthz` for deployment verification
+  - both the repo-local MCP bridge and the Cloudflare Worker now also expose
+    explicit MCP tool annotations plus `outputSchema` on every tool descriptor
+    so the external ChatGPT/App-review surface is less implicit:
+    - read tools set:
+      - `readOnlyHint=true`
+      - `openWorldHint=false`
+      - `destructiveHint=false`
+    - `refresh_icloud_index` sets:
+      - `readOnlyHint=false`
+      - `openWorldHint=false`
+      - `destructiveHint=false`
   - repo-local operator helpers now exist in `cloudflare/remote-mcp/scripts`:
     - `deploy-and-verify.mjs` plans/deploys/verifies the Worker without relying
       on remembered Wrangler flags
@@ -295,6 +306,7 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       `cloudflare/remote-mcp/tests/mcp-e2e.test.ts`
       - real MCP client -> Worker route
       - `tools/list`
+      - explicit annotations/outputSchema visible on the descriptors
       - `get_icloud_system_status`
       - bundled-search `worker_download_url` rewriting
       - direct `GET /mcp` now returns `405 Allow: POST, DELETE` so

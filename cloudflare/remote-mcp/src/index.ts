@@ -21,6 +21,18 @@ function jsonToolResult(payload: JsonObject) {
   };
 }
 
+const genericJsonObjectSchema = z.object({}).passthrough();
+const readOnlyPrivateAnnotations = {
+  readOnlyHint: true,
+  openWorldHint: false,
+  destructiveHint: false,
+} as const;
+const internalWriteAnnotations = {
+  readOnlyHint: false,
+  openWorldHint: false,
+  destructiveHint: false,
+} as const;
+
 export function createServer(env: Env, request: Request): McpServer {
   const server = new McpServer({
     name: "iCloudPlugin Remote MCP",
@@ -36,6 +48,8 @@ export function createServer(env: Env, request: Request): McpServer {
         limit: z.number().int().min(1).max(50).optional(),
         path_scope: z.string().optional(),
       },
+      outputSchema: genericJsonObjectSchema,
+      annotations: readOnlyPrivateAnnotations,
     },
     async ({ query, limit, path_scope }) => {
       const params = new URLSearchParams({ query });
@@ -63,6 +77,8 @@ export function createServer(env: Env, request: Request): McpServer {
         max_chars: z.number().int().min(1).max(10000).optional(),
         note_max_chars: z.number().int().min(1).max(50000).optional(),
       },
+      outputSchema: genericJsonObjectSchema,
+      annotations: readOnlyPrivateAnnotations,
     },
     async ({ query, limit, path_scope, hydrate_limit, max_chars, note_max_chars }) => {
       const params = new URLSearchParams({ query });
@@ -111,6 +127,8 @@ export function createServer(env: Env, request: Request): McpServer {
       inputSchema: {
         file_id: z.number().int().positive(),
       },
+      outputSchema: genericJsonObjectSchema,
+      annotations: readOnlyPrivateAnnotations,
     },
     async ({ file_id }) => {
       const payload = await fetchOriginJson(env, `/files/${file_id}`);
@@ -126,6 +144,8 @@ export function createServer(env: Env, request: Request): McpServer {
         file_id: z.number().int().positive(),
         max_chars: z.number().int().min(1).max(10000).optional(),
       },
+      outputSchema: genericJsonObjectSchema,
+      annotations: readOnlyPrivateAnnotations,
     },
     async ({ file_id, max_chars }) => {
       const payload = await fetchOriginJson(env, `/files/${file_id}`);
@@ -149,6 +169,8 @@ export function createServer(env: Env, request: Request): McpServer {
         file_id: z.number().int().positive(),
         max_chars: z.number().int().min(1).max(50000).optional(),
       },
+      outputSchema: genericJsonObjectSchema,
+      annotations: readOnlyPrivateAnnotations,
     },
     async ({ file_id, max_chars }) => {
       const payload = await fetchOriginJson(env, `/files/${file_id}/note`);
@@ -171,6 +193,8 @@ export function createServer(env: Env, request: Request): McpServer {
       inputSchema: {
         file_id: z.number().int().positive(),
       },
+      outputSchema: genericJsonObjectSchema,
+      annotations: readOnlyPrivateAnnotations,
     },
     async ({ file_id }) => {
       const payload = await fetchOriginJson(env, `/files/${file_id}/source`);
@@ -187,6 +211,8 @@ export function createServer(env: Env, request: Request): McpServer {
         max_chars: z.number().int().min(1).max(10000).optional(),
         note_max_chars: z.number().int().min(1).max(50000).optional(),
       },
+      outputSchema: genericJsonObjectSchema,
+      annotations: readOnlyPrivateAnnotations,
     },
     async ({ file_id, max_chars, note_max_chars }) => {
       const filePayload = await fetchOriginJson(env, `/files/${file_id}`);
@@ -226,6 +252,8 @@ export function createServer(env: Env, request: Request): McpServer {
       description:
         "Get live cloud-vault service health, refresh progress, classifier readiness, and queue counts.",
       inputSchema: {},
+      outputSchema: genericJsonObjectSchema,
+      annotations: readOnlyPrivateAnnotations,
     },
     async () => {
       const payload = await fetchOriginJson(env, "/status/summary");
@@ -238,6 +266,8 @@ export function createServer(env: Env, request: Request): McpServer {
     {
       description: "Queue a metadata refresh on the backing cloud-vault index service.",
       inputSchema: {},
+      outputSchema: genericJsonObjectSchema,
+      annotations: internalWriteAnnotations,
     },
     async () => {
       const payload = await fetchOriginJson(env, "/refresh", {

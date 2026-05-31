@@ -29,6 +29,21 @@ The plugin exposes:
 - `get_icloud_file_bundle`
 - `refresh_icloud_index`
 
+Those MCP tools now also declare explicit tool annotations:
+
+- read tools use:
+  - `readOnlyHint=true`
+  - `openWorldHint=false`
+  - `destructiveHint=false`
+- `refresh_icloud_index` uses:
+  - `readOnlyHint=false`
+  - `openWorldHint=false`
+  - `destructiveHint=false`
+
+The local bridge now also advertises structured output for every tool, so the
+descriptor surface includes `outputSchema` instead of leaving models to infer
+object-shaped results from the implementation alone.
+
 The combined search tool now uses the backing service's `/search/bundles`
 endpoint instead of stitching separate note/source lookups client-side.
 

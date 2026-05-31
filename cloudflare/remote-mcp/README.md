@@ -20,6 +20,21 @@ remote MCP tools over Streamable HTTP at `/mcp`.
 The source-reference tool includes a Worker download URL when the origin reports
 that the original file can be handed off safely.
 
+All Worker tools now also declare explicit MCP tool annotations:
+
+- read tools set:
+  - `readOnlyHint=true`
+  - `openWorldHint=false`
+  - `destructiveHint=false`
+- `refresh_icloud_index` sets:
+  - `readOnlyHint=false`
+  - `openWorldHint=false`
+  - `destructiveHint=false`
+
+The Worker tool descriptors now also include an explicit `outputSchema` for
+every tool, which makes ChatGPT/App-review-side tool handling less guessy even
+before the final hosted deployment proof is complete.
+
 The combined search tool is meant to reduce round trips for external ChatGPT
 workflows by searching once, then expanding the strongest matches into bundled:
 
@@ -111,6 +126,7 @@ The local test suite now includes an end-to-end MCP proof:
 
 - a real MCP client connects to the Worker route
 - `tools/list` succeeds
+- tool annotations and `outputSchema` are present on the exposed descriptors
 - `get_icloud_system_status` succeeds
 - bundled search responses rewrite `worker_download_url` correctly
 

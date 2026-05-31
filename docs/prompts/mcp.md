@@ -104,3 +104,17 @@
   - direct `GET /mcp` should return `405 Allow: POST, DELETE` so
     streamable-http clients can fall through cleanly instead of hanging on a
     standalone SSE path
+- Follow-up implementation slice:
+  - make the MCP descriptor surface more submission-ready by explicitly setting
+    tool annotations and structured output contracts instead of leaving them
+    implied
+  - read tools should declare:
+    - `readOnlyHint=true`
+    - `openWorldHint=false`
+    - `destructiveHint=false`
+  - `refresh_icloud_index` should declare:
+    - `readOnlyHint=false`
+    - `openWorldHint=false`
+    - `destructiveHint=false`
+  - both the repo-local FastMCP bridge and the Cloudflare Worker tool surface
+    should expose an `outputSchema` for every tool

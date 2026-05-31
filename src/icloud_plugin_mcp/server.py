@@ -4,6 +4,7 @@ import argparse
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from .service_client import build_service_client_from_env
 from .tool_schemas import (
@@ -30,8 +31,20 @@ mcp = FastMCP(
     json_response=True,
 )
 
+READ_ONLY_TOOL_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=True,
+    openWorldHint=False,
+    destructiveHint=False,
+)
 
-@mcp.tool()
+WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=False,
+    openWorldHint=False,
+    destructiveHint=False,
+)
+
+
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
 def search_icloud_files(
     query: SearchQuery,
     limit: SearchLimit = DEFAULT_SEARCH_LIMIT,
@@ -42,14 +55,14 @@ def search_icloud_files(
         return client.search_files(query=query, limit=limit, path_scope=path_scope)
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
 def get_icloud_file(file_id: FileId) -> dict[str, Any]:
     """Return indexed metadata and extracted content for a single iCloud Drive file."""
     with build_service_client_from_env() as client:
         return client.get_file(file_id=file_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
 def get_icloud_file_excerpt(
     file_id: FileId,
     max_chars: ExcerptMaxChars = DEFAULT_EXCERPT_MAX_CHARS,
@@ -59,7 +72,7 @@ def get_icloud_file_excerpt(
         return client.get_file_excerpt(file_id=file_id, max_chars=max_chars)
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
 def get_icloud_note(
     file_id: FileId,
     max_chars: NoteMaxChars = DEFAULT_NOTE_MAX_CHARS,
@@ -69,14 +82,14 @@ def get_icloud_note(
         return client.get_file_note(file_id=file_id, max_chars=max_chars)
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
 def get_icloud_source_reference(file_id: FileId) -> dict[str, Any]:
     """Return canonical source-path, source-link, and download-handoff metadata for a file."""
     with build_service_client_from_env() as client:
         return client.get_file_source(file_id=file_id)
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
 def get_icloud_file_bundle(
     file_id: FileId,
     max_chars: ExcerptMaxChars = DEFAULT_EXCERPT_MAX_CHARS,
@@ -94,7 +107,7 @@ def get_icloud_file_bundle(
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
 def search_icloud_notes_and_files(
     query: SearchQuery,
     limit: SearchLimit = DEFAULT_SEARCH_LIMIT,
@@ -115,14 +128,14 @@ def search_icloud_notes_and_files(
         )
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
 def get_icloud_system_status() -> dict[str, Any]:
     """Return live cloud-vault health, refresh progress, classifier readiness, and queue counts."""
     with build_service_client_from_env() as client:
         return client.get_system_status()
 
 
-@mcp.tool()
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
 def refresh_icloud_index() -> dict[str, Any]:
     """Queue an iCloud Drive metadata refresh on the backing service."""
     with build_service_client_from_env() as client:

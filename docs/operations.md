@@ -1011,6 +1011,14 @@ first production-shaped external MCP slice in
   `search_icloud_notes_and_files` in addition to the single-file tools.
 - The Worker now also exposes `get_icloud_system_status` so external MCP
   clients can inspect the live cloud-vault runtime without shell access.
+- both the repo-local FastMCP bridge and the Cloudflare Worker now declare
+  explicit MCP tool annotations:
+  - read tools set `readOnlyHint=true`, `openWorldHint=false`,
+    `destructiveHint=false`
+  - `refresh_icloud_index` sets `readOnlyHint=false`,
+    `openWorldHint=false`, `destructiveHint=false`
+- both MCP surfaces now also advertise an explicit `outputSchema` for every
+  tool instead of leaving object-shaped results implicit
 - The Worker now uses an in-repo stateless Streamable HTTP handler built
   directly on `@modelcontextprotocol/sdk`, which keeps the runtime lighter and
   makes local end-to-end MCP verification possible without Cloudflare account
@@ -1061,8 +1069,9 @@ Recommended deployment shape:
 - Local Worker verification now also has a true end-to-end test path:
   - `cloudflare/remote-mcp/tests/mcp-e2e.test.ts`
   - it connects a real MCP client to the Worker route, runs `tools/list`,
-    calls `get_icloud_system_status`, and verifies Worker download URL
-    rewriting in bundled search results
+    verifies explicit annotations/outputSchema, calls
+    `get_icloud_system_status`, and verifies Worker download URL rewriting in
+    bundled search results
   - direct `GET /mcp` now returns `405 Allow: POST, DELETE` so streamable-http
     clients can fall through cleanly instead of hanging on a standalone SSE
     path
