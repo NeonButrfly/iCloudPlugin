@@ -8,6 +8,7 @@
     "deploy:plan": "node ./scripts/deploy-and-verify.mjs --plan",
     "deploy:verify": "node ./scripts/deploy-and-verify.mjs",
     "dev": "wrangler dev",
+    "dev:verify": "node ./scripts/dev-and-verify.mjs",
     "mcp:verify": "node ./scripts/verify-mcp-tools.mjs",
     "start": "wrangler dev",
     "test": "vitest run",

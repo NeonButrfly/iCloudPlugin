@@ -14,6 +14,15 @@ export function createMcpHandler(server: McpServer, options: McpHandlerOptions =
       return new Response("Not Found", { status: 404 });
     }
 
+    if (request.method === "GET") {
+      return new Response("Method Not Allowed", {
+        status: 405,
+        headers: {
+          Allow: "POST, DELETE",
+        },
+      });
+    }
+
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
     });
