@@ -27,3 +27,6 @@ The plugin exposes:
 - `get_icloud_source_reference`
 - `get_icloud_file_bundle`
 - `refresh_icloud_index`
+
+The combined search tool now uses the backing service's `/search/bundles`
+endpoint instead of stitching separate note/source lookups client-side.

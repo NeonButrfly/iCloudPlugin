@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from icloud_index_service.api.security import require_plugin_api_token
 from icloud_index_service.db import get_session
+from icloud_index_service.services.file_access_service import build_search_bundle_details
 from icloud_index_service.services.search_service import (
     build_database_unavailable_detail,
     search_files,
@@ -73,6 +74,39 @@ def search(
         if path_scope is not None:
             payload["path_scope"] = path_scope
         return payload
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=build_database_unavailable_detail(
+                operation="search",
+                startup_validation_error=str(exc),
+            ),
+        ) from exc
+
+
+@router.get(
+    "/bundles",
+    dependencies=[Depends(_ensure_search_database_available), Depends(require_plugin_api_token)],
+)
+def search_bundles(
+    query: str = Query(min_length=1),
+    limit: int = Query(default=10, ge=1, le=50),
+    path_scope: str | None = Query(default=None),
+    hydrate_limit: int = Query(default=3, ge=0, le=10),
+    max_chars: int = Query(default=1000, ge=1, le=10_000),
+    note_max_chars: int = Query(default=20_000, ge=1, le=50_000),
+    session: Session = Depends(_get_search_session),
+) -> dict[str, object]:
+    try:
+        return build_search_bundle_details(
+            session,
+            query=query,
+            limit=limit,
+            path_scope=path_scope,
+            hydrate_limit=hydrate_limit,
+            max_chars=max_chars,
+            note_max_chars=note_max_chars,
+        )
     except SQLAlchemyError as exc:
         raise HTTPException(
             status_code=503,

@@ -213,60 +213,34 @@ function createServer(env: Env, request: Request): McpServer {
       if (typeof path_scope === "string" && path_scope.trim()) {
         params.set("path_scope", path_scope);
       }
-
-      const searchPayload = await fetchOriginJson(env, `/search?${params.toString()}`);
-      const rawResults = Array.isArray(searchPayload.results) ? searchPayload.results : [];
-      const hydratedBundles: JsonObject[] = [];
       const activeHydrateLimit = typeof hydrate_limit === "number" ? hydrate_limit : 3;
-
-      for (const result of rawResults.slice(0, activeHydrateLimit)) {
-        if (!result || typeof result !== "object" || Array.isArray(result)) {
-          continue;
-        }
-        const fileId = result.file_id;
-        if (typeof fileId !== "number" || fileId <= 0) {
-          continue;
-        }
-
-        const filePayload = await fetchOriginJson(env, `/files/${fileId}`);
-        if (
-          typeof max_chars === "number" &&
-          typeof filePayload.content_text === "string" &&
-          filePayload.content_text.length > max_chars
-        ) {
-          filePayload.content_text = filePayload.content_text.slice(0, max_chars);
-          filePayload.content_truncated = true;
-        }
-
-        const notePayload = await fetchOriginJson(env, `/files/${fileId}/note`);
-        if (
-          typeof note_max_chars === "number" &&
-          typeof notePayload.note_content === "string" &&
-          notePayload.note_content.length > note_max_chars
-        ) {
-          notePayload.note_content = notePayload.note_content.slice(0, note_max_chars);
-          notePayload.note_truncated = true;
-        }
-
-        const sourcePayload = withWorkerDownloadUrl(
-          await fetchOriginJson(env, `/files/${fileId}/source`),
-          request,
-          env,
-        );
-
-        hydratedBundles.push({
-          match: result as JsonObject,
-          file: filePayload,
-          note: notePayload,
-          source: sourcePayload,
-        });
+      params.set("hydrate_limit", String(activeHydrateLimit));
+      if (typeof max_chars === "number") {
+        params.set("max_chars", String(max_chars));
+      }
+      if (typeof note_max_chars === "number") {
+        params.set("note_max_chars", String(note_max_chars));
       }
 
+      const payload = await fetchOriginJson(env, `/search/bundles?${params.toString()}`);
+      const rawBundles = Array.isArray(payload.bundles) ? payload.bundles : [];
+      const bundles = rawBundles.map((bundle) => {
+        if (!bundle || typeof bundle !== "object" || Array.isArray(bundle)) {
+          return bundle;
+        }
+        const sourcePayload = bundle.source;
+        if (!sourcePayload || typeof sourcePayload !== "object" || Array.isArray(sourcePayload)) {
+          return bundle;
+        }
+        return {
+          ...bundle,
+          source: withWorkerDownloadUrl(sourcePayload as JsonObject, request, env),
+        };
+      });
       return jsonToolResult({
-        ...searchPayload,
-        hydrate_limit: activeHydrateLimit,
-        hydrated_count: hydratedBundles.length,
-        bundles: hydratedBundles,
+        ...payload,
+        bundles,
+        hydrated_count: Array.isArray(bundles) ? bundles.length : payload.hydrated_count,
       });
     },
   );

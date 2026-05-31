@@ -34,6 +34,11 @@
     - generated note content
     - canonical source-link / download-handoff metadata
 - Follow-up implementation slice:
+  - move the combined retrieval path into the origin service as
+    `GET /search/bundles` so bundle assembly logic is not duplicated across:
+    - the repo-local MCP bridge
+    - the Cloudflare Worker MCP facade
+- Follow-up implementation slice:
   - harden the Cloudflare Worker for private real-world use with:
     - optional client-to-Worker bearer auth via `WORKER_API_TOKEN`
     - public non-secret health metadata at `/` and `/healthz`

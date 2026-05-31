@@ -26,6 +26,10 @@ workflows by searching once, then expanding the strongest matches into bundled:
 - generated note content
 - canonical source-path and download-handoff metadata
 
+That bundled response now comes from the origin service's `/search/bundles`
+endpoint, which keeps the bundle assembly logic in one place instead of
+duplicating it in each client.
+
 ## Required origin configuration
 
 The Worker expects the on-prem service to expose the plugin-facing API with a

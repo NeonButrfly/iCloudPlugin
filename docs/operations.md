@@ -742,6 +742,7 @@ The backing service now exposes plugin-facing note/source routes:
 - `GET /files/{id}/note`
 - `GET /files/{id}/source`
 - `GET /files/{id}/source/download`
+- `GET /search/bundles`
 
 `GET /files/{id}/source/download` streams the original mirrored file with
 plugin-token auth and `Cache-Control: private, no-store`.
@@ -756,6 +757,10 @@ bundled:
 Use it when an external AI caller needs both the note layer and source layer
 for the strongest matches without manually stitching several follow-up MCP calls
 together.
+
+That hydration now happens on the origin service itself through
+`GET /search/bundles`, so the repo-local MCP bridge and the Cloudflare Worker
+can both reuse the same bundle assembly path.
 
 ## Cloudflare remote MCP
 

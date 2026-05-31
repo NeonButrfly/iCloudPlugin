@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from icloud_index_service.models.classification_state import ClassificationState
 from icloud_index_service.models.file import FileRecord
-from icloud_index_service.services.search_service import summarize_text
+from icloud_index_service.services.search_service import get_file_details, search_files, summarize_text
 from icloud_index_service.services.vault_reconciliation import _build_canonical_source_link
 
 MAX_NOTE_CONTENT_CHARS = 40_000
@@ -279,3 +279,61 @@ def resolve_file_source_path(session: Session, *, file_id: int) -> Path | None:
     if not resolved.exists() or not resolved.is_file():
         return None
     return resolved
+
+
+def build_search_bundle_details(
+    session: Session,
+    *,
+    query: str,
+    limit: int,
+    path_scope: str | None = None,
+    hydrate_limit: int = 3,
+    max_chars: int = 10_000,
+    note_max_chars: int = MAX_NOTE_CONTENT_CHARS,
+) -> dict[str, Any]:
+    search_payload: dict[str, Any] = {
+        "query": query,
+        "limit": limit,
+        "results": search_files(
+            session,
+            query=query,
+            limit=limit,
+            path_scope=path_scope,
+        ),
+    }
+    if path_scope is not None:
+        search_payload["path_scope"] = path_scope
+
+    raw_results = search_payload.get("results")
+    bundles: list[dict[str, Any]] = []
+    if isinstance(raw_results, list):
+        for result in raw_results[:hydrate_limit]:
+            if not isinstance(result, dict):
+                continue
+            file_id = result.get("file_id")
+            if not isinstance(file_id, int) or file_id <= 0:
+                continue
+            file_payload = get_file_details(session, file_id=file_id)
+            note_payload = get_file_note_details(session, file_id=file_id, max_chars=note_max_chars)
+            source_payload = get_file_source_details(session, file_id=file_id)
+            if file_payload is None or note_payload is None or source_payload is None:
+                continue
+            content_text = file_payload.get("content_text")
+            if isinstance(content_text, str) and len(content_text) > max_chars:
+                file_payload["content_text"] = content_text[:max_chars]
+                file_payload["content_truncated"] = True
+            bundles.append(
+                {
+                    "match": result,
+                    "file": file_payload,
+                    "note": note_payload,
+                    "source": source_payload,
+                }
+            )
+
+    return {
+        **search_payload,
+        "hydrate_limit": hydrate_limit,
+        "hydrated_count": len(bundles),
+        "bundles": bundles,
+    }

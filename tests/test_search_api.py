@@ -410,6 +410,119 @@ def test_file_note_and_source_endpoints_return_vault_and_source_metadata(tmp_pat
     assert source_response.json()["download_path"] == f"/files/{file_id}/source/download"
 
 
+def test_search_bundles_endpoint_returns_hydrated_note_and_source_payloads(tmp_path, monkeypatch):
+    vault_root = tmp_path / "document-vault"
+    note_path = vault_root / "01 Classified" / "medical" / "appeals" / "Appeal - medical - appeals.md"
+    note_path.parent.mkdir(parents=True)
+    note_path.write_text(
+        "\n".join(
+            [
+                "---",
+                'canonical_source_path: "/srv/cloud-vault/mirrors/google1/Appeal.docx"',
+                'source_link: "[Appeal.docx](file://192.168.50.86/cloud-vault/mirrors/google1/Appeal.docx)"',
+                'attachment_mode: "canonical-source-link"',
+                "---",
+                "",
+                "# Appeal",
+                "",
+                "Appeal note body for bundle search.",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    source_root = tmp_path / "mirrors"
+    source_path = source_root / "google1" / "Appeal.docx"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("A" * 20, encoding="utf-8")
+
+    session_factory = _build_session_factory(tmp_path)
+    file_id = _seed_indexed_file(
+        session_factory,
+        external_id="appeal-file",
+        name="Appeal.docx",
+        path="/google1/Appeal.docx",
+        mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        content_text="A" * 20,
+        classification_state={
+            "classifier_note_path": "/vault/01 Classified/medical/appeals/Appeal - medical - appeals.md",
+            "primary_label": "medical",
+            "classifier_manifest_record": json.dumps(
+                {
+                    "canonical_source_path": str(source_path),
+                    "source_link": "[Appeal.docx](file://192.168.50.86/cloud-vault/mirrors/google1/Appeal.docx)",
+                    "attachment_mode": "canonical-source-link",
+                }
+            ),
+        },
+    )
+
+    def override_get_session():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(source_root))
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = override_get_session
+
+    try:
+        with TestClient(main_module.app) as client:
+            response = client.get(
+                "/search/bundles",
+                params={
+                    "query": "Appeal",
+                    "limit": 5,
+                    "path_scope": "/google1",
+                    "hydrate_limit": 1,
+                    "max_chars": 12,
+                    "note_max_chars": 10,
+                },
+            )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["query"] == "Appeal"
+    assert payload["path_scope"] == "/google1"
+    assert payload["hydrate_limit"] == 1
+    assert payload["hydrated_count"] == 1
+    assert payload["results"][0]["file_id"] == file_id
+    assert len(payload["bundles"]) == 1
+    bundle = payload["bundles"][0]
+    assert bundle["match"] == (
+        _base_search_result(
+            file_id=file_id,
+            external_id="appeal-file",
+            name="Appeal.docx",
+            path="/google1/Appeal.docx",
+            mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            excerpt="AAAAAAAAAAAAAAAAAAAA",
+            match_reasons=["name", "path"],
+        )
+        | {
+            "primary_label": "medical",
+            "classifier_note_path": "/vault/01 Classified/medical/appeals/Appeal - medical - appeals.md",
+        }
+    )
+    assert bundle["file"]["content_text"] == "AAAAAAAAAAAA"
+    assert bundle["file"]["content_truncated"] is True
+    assert bundle["file"]["primary_label"] == "medical"
+    assert bundle["note"]["note_available"] is True
+    assert bundle["note"]["note_content"] == "---\ncanoni"
+    assert bundle["note"]["note_truncated"] is True
+    assert "Appeal note body for bundle search." in bundle["note"]["note_excerpt"]
+    assert bundle["note"]["canonical_source_path"] == str(source_path)
+    assert bundle["source"]["canonical_source_path"] == str(source_path)
+    assert bundle["source"]["source_exists"] is True
+    assert bundle["source"]["download_path"] == f"/files/{file_id}/source/download"
+
+
 def test_file_source_download_endpoint_streams_original_file(tmp_path, monkeypatch):
     source_root = tmp_path / "mirrors"
     source_path = source_root / "icloud" / "Scanned" / "botox.pdf"

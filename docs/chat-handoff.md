@@ -102,6 +102,9 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - the combined search tool now searches once and hydrates the top matches
     into bundled file/note/source payloads so external ChatGPT callers do not
     need to stitch multiple follow-up calls together for common analysis flows
+  - that combined retrieval path is now also first-class on the origin service
+    through `GET /search/bundles`, so both the local bridge and the Cloudflare
+    Worker reuse the same bundle assembly path
   - the Cloudflare Worker scaffold proxies those same surfaces and can hand off
     original files through `/download/{file_id}`
   - the Worker now also supports an optional client-facing bearer gate via
