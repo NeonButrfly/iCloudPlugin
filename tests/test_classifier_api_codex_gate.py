@@ -146,3 +146,43 @@ def test_classifier_api_upload_cleans_staged_file_after_processing(monkeypatch, 
     payload = response.json()
     assert payload["staged_file_exists_after_response"] is False
     assert not api_server.Path(payload["staged_path"]).exists()
+
+
+def test_classifier_health_reports_codex_arbiter_readiness(monkeypatch, tmp_path):
+    monkeypatch.setattr(api_server, "INPUT_ROOT", tmp_path / "input")
+    monkeypatch.setattr(api_server, "OUTPUT_ROOT", tmp_path / "output")
+    monkeypatch.setattr(api_server, "VAULT_ROOT", tmp_path / "vault")
+    monkeypatch.setattr(api_server, "MANIFEST_PATH", tmp_path / "output" / "manifest.jsonl")
+    monkeypatch.setattr(api_server, "CODEX_ARBITER_ENABLED", True)
+    monkeypatch.setattr(api_server, "maybe_start_shadow_worker", lambda: None)
+    monkeypatch.setattr(api_server, "load_categories", lambda: ["financial", "technical"])
+    monkeypatch.setattr(
+        api_server.requests,
+        "get",
+        lambda *args, **kwargs: SimpleNamespace(ok=True, status_code=200),
+    )
+    monkeypatch.setattr(api_server, "get_codex_arbiter_readiness", lambda: {
+        "enabled": True,
+        "command": "codex exec",
+        "timeout_seconds": 120,
+        "cli_available": True,
+        "cli_path": "/usr/local/bin/codex",
+        "auth_mode": "codex-auth-file",
+        "auth_present": True,
+    })
+
+    with TestClient(api_server.APP) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["codex_arbiter"] == {
+        "enabled": True,
+        "command": "codex exec",
+        "timeout_seconds": 120,
+        "cli_available": True,
+        "cli_path": "/usr/local/bin/codex",
+        "auth_mode": "codex-auth-file",
+        "auth_present": True,
+    }

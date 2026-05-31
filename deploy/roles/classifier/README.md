@@ -27,6 +27,8 @@ Primary services in `docker-compose.yml`:
 - `ollama`
 - `model-init`
 - `classifier-api`
+- `report_codex_arbiter_readiness.sh` for non-secret host-side Codex arbiter
+  readiness checks before enabling issue `#20`
 
 Operational defaults:
 

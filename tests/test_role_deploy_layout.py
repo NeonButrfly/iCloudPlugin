@@ -14,6 +14,13 @@ def test_role_docs_exist_for_cloudsync_classifier_and_combined():
     assert all(path.exists() for path in expected)
 
 
+def test_classifier_role_readiness_helper_exists():
+    repo_root = Path(__file__).resolve().parents[1]
+    helper = repo_root / "deploy" / "roles" / "classifier" / "report_codex_arbiter_readiness.sh"
+
+    assert helper.exists()
+
+
 def test_cloudsync_role_sync_assets_exist():
     repo_root = Path(__file__).resolve().parents[1]
     expected = [
@@ -287,6 +294,15 @@ def test_classifier_role_compose_disables_shadow_worker_and_supports_multiple_ap
     assert "- CODEX_ARBITER_COMMAND=${CODEX_ARBITER_COMMAND:-codex exec}" in compose_text
     assert "- CODEX_ARBITER_TIMEOUT_SECONDS=${CODEX_ARBITER_TIMEOUT_SECONDS:-120}" in compose_text
     assert '- "${CLASSIFIER_API_WORKERS:-4}"' in compose_text
+
+
+def test_classifier_role_docs_reference_codex_arbiter_readiness_helper():
+    repo_root = Path(__file__).resolve().parents[1]
+    role_readme = repo_root / "deploy" / "roles" / "classifier" / "README.md"
+    operations_doc = repo_root / "docs" / "operations.md"
+
+    assert "report_codex_arbiter_readiness.sh" in role_readme.read_text(encoding="utf-8")
+    assert "report_codex_arbiter_readiness.sh" in operations_doc.read_text(encoding="utf-8")
 
 
 def test_combined_role_compose_includes_sync_and_classifier_services():

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import subprocess
 import time
 from pathlib import Path
+from shutil import which
 from typing import Any, Sequence
 
 
@@ -38,6 +40,32 @@ def _extract_json_object(raw_text: str) -> dict[str, Any] | None:
 
 def _tail_text(value: str, max_chars: int = 4000) -> str:
     return str(value or "")[-max_chars:]
+
+
+def build_codex_arbiter_readiness(
+    *,
+    enabled: bool,
+    command: Sequence[str] | str,
+    timeout_seconds: int,
+) -> dict[str, Any]:
+    cmd = _coerce_command(command)
+    binary = cmd[0] if cmd else ""
+    cli_path = which(binary) if binary else None
+    auth_file = Path.home() / ".codex" / "auth.json"
+    auth_mode = "missing"
+    if os.getenv("OPENAI_API_KEY", "").strip():
+        auth_mode = "api-key-env"
+    elif auth_file.exists():
+        auth_mode = "codex-auth-file"
+    return {
+        "enabled": bool(enabled),
+        "command": " ".join(cmd).strip(),
+        "timeout_seconds": max(int(timeout_seconds), 1),
+        "cli_available": cli_path is not None,
+        "cli_path": cli_path,
+        "auth_mode": auth_mode,
+        "auth_present": auth_mode != "missing",
+    }
 
 
 def _build_codex_arbiter_prompt(

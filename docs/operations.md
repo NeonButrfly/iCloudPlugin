@@ -299,9 +299,19 @@ Current validation for the submission agent includes:
   - `CODEX_ARBITER_TIMEOUT_SECONDS` defaults to `120`
   - a successful Codex override becomes the final `hybrid_live_source` as
     `codex-final-arbiter`
-  - invalid JSON, nonzero exits, missing CLI access, and timeout paths all
-    fall back to the local classifier result instead of failing the document
-    run
+- invalid JSON, nonzero exits, missing CLI access, and timeout paths all
+  fall back to the local classifier result instead of failing the document
+  run
+- before enabling the arbiter path live, use:
+  - `deploy/roles/classifier/report_codex_arbiter_readiness.sh`
+  - it reports non-secret host-side readiness for:
+    - `CODEX_ARBITER_ENABLED`
+    - `CODEX_ARBITER_COMMAND`
+    - `CODEX_ARBITER_TIMEOUT_SECONDS`
+    - whether the Codex CLI binary is discoverable
+    - whether auth is present via `OPENAI_API_KEY` or `~/.codex/auth.json`
+    - best-effort authenticated classifier `/health` output when
+      `CLASSIFIER_API_TOKEN` is available in the loaded env file
 - `IMAGE_OCR_MIN_CHARS` controls when an image is routed through the OCR-backed
   document path instead of going straight to Qwen vision fallback.
 - the classifier role now also needs a read-only shared-source mount:

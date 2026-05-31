@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from packages.runtime import load_classifier_runtime_settings
 
+from .codex_arbiter import build_codex_arbiter_readiness
 from .category_manager import load_categories, load_groups
 from .hybrid_runtime import (
     READINESS_REPORT_PATH,
@@ -51,6 +52,14 @@ SUPPORTED_EXTENSIONS = {
     ".txt", ".md", ".markdown", ".csv", ".html", ".htm",
     ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"
 }
+
+
+def get_codex_arbiter_readiness() -> dict:
+    return build_codex_arbiter_readiness(
+        enabled=CODEX_ARBITER_ENABLED,
+        command=SETTINGS.codex_arbiter_command,
+        timeout_seconds=SETTINGS.codex_arbiter_timeout_seconds,
+    )
 
 def check_token(x_api_key: Optional[str]) -> None:
     if API_TOKEN and x_api_key != API_TOKEN:
@@ -302,6 +311,7 @@ def health(x_api_key: Optional[str] = Header(default=None)):
         "manifest": str(MANIFEST_PATH),
         "classifier_script_exists": CLASSIFIER_SCRIPT.exists(),
         "category_count": len(load_categories()),
+        "codex_arbiter": get_codex_arbiter_readiness(),
     }
 
 @APP.post("/classify/upload")

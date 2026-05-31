@@ -66,6 +66,15 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - driven by `CODEX_ARBITER_COMMAND` (default `codex exec`)
   - falls back to the local classifier result on invalid JSON, timeout, or CLI
     execution failure instead of breaking note generation
+  - classifier `/health` now exposes a non-secret `codex_arbiter` readiness
+    block
+  - `deploy/roles/classifier/report_codex_arbiter_readiness.sh` now provides
+    the same host-side readiness view without printing secrets
+  - a local dry run on 2026-05-31 AKDT proved:
+    - Codex CLI discoverable from the current machine
+    - auth present via `~/.codex/auth.json`
+    - classifier health follow-up remains blocked until a real
+      `CLASSIFIER_API_TOKEN` is loaded
 
 ## Important Deployment Fixes Already Made
 
