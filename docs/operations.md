@@ -300,6 +300,8 @@ while shifting the expensive API and refresh worker load onto `tichuml1`.
   - on the compute-only `tichuml1` deployment, the helper now talks to the
     configured remote Postgres through a disposable `postgres:16` client
     container instead of requiring a local compose `postgres` service
+  - if Docker access on the compute host requires elevation, run the helper
+    with passwordless `sudo` or `SUDO_PASSWORD=...`
 
 - for one unified live operator status read on the compute host, use:
 

@@ -125,3 +125,6 @@ That helper can:
 - when the sync host is using the compute-only cutover with remote Postgres,
   the helper now falls back to a disposable `postgres:16` client container
   instead of assuming a local compose `postgres` service exists
+- if Docker requires elevation on the host, the helper now also supports:
+  - passwordless `sudo`, or
+  - `SUDO_PASSWORD=...` for a one-shot elevated run

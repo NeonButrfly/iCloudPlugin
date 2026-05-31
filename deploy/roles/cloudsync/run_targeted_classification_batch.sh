@@ -29,6 +29,7 @@ TARGETED_FEEDBACK_ONLY="${TARGETED_FEEDBACK_ONLY:-0}"
 SUMMARY_JSON_PATH="${SUMMARY_JSON_PATH:-}"
 SUMMARY_PYTHON="${SUMMARY_PYTHON:-python3}"
 TEMP_DEFER_ERROR="${TEMP_DEFER_ERROR:-Temporarily deferred to prioritize targeted bounded batch helper.}"
+SUDO_PASSWORD="${SUDO_PASSWORD:-}"
 
 DEFER_APPLIED=0
 WORKER_EXIT_STATUS=0
@@ -92,6 +93,25 @@ require_command() {
   command -v "${command_name}" >/dev/null 2>&1 || fail "Missing required command: ${command_name}"
 }
 
+docker_command() {
+  if docker info >/dev/null 2>&1; then
+    docker "$@"
+    return 0
+  fi
+
+  if sudo -n docker info >/dev/null 2>&1; then
+    sudo -n docker "$@"
+    return 0
+  fi
+
+  if [[ -n "${SUDO_PASSWORD}" ]]; then
+    printf '%s\n' "${SUDO_PASSWORD}" | sudo -S docker "$@"
+    return 0
+  fi
+
+  fail "Docker requires elevated access. Use a Docker-enabled account, passwordless sudo, or set SUDO_PASSWORD."
+}
+
 assert_safe_sql_literal() {
   local value="$1"
   if [[ "${value}" == *"'"* ]]; then
@@ -100,7 +120,7 @@ assert_safe_sql_literal() {
 }
 
 docker_compose() {
-  docker compose \
+  docker_command compose \
     -p "${COMPOSE_PROJECT}" \
     --env-file "${ENV_FILE}" \
     -f "${COMPOSE_FILE}" \
@@ -129,7 +149,7 @@ psql_base_command() {
     return 0
   fi
 
-  docker run --rm \
+  docker_command run --rm \
     --network host \
     -e "PGPASSWORD=${POSTGRES_PASSWORD}" \
     postgres:16 \
@@ -428,11 +448,11 @@ clear_defer_prefix() {
 
 cleanup_worker_containers() {
   local ids
-  ids="$(docker ps -aq --filter "name=${COMPOSE_PROJECT}-${CLASSIFICATION_SERVICE}-run")"
+  ids="$(docker_command ps -aq --filter "name=${COMPOSE_PROJECT}-${CLASSIFICATION_SERVICE}-run")"
   if [[ -n "${ids}" ]]; then
     while IFS= read -r container_id; do
       [[ -z "${container_id}" ]] && continue
-      docker rm -f "${container_id}" >/dev/null 2>&1 || true
+      docker_command rm -f "${container_id}" >/dev/null 2>&1 || true
     done <<< "${ids}"
   fi
   return 0
@@ -449,21 +469,19 @@ cleanup() {
 
 trap cleanup EXIT
 
-run_worker_pass() {
+run_worker_command() {
   local python_command
-  local -a worker_command
   python_command="from icloud_index_service.classification_worker import run_classification_worker_loop; print(run_classification_worker_loop(max_polls=${MAX_POLLS}, poll_interval_seconds=${POLL_INTERVAL_SECONDS}))"
-  worker_command=(
-    docker compose
-    -p "${COMPOSE_PROJECT}"
-    --env-file "${ENV_FILE}"
-    -f "${COMPOSE_FILE}"
-    run --rm --no-deps
-    -e "CLASSIFICATION_SUBMISSION_CONCURRENCY=${CONCURRENCY}"
-    -e "CLASSIFICATION_BACKFILL_ENABLED=$([[ "${TARGETED_FEEDBACK_ONLY}" == "1" ]] && printf false || printf true)"
-    "${CLASSIFICATION_SERVICE}"
+  docker_compose \
+    run --rm --no-deps \
+    -e "CLASSIFICATION_SUBMISSION_CONCURRENCY=${CONCURRENCY}" \
+    -e "CLASSIFICATION_BACKFILL_ENABLED=$([[ "${TARGETED_FEEDBACK_ONLY}" == "1" ]] && printf false || printf true)" \
+    "${CLASSIFICATION_SERVICE}" \
     uv run python -c "${python_command}"
-  )
+}
+
+run_worker_pass() {
+  local worker_pid elapsed_seconds
 
   if [[ "${DRY_RUN}" == "1" ]]; then
     log_line "Dry run enabled; skipping worker execution."
@@ -472,20 +490,27 @@ run_worker_pass() {
 
   log_line "Starting bounded worker pass"
   set +e
-  if command -v timeout >/dev/null 2>&1; then
-    timeout "${WORKER_TIMEOUT_SECONDS}s" "${worker_command[@]}"
-    WORKER_EXIT_STATUS=$?
-  else
-    "${worker_command[@]}"
-    WORKER_EXIT_STATUS=$?
-  fi
-  set -e
+  run_worker_command &
+  worker_pid=$!
+  elapsed_seconds=0
 
-  if [[ "${WORKER_EXIT_STATUS}" == "124" ]]; then
-    WORKER_TIMED_OUT=1
-    log_line "Worker command hit the timeout; verifying live DB state instead of failing."
-    return 0
-  fi
+  while kill -0 "${worker_pid}" >/dev/null 2>&1; do
+    if (( elapsed_seconds >= WORKER_TIMEOUT_SECONDS )); then
+      WORKER_TIMED_OUT=1
+      kill "${worker_pid}" >/dev/null 2>&1 || true
+      wait "${worker_pid}" >/dev/null 2>&1 || true
+      set -e
+      log_line "Worker command hit the timeout; verifying live DB state instead of failing."
+      return 0
+    fi
+
+    sleep 1
+    elapsed_seconds=$((elapsed_seconds + 1))
+  done
+
+  wait "${worker_pid}"
+  WORKER_EXIT_STATUS=$?
+  set -e
 
   if [[ "${WORKER_EXIT_STATUS}" != "0" ]]; then
     fail "Worker command failed with exit code ${WORKER_EXIT_STATUS}"

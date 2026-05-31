@@ -215,9 +215,33 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
         - `google1=1991`
         - `google2=1409`
       - vault counts:
-        - `classified_files=6`
-        - `needs_review_files=5`
-        - `attachments_files=0`
+      - `classified_files=6`
+      - `needs_review_files=5`
+      - `attachments_files=0`
+  - follow-up issue [#46](https://github.com/NeonButrfly/iCloudPlugin/issues/46)
+    is now fixed in repo and reproven live on `tichuml1`:
+    - `run_targeted_classification_batch.sh` now supports the same elevated
+      Docker access paths as `report_live_status.sh`:
+      - direct Docker-group access
+      - passwordless `sudo`
+      - `SUDO_PASSWORD=...` for one-shot elevated runs
+    - the bounded worker pass now runs through that wrapper instead of
+      assuming plain `docker compose`
+    - live proof on 2026-05-31 AKDT used:
+      - `ENV_FILE=/opt/iCloudPlugin/deploy/roles/cloudsync/.env.live`
+      - `SUDO_PASSWORD=kay`
+      - `--targeted-feedback-only --max-polls 1 --concurrency 1`
+      - `--worker-timeout 180`
+      - `--summary-json /tmp/targeted-helper-summary.json`
+    - result:
+      - helper completed successfully on the compute-only host
+      - `worker_exit_status=0`
+      - `worker_timed_out=false`
+      - `classification_states.completed` moved `44 -> 46`
+      - `classification_states.queued` moved `66 -> 68`
+      - fresh completed rows included:
+        - `/icloud/Scanned/Cars/02212025_Hot-Swappable Tri-Mode RGB BOYI IK87 Mechanical Keyboar.pdf`
+        - `/icloud/Scanned/Cars/02212025_APPOLLO.pdf`
   - this slice was validated locally with Python tests plus Worker TypeScript
     type-check
   - the on-prem origin half of the slice is now deployed live on `tichuml1`
@@ -582,10 +606,6 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   generated notes that still lack `source_parser` / `heuristic_primary_hint` /
   `hybrid_live_source` because their state rows are either still queued or are
   missing entirely
-- finish proving the fixed targeted batch helper end to end on the compute-only
-  cloudsync host; the original `service "postgres" is not running` failure is
-  fixed in repo, but the workstation-timed live helper run still needs one
-  clean completion sample
 - normalize old hash-heavy note filenames
 - retire/archive the old standalone `local-doc-classifier` checkout after safe soak period
 - optionally move cloudsync Postgres off `kayraspi` later if the compute-only

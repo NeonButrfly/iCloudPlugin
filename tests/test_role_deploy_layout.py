@@ -63,12 +63,16 @@ def test_cloudsync_targeted_batch_helper_restores_queue_state():
     assert "trap cleanup EXIT" in script_text
     assert "load_env_file()" in script_text
     assert "source <(tr -d '\\r' < \"${ENV_FILE}\")" in script_text
+    assert 'SUDO_PASSWORD="${SUDO_PASSWORD:-}"' in script_text
+    assert "docker_command()" in script_text
+    assert 'printf \'%s\\n\' "${SUDO_PASSWORD}" | sudo -S docker "$@"' in script_text
     assert "postgres_service_running()" in script_text
-    assert "docker run --rm \\" in script_text
+    assert "docker_command run --rm \\" in script_text
     assert "--network host \\" in script_text
     assert 'postgres:16 \\' in script_text
     assert "CLASSIFICATION_SUBMISSION_CONCURRENCY" in script_text
     assert "run --rm --no-deps" in script_text
+    assert "run_worker_command()" in script_text
     assert "RUN_LIVE_SUMMARY" in script_text
     assert "--run-live-summary" in script_text
     assert "TARGETED_FEEDBACK_ONLY" in script_text
@@ -81,9 +85,10 @@ def test_cloudsync_targeted_batch_helper_restores_queue_state():
     assert "'path', cj.path" in script_text
     assert "'path', cs.path" in script_text
     assert "'path', f.path" not in script_text
-    assert 'docker rm -f "${container_id}" >/dev/null 2>&1 || true' in script_text
+    assert 'docker_command rm -f "${container_id}" >/dev/null 2>&1 || true' in script_text
     assert "return 0" in script_text
-    assert 'timeout "${WORKER_TIMEOUT_SECONDS}s" "${worker_command[@]}"' in script_text
+    assert 'while kill -0 "${worker_pid}" >/dev/null 2>&1; do' in script_text
+    assert 'kill "${worker_pid}" >/dev/null 2>&1 || true' in script_text
 
 
 def test_cloudsync_live_status_helper_covers_compute_only_status_surfaces():
