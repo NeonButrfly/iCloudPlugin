@@ -429,6 +429,16 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `npx wrangler whoami` reports `Not logged in`
     - non-interactive Cloudflare deploy/list flows require
       `CLOUDFLARE_API_TOKEN`
+  - `scripts/report_product_readiness.py` now provides one canonical repo-plus-
+    runtime audit surface for the still-open end-to-end criteria:
+    - it inspects the repo for the MCP bridge, Worker, deploy helpers,
+      submission artifact, Codex arbiter helpers, and reconciliation helper
+    - it can consume either:
+      - live authenticated `GET /status/summary`
+      - or a saved `report_live_status.sh --summary-json ...` artifact
+    - without `CLOUDFLARE_API_TOKEN`, it keeps the auth/deploy criterion
+      explicitly blocked instead of implying the external Worker path is
+      complete
     - this turn re-proved that the local auth surfaces are still absent:
       - `CLOUDFLARE_API_TOKEN=missing`
       - `npx wrangler deployments list` still fails in non-interactive mode

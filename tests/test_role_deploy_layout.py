@@ -243,6 +243,17 @@ def test_reindex_helpers_match_role_based_cloudsync_runtime():
     assert '[switch]$Yes' in powershell_text
 
 
+def test_product_readiness_report_script_exists_and_docs_reference_it():
+    repo_root = Path(__file__).resolve().parents[1]
+    report_script = repo_root / "scripts" / "report_product_readiness.py"
+    operations_doc = repo_root / "docs" / "operations.md"
+    handoff_doc = repo_root / "docs" / "chat-handoff.md"
+
+    assert report_script.exists()
+    assert "report_product_readiness.py" in operations_doc.read_text(encoding="utf-8")
+    assert "report_product_readiness.py" in handoff_doc.read_text(encoding="utf-8")
+
+
 def test_role_compose_files_exist_for_cloudsync_classifier_and_combined():
     repo_root = Path(__file__).resolve().parents[1]
     expected = [

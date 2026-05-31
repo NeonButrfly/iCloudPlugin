@@ -994,6 +994,31 @@ plugin-authenticated snapshot covering:
   `hybrid_live_source` and whether they still line up with completed, queued,
   or missing backend state rows
 
+To turn that runtime snapshot plus the current repo surface into one
+operator-facing product audit, use:
+
+```bash
+cd /opt/iCloudPlugin
+python ./scripts/report_product_readiness.py \
+  --summary-url http://127.0.0.1:8080/status/summary
+```
+
+- the helper inspects the repo for:
+  - the local MCP bridge
+  - the Cloudflare Worker surface
+  - deploy/verify helpers
+  - the ChatGPT app submission artifact
+  - Codex arbiter helpers
+  - reconciliation proof helpers
+- if `PLUGIN_API_TOKEN` is present in the shell environment, the helper uses it
+  to authenticate to `/status/summary`
+- if `CLOUDFLARE_API_TOKEN` is absent, the report keeps the auth/deploy
+  criterion explicitly blocked instead of implying the hosted Worker has
+  already been proven live
+- use `--summary-file` when you want to evaluate a saved
+  `report_live_status.sh --summary-json ...` artifact instead of calling the
+  live service directly
+
 The service role now also receives `CLASSIFIER_API_URL` and
 `CLASSIFIER_API_TOKEN` so `GET /status/summary` can report live classifier
 health instead of falling back to `classifier-api-token-missing`.
@@ -1169,6 +1194,15 @@ path is now:
 ```bash
 cd cloudflare/remote-mcp
 node scripts/dev-and-verify.mjs --secrets-file .dev.vars --json
+```
+
+For one consolidated repo-plus-runtime audit while those external blockers are
+still in play, pair a saved live-status artifact with the readiness helper:
+
+```bash
+cd /opt/iCloudPlugin
+./deploy/roles/cloudsync/report_live_status.sh --summary-json /tmp/live-status.json
+python ./scripts/report_product_readiness.py --summary-file /tmp/live-status.json
 ```
 
 ## Degraded mode
