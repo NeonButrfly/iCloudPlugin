@@ -88,6 +88,24 @@ describe("remote MCP worker end-to-end", () => {
           );
         }
 
+        if (url.pathname === "/status/readiness") {
+          return new Response(
+            JSON.stringify({
+              status_summary: {
+                service_health: { status: "ok" },
+                refresh_status: { status: "running", items_seen: 42, frontier_length: 7 },
+              },
+              product_readiness: {
+                overall: { status: "incomplete" },
+              },
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
         if (url.pathname === "/search/bundles") {
           return new Response(
             JSON.stringify({
@@ -148,6 +166,7 @@ describe("remote MCP worker end-to-end", () => {
     const toolList = await connectedClient.listTools();
     const toolNames = toolList.tools.map((tool) => tool.name);
     expect(toolNames).toContain("get_icloud_system_status");
+    expect(toolNames).toContain("get_icloud_product_readiness");
     expect(toolNames).toContain("search_icloud_notes_and_files");
 
     const readOnlyTool = toolList.tools.find((tool) => tool.name === "get_icloud_system_status");
@@ -183,6 +202,28 @@ describe("remote MCP worker end-to-end", () => {
     );
     expect(statusRequest).toBeDefined();
     expect(statusRequest?.headers.get("Authorization")).toBe("Bearer origin-secret");
+  });
+
+  it("calls get_icloud_product_readiness through the Worker route", async () => {
+    const connectedClient = await connectClient();
+
+    const result = await connectedClient.callTool({
+      name: "get_icloud_product_readiness",
+      arguments: {},
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      product_readiness: {
+        overall: { status: "incomplete" },
+      },
+    });
+
+    const readinessRequest = originRequests.find(
+      (request) => new URL(request.url).pathname === "/status/readiness",
+    );
+    expect(readinessRequest).toBeDefined();
+    expect(readinessRequest?.headers.get("Authorization")).toBe("Bearer origin-secret");
   });
 
   it("rewrites worker download URLs in bundled search results", async () => {

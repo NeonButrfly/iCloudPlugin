@@ -10,6 +10,7 @@ remote MCP tools over Streamable HTTP at `/mcp`.
 - `search_icloud_files`
 - `search_icloud_notes_and_files`
 - `get_icloud_system_status`
+- `get_icloud_product_readiness`
 - `get_icloud_file`
 - `get_icloud_file_excerpt`
 - `get_icloud_note`
@@ -54,6 +55,13 @@ That status snapshot now also includes generated-note classifier-context gap
 counts, so external operators can see how many legacy notes still lack
 `source_parser`, `heuristic_primary_hint`, or `hybrid_live_source` and whether
 those gaps still line up with completed, queued, or missing backend state rows.
+
+The product-readiness tool now comes from the origin service's
+`/status/readiness` endpoint, so external MCP callers can inspect:
+
+- the live `status_summary`
+- repo-surface MCP/deploy/helper facts
+- explicit end-to-end criteria marked `met`, `blocked`, or `unknown`
 
 ## Required origin configuration
 

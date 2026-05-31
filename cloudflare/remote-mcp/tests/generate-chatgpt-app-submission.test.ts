@@ -73,6 +73,7 @@ describe("generate-chatgpt-app-submission", () => {
       "search_icloud_files",
       "search_icloud_notes_and_files",
       "get_icloud_system_status",
+      "get_icloud_product_readiness",
       "get_icloud_file",
       "get_icloud_file_excerpt",
       "get_icloud_note",

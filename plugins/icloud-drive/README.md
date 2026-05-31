@@ -22,6 +22,7 @@ The plugin exposes:
 - `search_icloud_files`
 - `search_icloud_notes_and_files`
 - `get_icloud_system_status`
+- `get_icloud_product_readiness`
 - `get_icloud_file`
 - `get_icloud_file_excerpt`
 - `get_icloud_note`
@@ -51,3 +52,7 @@ The live-status tool uses the backing service's `/status/summary` endpoint so
 external callers can inspect refresh progress, classifier readiness, queue
 counts, provider counts, vault output counts, and generated-note
 classifier-context gap counts without shell access.
+
+The product-readiness tool uses the backing service's `/status/readiness`
+endpoint so callers can inspect one consolidated end-to-end readiness report
+through the same MCP bridge.

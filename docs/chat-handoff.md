@@ -210,6 +210,7 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - the repo-local MCP bridge now exposes:
     - `search_icloud_notes_and_files`
     - `get_icloud_system_status`
+    - `get_icloud_product_readiness`
     - `get_icloud_note`
     - `get_icloud_source_reference`
     - `get_icloud_file_bundle`
@@ -224,6 +225,14 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - origin `GET /status/summary`
     - local MCP `get_icloud_system_status`
     - Cloudflare Worker `get_icloud_system_status`
+  - the repo now also has a first-class product-readiness surface through:
+    - origin `GET /status/readiness`
+    - local MCP `get_icloud_product_readiness`
+    - Cloudflare Worker `get_icloud_product_readiness`
+  - that readiness payload wraps:
+    - `status_summary`
+    - repo-surface facts about MCP/deploy/helper coverage
+    - explicit end-to-end criteria marked `met`, `blocked`, or `unknown`
   - the origin summary payload now includes:
     - service health
     - auth status
@@ -271,6 +280,8 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `cloud-vault-sync.timer` remained `enabled` and `active` after install
   - the Cloudflare Worker scaffold proxies those same surfaces and can hand off
     original files through `/download/{file_id}`
+  - it now also proxies `/status/readiness`, so hosted MCP callers can inspect
+    the current end-to-end completion state through the same external surface
   - the Worker now also supports an optional client-facing bearer gate via
     `WORKER_API_TOKEN` and exposes non-secret health metadata at `/` and
     `/healthz` for deployment verification

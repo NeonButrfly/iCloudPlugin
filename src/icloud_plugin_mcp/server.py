@@ -135,6 +135,13 @@ def get_icloud_system_status() -> dict[str, Any]:
         return client.get_system_status()
 
 
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
+def get_icloud_product_readiness() -> dict[str, Any]:
+    """Return a consolidated product-readiness report showing what is complete versus blocked."""
+    with build_service_client_from_env() as client:
+        return client.get_product_readiness()
+
+
 @mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
 def refresh_icloud_index() -> dict[str, Any]:
     """Queue an iCloud Drive metadata refresh on the backing service."""

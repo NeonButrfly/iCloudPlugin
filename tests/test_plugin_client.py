@@ -329,3 +329,34 @@ def test_get_system_status_uses_status_summary_endpoint():
     assert captured_request is not None
     assert captured_request.method == "GET"
     assert str(captured_request.url) == "http://service.test/status/summary"
+
+
+def test_get_product_readiness_uses_status_readiness_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(
+            200,
+            json={
+                "product_readiness": {
+                    "overall": {"status": "incomplete"},
+                }
+            },
+        )
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.get_product_readiness()
+    finally:
+        client.close()
+
+    assert payload["product_readiness"]["overall"]["status"] == "incomplete"
+    assert captured_request is not None
+    assert captured_request.method == "GET"
+    assert str(captured_request.url) == "http://service.test/status/readiness"

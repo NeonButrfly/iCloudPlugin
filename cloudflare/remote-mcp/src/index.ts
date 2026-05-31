@@ -262,6 +262,21 @@ export function createServer(env: Env, request: Request): McpServer {
   );
 
   server.registerTool(
+    "get_icloud_product_readiness",
+    {
+      description:
+        "Get a consolidated product-readiness report showing which end-to-end cloud-vault criteria are met, blocked, or still unknown.",
+      inputSchema: {},
+      outputSchema: genericJsonObjectSchema,
+      annotations: readOnlyPrivateAnnotations,
+    },
+    async () => {
+      const payload = await fetchOriginJson(env, "/status/readiness");
+      return jsonToolResult(payload);
+    },
+  );
+
+  server.registerTool(
     "refresh_icloud_index",
     {
       description: "Queue a metadata refresh on the backing cloud-vault index service.",

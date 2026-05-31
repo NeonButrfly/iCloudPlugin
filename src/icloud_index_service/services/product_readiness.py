@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ REQUIRED_REMOTE_MCP_TOOLS = (
     "search_icloud_files",
     "search_icloud_notes_and_files",
     "get_icloud_system_status",
+    "get_icloud_product_readiness",
     "get_icloud_file",
     "get_icloud_file_excerpt",
     "get_icloud_note",
@@ -17,6 +19,8 @@ REQUIRED_REMOTE_MCP_TOOLS = (
     "get_icloud_file_bundle",
     "refresh_icloud_index",
 )
+
+DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,10 @@ def _coerce_mapping(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
     return {}
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _is_ok_status(value: Any) -> bool:
@@ -425,4 +433,22 @@ def build_product_readiness_report(
             "summary": overall_summary,
             "blocked_criteria": blocked_items,
         },
+    }
+
+
+def build_live_product_readiness_payload(
+    *,
+    repo_root: Path = DEFAULT_REPO_ROOT,
+    status_summary: dict[str, Any],
+    cloudflare_api_token_present: bool = False,
+) -> dict[str, Any]:
+    readiness_report = build_product_readiness_report(
+        repo_root=repo_root,
+        summary_payload=status_summary,
+        cloudflare_api_token_present=cloudflare_api_token_present,
+    )
+    return {
+        "generated_at": _utc_now_iso(),
+        "status_summary": status_summary,
+        "product_readiness": readiness_report,
     }

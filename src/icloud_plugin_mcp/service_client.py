@@ -107,6 +107,9 @@ class ICloudIndexServiceClient:
     def get_system_status(self) -> dict[str, Any]:
         return self._request("GET", "/status/summary")
 
+    def get_product_readiness(self) -> dict[str, Any]:
+        return self._request("GET", "/status/readiness")
+
     def refresh_index(self) -> dict[str, Any]:
         return self._request("POST", "/refresh")
 

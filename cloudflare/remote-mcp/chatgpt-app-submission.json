@@ -44,6 +44,18 @@
         "destructive_justification": "Does not delete, overwrite, or trigger irreversible actions."
       }
     },
+    "get_icloud_product_readiness": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only evaluates current repo and runtime readiness signals and reports which end-to-end criteria are met or blocked.",
+        "open_world_justification": "Does not publish or mutate public internet state or third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, or perform irreversible actions."
+      }
+    },
     "get_icloud_file": {
       "annotations": {
         "readOnlyHint": true,
@@ -132,6 +144,14 @@
       "file_attachment_urls": null,
       "tools_triggered": "get_icloud_system_status",
       "expected_output": "Returns a consolidated status snapshot with service health, refresh progress, queue counts, and classifier readiness details.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Inspect overall product readiness before claiming the rollout is complete.",
+      "user_prompt": "Show me which cloud-vault product criteria are complete versus still blocked.",
+      "file_attachment_urls": null,
+      "tools_triggered": "get_icloud_product_readiness",
+      "expected_output": "Returns a consolidated readiness report with repo facts, live status summary, and explicit criteria marked met, blocked, or unknown.",
       "expected_output_url": null
     },
     {

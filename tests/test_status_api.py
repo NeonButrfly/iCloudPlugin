@@ -330,3 +330,59 @@ def test_status_summary_requires_bearer_auth_when_plugin_token_is_set(tmp_path, 
 
     assert unauthorized.status_code == 401
     assert authorized.status_code == 200
+
+
+def test_status_readiness_returns_live_summary_plus_readiness_report(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path)
+    _seed_status_data(session_factory)
+
+    mirror_root = tmp_path / "mirrors"
+    (mirror_root / "google1").mkdir(parents=True, exist_ok=True)
+    (mirror_root / "google1" / "Appeal.docx").write_text("Appeal body", encoding="utf-8")
+
+    vault_root = tmp_path / "document-vault"
+    (vault_root / "01 Classified").mkdir(parents=True, exist_ok=True)
+    (vault_root / "Classification Index.md").write_text("# Index", encoding="utf-8")
+    (vault_root / "Home.md").write_text("# Home", encoding="utf-8")
+
+    def override_get_session():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("PLUGIN_API_TOKEN", "secret-token")
+    monkeypatch.delenv("CLOUDFLARE_API_TOKEN", raising=False)
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    monkeypatch.setattr(
+        status_service_module,
+        "fetch_classifier_health",
+        lambda: {"ok": True, "real_ingestion_allowed": True, "queue_depth": 0},
+    )
+    main_module.app.dependency_overrides[get_session] = override_get_session
+    main_module.app.state.auth_session_state = "configured"
+
+    try:
+        with TestClient(main_module.app) as client:
+            response = client.get(
+                "/status/readiness",
+                headers={"Authorization": "Bearer secret-token"},
+            )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status_summary"]["service_health"] == {"status": "ok", "database": "ok"}
+    assert payload["status_summary"]["auth_status"] == {"status": "configured", "database": "ok"}
+    assert payload["product_readiness"]["success_criteria"][
+        "cloudflare_remote_mcp_exists_and_is_the_intended_external_path"
+    ]["status"] == "met"
+    assert payload["product_readiness"]["success_criteria"][
+        "auth_and_deployment_story_is_real"
+    ]["status"] == "blocked"
+    assert isinstance(payload["generated_at"], str)

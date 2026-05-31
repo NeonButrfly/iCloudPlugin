@@ -944,6 +944,7 @@ The local MCP bridge now exposes:
 - `search_icloud_files`
 - `search_icloud_notes_and_files`
 - `get_icloud_system_status`
+- `get_icloud_product_readiness`
 - `get_icloud_file`
 - `get_icloud_file_excerpt`
 - `get_icloud_note`
@@ -994,6 +995,12 @@ plugin-authenticated snapshot covering:
   `hybrid_live_source` and whether they still line up with completed, queued,
   or missing backend state rows
 
+The product-readiness tool uses `GET /status/readiness`, which wraps:
+
+- the live `status_summary`
+- repo-surface facts about MCP/deploy/helper coverage
+- explicit end-to-end criteria marked `met`, `blocked`, or `unknown`
+
 To turn that runtime snapshot plus the current repo surface into one
 operator-facing product audit, use:
 
@@ -1036,6 +1043,9 @@ first production-shaped external MCP slice in
   `search_icloud_notes_and_files` in addition to the single-file tools.
 - The Worker now also exposes `get_icloud_system_status` so external MCP
   clients can inspect the live cloud-vault runtime without shell access.
+- The Worker now also exposes `get_icloud_product_readiness` so external MCP
+  clients can inspect the current end-to-end completion state through the real
+  hosted tool surface.
 - both the repo-local FastMCP bridge and the Cloudflare Worker now declare
   explicit MCP tool annotations:
   - read tools set `readOnlyHint=true`, `openWorldHint=false`,
@@ -1110,6 +1120,8 @@ Recommended deployment shape:
   - current tool list
   - explicit tool-annotation expectations
   - positive and negative review test cases
+- that submission-facing tool list now also includes
+  `get_icloud_product_readiness`
 - `cloudflare/remote-mcp/scripts/generate-chatgpt-app-submission.mjs` now
   verifies or rewrites that artifact from structured source data:
   - `npm run submission:verify`

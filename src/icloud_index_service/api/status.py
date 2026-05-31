@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Generator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -11,6 +12,10 @@ from icloud_index_service.db import get_session
 from icloud_index_service.services.auth_session_manager import (
     DEFAULT_AUTH_SESSION_STATE,
     build_auth_status_payload,
+)
+from icloud_index_service.services.product_readiness import (
+    DEFAULT_REPO_ROOT,
+    build_live_product_readiness_payload,
 )
 from icloud_index_service.services.search_service import build_database_unavailable_detail
 from icloud_index_service.services.status_service import build_status_summary
@@ -75,6 +80,46 @@ def get_status_summary(
                 database_state=database_state,
                 startup_validation_error=startup_validation_error,
             ),
+        )
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=build_database_unavailable_detail(
+                operation="status",
+                startup_validation_error=str(exc),
+            ),
+        ) from exc
+
+
+@router.get(
+    "/readiness",
+    dependencies=[Depends(_ensure_status_database_available), Depends(require_plugin_api_token)],
+)
+def get_product_readiness(
+    request: Request,
+    session: Session = Depends(_get_status_session),
+) -> dict[str, object]:
+    database_state = "ok"
+    startup_validation_error = None
+    session_state = getattr(
+        request.app.state,
+        "auth_session_state",
+        DEFAULT_AUTH_SESSION_STATE,
+    )
+    try:
+        status_summary = build_status_summary(
+            session,
+            service_health={"status": "ok", "database": "ok"},
+            auth_status=build_auth_status_payload(
+                session_state=session_state,
+                database_state=database_state,
+                startup_validation_error=startup_validation_error,
+            ),
+        )
+        return build_live_product_readiness_payload(
+            repo_root=DEFAULT_REPO_ROOT,
+            status_summary=status_summary,
+            cloudflare_api_token_present=bool((os.getenv("CLOUDFLARE_API_TOKEN") or "").strip()),
         )
     except SQLAlchemyError as exc:
         raise HTTPException(

@@ -69,6 +69,16 @@
     - generated-note classifier-context gap counts for legacy notes that still
       lack `source_parser`, `heuristic_primary_hint`, or `hybrid_live_source`
 - Follow-up implementation slice:
+  - add a first-class product-readiness surface for external MCP callers
+    through:
+    - origin `GET /status/readiness`
+    - local MCP `get_icloud_product_readiness`
+    - Cloudflare Worker `get_icloud_product_readiness`
+  - the readiness payload should expose:
+    - the current live `status_summary`
+    - repo-surface facts about MCP/deploy/helper coverage
+    - explicit end-to-end criteria marked `met`, `blocked`, or `unknown`
+- Follow-up implementation slice:
   - make the Cloudflare deploy helper push Worker secrets directly when auth is
     available, instead of requiring manual `wrangler secret put` steps first
   - support secret loading from shell env or a local `.dev.vars`-style file so

@@ -20,6 +20,7 @@ def test_plugin_server_tools_expose_annotations_and_output_schemas():
         "get_icloud_file_bundle",
         "search_icloud_notes_and_files",
         "get_icloud_system_status",
+        "get_icloud_product_readiness",
     }
 
     for tool_name in expected_read_only:
