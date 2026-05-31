@@ -1032,19 +1032,29 @@ helpers:
 
 ```bash
 cd /opt/iCloudPlugin
-scripts/reindex-icloud-index.sh
+scripts/reindex-icloud-index.sh --dry-run --yes
 ```
 
 ```powershell
 Set-Location /opt/iCloudPlugin
-./scripts/reindex-icloud-index.ps1
+./scripts/reindex-icloud-index.ps1 -DryRun -Yes
 ```
 
 The reindex helpers:
 
-- bring up `postgres`, `service`, `worker`, and `classification-worker` if needed
-- truncate `extracted_contents`, `files`, `jobs`, and `sync_runs`
-- queue a fresh refresh run
+- default to the role-based cloudsync deployment shape under:
+  - `deploy/roles/cloudsync/.env.live`
+  - `deploy/roles/cloudsync/docker-compose.yml`
+- load the live env file before choosing runtime defaults
+- can print a safe plan first with `--dry-run --yes` or `-DryRun -Yes`
+- require explicit destructive confirmation with `--yes` or `-Yes`
+- start `service`, `worker`, and `classification-worker`, plus local `postgres`
+  and `migrate` only when the cloudsync stack is using local Postgres
+- fall back to a disposable `postgres:16` client when the runtime points at a
+  remote Postgres host instead of the compose `postgres` service
+- truncate `classification_jobs`, `classification_states`,
+  `extracted_contents`, `files`, `jobs`, and `sync_runs`
+- queue a fresh refresh run with bearer auth when `PLUGIN_API_TOKEN` is set
 - print the current `/refresh/status` payload
 
 ## Suggested environment values

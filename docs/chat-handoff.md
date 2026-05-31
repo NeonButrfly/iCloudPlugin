@@ -107,6 +107,28 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     the role-based cloudsync compose path:
     - `cloudsync-service-1`
     - `cloudsync-worker-1`
+- issue [#2](https://github.com/NeonButrfly/iCloudPlugin/issues/2) is now
+  fixed and ready to close:
+  - resumable background indexing is live
+  - restart recovery is live
+  - the root reindex helpers now match the role-based cloudsync deployment and
+    current auth model:
+    - `scripts/reindex-icloud-index.sh`
+    - `scripts/reindex-icloud-index.ps1`
+  - both helpers now:
+    - default to `deploy/roles/cloudsync/.env.live`
+    - default to `deploy/roles/cloudsync/docker-compose.yml`
+    - require explicit destructive confirmation
+    - support dry-run planning
+    - understand remote-Postgres compute-only deployments
+    - truncate `classification_jobs`, `classification_states`,
+      `extracted_contents`, `files`, `jobs`, and `sync_runs`
+    - queue a fresh refresh run with bearer auth when `PLUGIN_API_TOKEN` is set
+  - safe live proof on `tichuml1` on 2026-05-31 AKDT:
+    - `bash ./scripts/reindex-icloud-index.sh --dry-run --yes`
+      selected the remote-Postgres compute-only path
+    - the planned refresh POST showed a redacted bearer header instead of
+      leaking the live token
 - `clouddrive.neonbutterfly.net` now proxies to `192.168.50.196:8080`
 - `tichuml1` classifier health is OK
 - `tichuml1` classifier containers were recreated from the monorepo compose on

@@ -170,6 +170,46 @@ def test_cloudsync_docs_reference_targeted_batch_helper():
     assert "report_live_status.sh" in operations_doc.read_text(encoding="utf-8")
 
 
+def test_reindex_helpers_match_role_based_cloudsync_runtime():
+    repo_root = Path(__file__).resolve().parents[1]
+    shell_helper = repo_root / "scripts" / "reindex-icloud-index.sh"
+    powershell_helper = repo_root / "scripts" / "reindex-icloud-index.ps1"
+
+    shell_text = shell_helper.read_text(encoding="utf-8")
+    powershell_text = powershell_helper.read_text(encoding="utf-8")
+
+    assert 'ENV_FILE="${ENV_FILE:-${REPO_ROOT}/deploy/roles/cloudsync/.env.live}"' in shell_text
+    assert 'COMPOSE_PROJECT="${COMPOSE_PROJECT:-icloudplugin}"' in shell_text
+    assert 'COMPOSE_FILE="${COMPOSE_FILE:-${REPO_ROOT}/deploy/roles/cloudsync/docker-compose.yml}"' in shell_text
+    assert 'SUDO_PASSWORD="${SUDO_PASSWORD:-}"' in shell_text
+    assert "docker_command()" in shell_text
+    assert 'printf \'%s\\n\' "${SUDO_PASSWORD}" | sudo -S docker "$@"' in shell_text
+    assert "source <(tr -d '\\r' < " in shell_text
+    assert 'docker_command run --rm \\' in shell_text
+    assert '--network host \\' in shell_text
+    assert 'postgres:16 \\' in shell_text
+    assert 'docker_compose up -d postgres migrate service worker classification-worker' in shell_text
+    assert 'docker_compose up -d --no-deps service worker classification-worker' in shell_text
+    assert 'TRUNCATE TABLE classification_jobs, classification_states, extracted_contents, files, jobs, sync_runs RESTART IDENTITY CASCADE;' in shell_text
+    assert 'curl_args+=(-H "Authorization: Bearer ${PLUGIN_API_TOKEN}")' in shell_text
+    assert 'PLUGIN_SERVICE_URL="${PLUGIN_SERVICE_URL:-}"' in shell_text
+    assert 'Authorization: Bearer [redacted]' in shell_text
+    assert '--dry-run' in shell_text
+    assert '--yes' in shell_text
+    assert 'This action is destructive. Re-run with --yes to confirm' in shell_text
+
+    assert 'deploy/roles/cloudsync/.env.live' in powershell_text
+    assert 'deploy/roles/cloudsync/docker-compose.yml' in powershell_text
+    assert 'classification-worker' in powershell_text
+    assert 'TRUNCATE TABLE classification_jobs, classification_states, extracted_contents, files, jobs, sync_runs RESTART IDENTITY CASCADE;' in powershell_text
+    assert 'Authorization: Bearer $script:PluginApiToken' in powershell_text
+    assert 'Authorization: Bearer [redacted]' in powershell_text
+    assert '$script:PluginServiceUrl = if ($env:PLUGIN_SERVICE_URL)' in powershell_text
+    assert 'This action is destructive. Re-run with -Yes to confirm' in powershell_text
+    assert '[switch]$DryRun' in powershell_text
+    assert '[switch]$Yes' in powershell_text
+
+
 def test_role_compose_files_exist_for_cloudsync_classifier_and_combined():
     repo_root = Path(__file__).resolve().parents[1]
     expected = [
