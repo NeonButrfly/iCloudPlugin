@@ -315,6 +315,8 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       - `scripts/generate-chatgpt-app-submission.mjs` now verifies or rewrites
         that artifact from structured source data instead of leaving it purely
         hand-maintained
+      - `submission:verify` now also checks the generated metadata against the
+        actual Worker-exposed tool surface, not just the checked-in JSON file
       - direct `GET /mcp` now returns `405 Allow: POST, DELETE` so
         streamable-http clients do not hang on a standalone SSE path
     - `print-access-bootstrap.mjs` emits ready-to-run Cloudflare Access

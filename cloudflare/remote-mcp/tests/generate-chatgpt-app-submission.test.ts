@@ -1,11 +1,69 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 import {
   buildSubmissionPayload,
   formatSubmissionPayload,
 } from "../scripts/generate-chatgpt-app-submission.mjs";
+import worker from "../src/index";
+
+type Env = {
+  ORIGIN_BASE_URL: string;
+  ORIGIN_API_TOKEN: string;
+  WORKER_API_TOKEN?: string;
+  MCP_ROUTE?: string;
+  DOWNLOAD_ROUTE_PREFIX?: string;
+  HEALTH_ROUTE?: string;
+};
+
+const baseEnv: Env = {
+  ORIGIN_BASE_URL: "https://origin.example.test",
+  ORIGIN_API_TOKEN: "origin-secret",
+  WORKER_API_TOKEN: "worker-secret",
+  MCP_ROUTE: "/mcp",
+  DOWNLOAD_ROUTE_PREFIX: "/download",
+  HEALTH_ROUTE: "/healthz",
+};
+
+const workerBaseUrl = "https://worker.example.test";
+const originalFetch = globalThis.fetch;
+
+function toRequest(input: RequestInfo | URL, init?: RequestInit): Request {
+  if (input instanceof Request && !init) {
+    return input;
+  }
+  if (input instanceof Request) {
+    return new Request(input, init);
+  }
+  return new Request(String(input), init);
+}
+
+function createExecutionContext(): ExecutionContext {
+  return {
+    waitUntil() {},
+    passThroughOnException() {},
+    props: {},
+  } as ExecutionContext;
+}
 
 describe("generate-chatgpt-app-submission", () => {
+  let transport: StreamableHTTPClientTransport | null = null;
+  let client: Client | null = null;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(async () => {
+    if (transport) {
+      await transport.close().catch(() => undefined);
+    }
+    transport = null;
+    client = null;
+    globalThis.fetch = originalFetch;
+  });
+
   it("builds a submission payload for the current remote MCP surface", () => {
     const payload = buildSubmissionPayload();
 
@@ -32,5 +90,45 @@ describe("generate-chatgpt-app-submission", () => {
     expect(formatted.endsWith("\n")).toBe(true);
     expect(formatted).toContain('"display_name": "iCloudPlugin Remote MCP"');
     expect(formatted).toContain('"refresh_icloud_index"');
+  });
+
+  it("keeps the submission tool metadata aligned with the actual Worker tool surface", async () => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = toRequest(input, init);
+      const url = new URL(request.url);
+
+      if (url.host === "worker.example.test") {
+        return worker.fetch(request, baseEnv, createExecutionContext());
+      }
+
+      throw new Error(`Unexpected host in test fetch: ${request.url}`);
+    }) as typeof fetch;
+
+    client = new Client({
+      name: "submission-surface-test",
+      version: "0.1.0",
+    });
+    transport = new StreamableHTTPClientTransport(new URL(`${workerBaseUrl}/mcp`), {
+      requestInit: {
+        headers: {
+          Authorization: "Bearer worker-secret",
+        },
+      },
+      fetch: globalThis.fetch,
+    });
+    await client.connect(transport);
+
+    const toolList = await client.listTools();
+    const actualTools = new Map(toolList.tools.map((tool) => [tool.name, tool]));
+    const submissionTools = buildSubmissionPayload().tools;
+
+    expect(new Set(actualTools.keys())).toEqual(new Set(Object.keys(submissionTools)));
+
+    for (const [toolName, expectedMetadata] of Object.entries(submissionTools)) {
+      const actualTool = actualTools.get(toolName);
+      expect(actualTool).toBeDefined();
+      expect(actualTool?.annotations).toMatchObject(expectedMetadata.annotations);
+      expect(actualTool?.outputSchema).toBeDefined();
+    }
   });
 });

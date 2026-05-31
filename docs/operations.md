@@ -1089,6 +1089,9 @@ Recommended deployment shape:
   verifies or rewrites that artifact from structured source data:
   - `npm run submission:verify`
   - `npm run submission:write`
+  - `submission:verify` now also checks the generated metadata against the
+    actual exposed Worker tool surface, including annotations and
+    `outputSchema`
 
 At the end of the current slice, the repo contains the Worker scaffold and
 validated local type-check.

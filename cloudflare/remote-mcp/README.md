@@ -293,6 +293,12 @@ npm run submission:verify
 npm run submission:write
 ```
 
+`submission:verify` now checks both:
+
+- the checked-in JSON artifact matches the generator output
+- the generated tool metadata still matches the actual exposed Worker tool
+  surface, including explicit annotations and `outputSchema`
+
 That file is intended to stay aligned with the actual remote MCP tool surface,
 including:
 
