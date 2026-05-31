@@ -312,6 +312,29 @@ Current validation for the submission agent includes:
     - whether auth is present via `OPENAI_API_KEY` or `~/.codex/auth.json`
     - best-effort authenticated classifier `/health` output when
       `CLASSIFIER_API_TOKEN` is available in the loaded env file
+- for a deliberate one-file live smoke without changing the service-wide
+  default-off posture, use:
+  - `deploy/roles/classifier/run_codex_arbiter_smoke.sh`
+  - it:
+    - loads the classifier role env file
+    - runs `report_codex_arbiter_readiness.sh`
+    - fails fast if `CLASSIFIER_API_TOKEN` is missing
+    - can force-enable the Codex arbiter for one authenticated
+      `/classify/source` request via `enable_codex_arbiter_override=true`
+    - writes a combined readiness-plus-classification JSON artifact when
+      `--json-out` is supplied
+  - example:
+
+```bash
+cd /opt/iCloudPlugin
+ENV_FILE=/opt/iCloudPlugin/deploy/roles/classifier/.env.live \
+bash ./deploy/roles/classifier/run_codex_arbiter_smoke.sh \
+  --source-relative-path google1/Docs/Appeal.pdf \
+  --json-out /tmp/codex-arbiter-smoke.json
+```
+
+  - use `--no-arbiter-override` when you want the helper to prove current
+    service mode instead of forcing a one-request Codex path
 - `IMAGE_OCR_MIN_CHARS` controls when an image is routed through the OCR-backed
   document path instead of going straight to Qwen vision fallback.
 - the classifier role now also needs a read-only shared-source mount:

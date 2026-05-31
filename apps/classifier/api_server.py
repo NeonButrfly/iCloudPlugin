@@ -146,6 +146,7 @@ def build_classifier_command(
     categories: Optional[str],
     attach_originals: bool,
     no_vision: bool,
+    codex_arbiter_enabled: bool,
     canonical_source_path: Optional[str],
     canonical_source_hash: Optional[str],
     last_seen_filename: Optional[str],
@@ -169,7 +170,7 @@ def build_classifier_command(
     if no_vision:
         cmd.append("--no-vision")
 
-    if CODEX_ARBITER_ENABLED:
+    if codex_arbiter_enabled:
         cmd.append("--enable-codex-arbiter")
 
     if categories:
@@ -321,6 +322,7 @@ async def classify_upload(
     attach_originals: bool = Form(default=True),
     no_vision: bool = Form(default=False),
     ingestion_mode: str = Form(default="adhoc"),
+    enable_codex_arbiter_override: Optional[bool] = Form(default=None),
     canonical_source_path: Optional[str] = Form(default=None),
     canonical_source_hash: Optional[str] = Form(default=None),
     last_seen_filename: Optional[str] = Form(default=None),
@@ -339,6 +341,11 @@ async def classify_upload(
     total_started_at = time.perf_counter()
     staged = await stage_uploaded_file(file)
     staged_path = staged["staged_path"]
+    codex_arbiter_enabled = (
+        CODEX_ARBITER_ENABLED
+        if enable_codex_arbiter_override is None
+        else bool(enable_codex_arbiter_override)
+    )
     timing_output = ensure_inside(OUTPUT_ROOT / "_timing" / f"{uuid.uuid4().hex}.json", OUTPUT_ROOT)
     timing_output.parent.mkdir(parents=True, exist_ok=True)
     cmd = build_classifier_command(
@@ -346,6 +353,7 @@ async def classify_upload(
         categories=categories,
         attach_originals=attach_originals,
         no_vision=no_vision,
+        codex_arbiter_enabled=codex_arbiter_enabled,
         canonical_source_path=canonical_source_path,
         canonical_source_hash=canonical_source_hash,
         last_seen_filename=last_seen_filename,
@@ -373,6 +381,8 @@ async def classify_upload(
         "manifest": str(MANIFEST_PATH),
         "classification_index": str(INDEX_PATH),
         "ingestion_mode": ingestion_mode,
+        "codex_arbiter_requested": enable_codex_arbiter_override,
+        "codex_arbiter_enabled": codex_arbiter_enabled,
         "record": record,
         "stdout_tail": tail_text(proc.stdout),
         "stderr_tail": tail_text(proc.stderr),
@@ -386,6 +396,7 @@ def classify_source(
     attach_originals: bool = Form(default=True),
     no_vision: bool = Form(default=False),
     ingestion_mode: str = Form(default="real-folder"),
+    enable_codex_arbiter_override: Optional[bool] = Form(default=None),
     canonical_source_path: Optional[str] = Form(default=None),
     canonical_source_hash: Optional[str] = Form(default=None),
     last_seen_filename: Optional[str] = Form(default=None),
@@ -404,6 +415,11 @@ def classify_source(
 
     total_started_at = time.perf_counter()
     source_path = resolve_source_file_path(source_relative_path)
+    codex_arbiter_enabled = (
+        CODEX_ARBITER_ENABLED
+        if enable_codex_arbiter_override is None
+        else bool(enable_codex_arbiter_override)
+    )
     timing_output = ensure_inside(OUTPUT_ROOT / "_timing" / f"{uuid.uuid4().hex}.json", OUTPUT_ROOT)
     timing_output.parent.mkdir(parents=True, exist_ok=True)
     cmd = build_classifier_command(
@@ -411,6 +427,7 @@ def classify_source(
         categories=categories,
         attach_originals=attach_originals,
         no_vision=no_vision,
+        codex_arbiter_enabled=codex_arbiter_enabled,
         canonical_source_path=canonical_source_path,
         canonical_source_hash=canonical_source_hash,
         last_seen_filename=last_seen_filename,
@@ -435,6 +452,8 @@ def classify_source(
         "manifest": str(MANIFEST_PATH),
         "classification_index": str(INDEX_PATH),
         "ingestion_mode": ingestion_mode,
+        "codex_arbiter_requested": enable_codex_arbiter_override,
+        "codex_arbiter_enabled": codex_arbiter_enabled,
         "record": record,
         "stdout_tail": tail_text(proc.stdout),
         "stderr_tail": tail_text(proc.stderr),

@@ -70,6 +70,10 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     block
   - `deploy/roles/classifier/report_codex_arbiter_readiness.sh` now provides
     the same host-side readiness view without printing secrets
+  - `deploy/roles/classifier/run_codex_arbiter_smoke.sh` can now run one
+    authenticated `/classify/source` smoke request and force-enable the Codex
+    arbiter for just that request, so issue `#20` can be proven on-host without
+    flipping the whole classifier service into Codex mode
   - a local dry run on 2026-05-31 AKDT proved:
     - Codex CLI discoverable from the current machine
     - auth present via `~/.codex/auth.json`

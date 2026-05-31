@@ -21,6 +21,13 @@ def test_classifier_role_readiness_helper_exists():
     assert helper.exists()
 
 
+def test_classifier_role_codex_smoke_helper_exists():
+    repo_root = Path(__file__).resolve().parents[1]
+    helper = repo_root / "deploy" / "roles" / "classifier" / "run_codex_arbiter_smoke.sh"
+
+    assert helper.exists()
+
+
 def test_cloudsync_role_sync_assets_exist():
     repo_root = Path(__file__).resolve().parents[1]
     expected = [
@@ -303,6 +310,33 @@ def test_classifier_role_docs_reference_codex_arbiter_readiness_helper():
 
     assert "report_codex_arbiter_readiness.sh" in role_readme.read_text(encoding="utf-8")
     assert "report_codex_arbiter_readiness.sh" in operations_doc.read_text(encoding="utf-8")
+
+
+def test_classifier_role_smoke_helper_supports_request_scoped_codex_override():
+    repo_root = Path(__file__).resolve().parents[1]
+    helper = repo_root / "deploy" / "roles" / "classifier" / "run_codex_arbiter_smoke.sh"
+    script_text = helper.read_text(encoding="utf-8")
+
+    assert 'ENV_FILE="${ENV_FILE:-${REPO_ROOT}/deploy/roles/classifier/.env.live}"' in script_text
+    assert 'READINESS_HELPER="${READINESS_HELPER:-${SCRIPT_DIR}/report_codex_arbiter_readiness.sh}"' in script_text
+    assert "--source-relative-path" in script_text
+    assert "--canonical-source-path" in script_text
+    assert "--json-out" in script_text
+    assert "--request-timeout-seconds" in script_text
+    assert "--no-arbiter-override" in script_text
+    assert 'CLASSIFIER_CLASSIFY_URL="${CLASSIFIER_CLASSIFY_URL:-http://127.0.0.1:${CLASSIFIER_API_PORT}/classify/source}"' in script_text
+    assert 'curl_args+=(-F "enable_codex_arbiter_override=true")' in script_text
+    assert 'CLASSIFIER_API_TOKEN is required to run the smoke classification.' in script_text
+    assert '"enable_codex_arbiter_override": sys.argv[9].strip().lower() == "true"' in script_text
+
+
+def test_classifier_role_docs_reference_codex_arbiter_smoke_helper():
+    repo_root = Path(__file__).resolve().parents[1]
+    role_readme = repo_root / "deploy" / "roles" / "classifier" / "README.md"
+    operations_doc = repo_root / "docs" / "operations.md"
+
+    assert "run_codex_arbiter_smoke.sh" in role_readme.read_text(encoding="utf-8")
+    assert "run_codex_arbiter_smoke.sh" in operations_doc.read_text(encoding="utf-8")
 
 
 def test_combined_role_compose_includes_sync_and_classifier_services():

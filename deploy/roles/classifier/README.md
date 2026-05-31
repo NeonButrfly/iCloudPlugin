@@ -29,12 +29,19 @@ Primary services in `docker-compose.yml`:
 - `classifier-api`
 - `report_codex_arbiter_readiness.sh` for non-secret host-side Codex arbiter
   readiness checks before enabling issue `#20`
+- `run_codex_arbiter_smoke.sh` for a one-file authenticated smoke request that
+  can force-enable the Codex arbiter per request without changing the service's
+  default-off runtime mode
 
 Operational defaults:
 
 - `ENABLE_SHADOW_WORKER=0` to keep the API role focused on request handling
 - `CODEX_ARBITER_ENABLED=0` so Codex never participates in classifier
   decisions unless an operator explicitly enables it
+- the classifier API can still force-enable Codex for one authenticated smoke
+  request via `enable_codex_arbiter_override=true`, which keeps live rollout
+  proof for issue `#20` bounded to a single source file instead of flipping the
+  whole service into Codex mode
 - `CODEX_ARBITER_COMMAND` defaults to `codex exec`; override it if the live
   host needs extra non-interactive flags or a different Codex binary path
 - `CODEX_ARBITER_TIMEOUT_SECONDS=120` bounds a single Codex arbiter attempt so
