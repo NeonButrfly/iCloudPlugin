@@ -95,6 +95,7 @@ Classifier and indexing source-of-truth:
 Recommended live assets:
 
 - `deploy/roles/cloudsync/cloud-vault-sync.sh`
+- `deploy/roles/cloudsync/install_storage_host_sync_assets.sh`
 - `deploy/roles/cloudsync/cloud-vault-sync.service`
 - `deploy/roles/cloudsync/cloud-vault-sync.timer`
 
@@ -128,6 +129,21 @@ If a Google Drive remote exists without a valid OAuth token, `rclone` will not
 be able to access it. Complete the one-time `rclone config reconnect` or
 `rclone config create` flow for that remote before expecting the timer to sync
 it successfully.
+
+To install or refresh the storage-host assets on `kayraspi2` from the repo:
+
+```bash
+cd /opt/iCloudPlugin
+SUDO_PASSWORD=... bash ./deploy/roles/cloudsync/install_storage_host_sync_assets.sh
+```
+
+Optional immediate sync after install:
+
+```bash
+cd /opt/iCloudPlugin
+SUDO_PASSWORD=... bash ./deploy/roles/cloudsync/install_storage_host_sync_assets.sh \
+  --run-sync-after-install
+```
 
 ## Background indexing
 

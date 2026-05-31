@@ -18,6 +18,7 @@ def test_cloudsync_role_sync_assets_exist():
     repo_root = Path(__file__).resolve().parents[1]
     expected = [
         repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh",
+        repo_root / "deploy" / "roles" / "cloudsync" / "install_storage_host_sync_assets.sh",
         repo_root / "deploy" / "roles" / "cloudsync" / "run_targeted_classification_batch.sh",
         repo_root / "deploy" / "roles" / "cloudsync" / "report_live_status.sh",
         repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.service",
@@ -60,6 +61,29 @@ def test_cloudsync_sync_script_writes_machine_readable_status_artifact():
     assert "write_sync_status_file()" in script_text
     assert '"overall_status": overall_status' in script_text
     assert '"required_failures_present": bool(required_failures)' in script_text
+
+
+def test_cloudsync_storage_host_installer_covers_sync_assets_and_systemd_flow():
+    repo_root = Path(__file__).resolve().parents[1]
+    installer = (
+        repo_root / "deploy" / "roles" / "cloudsync" / "install_storage_host_sync_assets.sh"
+    )
+    script_text = installer.read_text(encoding="utf-8")
+
+    assert 'SYNC_SCRIPT_SOURCE="${SYNC_SCRIPT_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.sh}"' in script_text
+    assert 'SYNC_SERVICE_SOURCE="${SYNC_SERVICE_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.service}"' in script_text
+    assert 'SYNC_TIMER_SOURCE="${SYNC_TIMER_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.timer}"' in script_text
+    assert 'SCRIPT_TARGET="${SCRIPT_TARGET:-/usr/local/bin/cloud-vault-sync.sh}"' in script_text
+    assert 'SERVICE_TARGET="${SERVICE_TARGET:-/etc/systemd/system/cloud-vault-sync.service}"' in script_text
+    assert 'TIMER_TARGET="${TIMER_TARGET:-/etc/systemd/system/cloud-vault-sync.timer}"' in script_text
+    assert 'SUDO_PASSWORD="${SUDO_PASSWORD:-}"' in script_text
+    assert "sudo_command()" in script_text
+    assert 'printf \'%s\\n\' "${SUDO_PASSWORD}" | sudo -S "$@"' in script_text
+    assert 'sudo_command install -m "${mode}" "${source_path}" "${target_path}"' in script_text
+    assert 'sudo_command systemctl daemon-reload' in script_text
+    assert 'sudo_command systemctl enable --now "$(basename "${TIMER_TARGET}")"' in script_text
+    assert "--run-sync-after-install" in script_text
+    assert 'sudo_command systemctl start "$(basename "${SERVICE_TARGET}")"' in script_text
 
 
 def test_cloudsync_targeted_batch_helper_restores_queue_state():

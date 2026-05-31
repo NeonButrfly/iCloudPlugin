@@ -34,6 +34,7 @@ Primary services in `docker-compose.yml`:
 Related host-level sync assets:
 
 - `deploy/roles/cloudsync/cloud-vault-sync.sh`
+- `deploy/roles/cloudsync/install_storage_host_sync_assets.sh`
 - `deploy/roles/cloudsync/run_targeted_classification_batch.sh`
 - `deploy/roles/cloudsync/report_live_status.sh`
 - `deploy/roles/cloudsync/cloud-vault-sync.service`
@@ -101,6 +102,19 @@ The script is intentionally resilient:
 For bounded classifier backfill work on the sync host, use:
 
 - `deploy/roles/cloudsync/run_targeted_classification_batch.sh`
+
+To install or refresh the storage-host sync assets on `kayraspi2`, use:
+
+- `deploy/roles/cloudsync/install_storage_host_sync_assets.sh`
+
+That helper:
+
+- installs `cloud-vault-sync.sh` to `/usr/local/bin`
+- installs the systemd service and timer under `/etc/systemd/system`
+- reloads systemd
+- enables the timer
+- can optionally start one immediate sync pass with `--run-sync-after-install`
+- prints source-vs-installed SHA256 hashes for operator verification
 
 For one unified operator status read on the compute host, use:
 

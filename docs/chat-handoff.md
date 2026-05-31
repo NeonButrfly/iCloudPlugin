@@ -142,6 +142,18 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       includes `cloud_vault_sync`
     - authenticated `GET /status/summary` on `tichuml1` now also includes
       `cloud_vault_sync`
+  - the repo still needed a canonical storage-host installer path for those
+    sync assets, so issue [#51](https://github.com/NeonButrfly/iCloudPlugin/issues/51)
+    is now fixed and closed with live proof:
+    - `deploy/roles/cloudsync/install_storage_host_sync_assets.sh` now
+      installs or refreshes:
+      - `/usr/local/bin/cloud-vault-sync.sh`
+      - `/etc/systemd/system/cloud-vault-sync.service`
+      - `/etc/systemd/system/cloud-vault-sync.timer`
+    - live proof on `kayraspi2` used the role asset bundle from `/tmp` because
+      that host does not currently keep a repo checkout at `/opt/iCloudPlugin`
+    - installed SHA256 hashes matched the repo assets exactly
+    - `cloud-vault-sync.timer` remained `enabled` and `active` after install
   - the Cloudflare Worker scaffold proxies those same surfaces and can hand off
     original files through `/download/{file_id}`
   - the Worker now also supports an optional client-facing bearer gate via
