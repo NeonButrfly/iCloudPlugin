@@ -62,6 +62,19 @@ def test_cloudsync_role_skips_dangling_google_drive_shortcuts():
     assert "--drive-skip-dangling-shortcuts" in script_text
 
 
+def test_cloudsync_role_can_force_rclone_ipv4_for_storage_host_sync():
+    repo_root = Path(__file__).resolve().parents[1]
+    sync_script = repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh"
+    script_text = sync_script.read_text(encoding="utf-8")
+
+    assert 'RCLONE_FORCE_IPV4="${RCLONE_FORCE_IPV4:-true}"' in script_text
+    assert "RCLONE_NETWORK_ARGS=()" in script_text
+    assert 'RCLONE_NETWORK_ARGS+=(--bind 0.0.0.0)' in script_text
+    assert 'rclone lsf "${remote_name}:" "${RCLONE_NETWORK_ARGS[@]}" --max-depth 1' in script_text
+    assert 'rclone bisync "${remote_path}" "${dest_path}" \\' in script_text
+    assert '"${RCLONE_NETWORK_ARGS[@]}" \\' in script_text
+
+
 def test_cloudsync_sync_script_writes_machine_readable_status_artifact():
     repo_root = Path(__file__).resolve().parents[1]
     sync_script = repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh"
@@ -199,8 +212,10 @@ def test_cloudsync_docs_reference_targeted_batch_helper():
 
     assert "run_targeted_classification_batch.sh" in role_readme.read_text(encoding="utf-8")
     assert "report_live_status.sh" in role_readme.read_text(encoding="utf-8")
+    assert "RCLONE_FORCE_IPV4" in role_readme.read_text(encoding="utf-8")
     assert "run_targeted_classification_batch.sh" in operations_doc.read_text(encoding="utf-8")
     assert "report_live_status.sh" in operations_doc.read_text(encoding="utf-8")
+    assert "RCLONE_FORCE_IPV4" in operations_doc.read_text(encoding="utf-8")
 
 
 def test_reindex_helpers_match_role_based_cloudsync_runtime():

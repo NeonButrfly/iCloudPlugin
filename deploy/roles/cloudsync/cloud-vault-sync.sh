@@ -19,8 +19,15 @@ REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE="${REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE:-path
 REMOTE_ICLOUD_REQUIRED="${REMOTE_ICLOUD_REQUIRED:-true}"
 REMOTE_GOOGLE_1_REQUIRED="${REMOTE_GOOGLE_1_REQUIRED:-false}"
 REMOTE_GOOGLE_2_REQUIRED="${REMOTE_GOOGLE_2_REQUIRED:-false}"
+RCLONE_FORCE_IPV4="${RCLONE_FORCE_IPV4:-true}"
 
 CHECK_FILENAME="${CHECK_FILENAME:-RCLONE_TEST}"
+RCLONE_NETWORK_ARGS=()
+case "${RCLONE_FORCE_IPV4,,}" in
+  1|true|yes|on)
+    RCLONE_NETWORK_ARGS+=(--bind 0.0.0.0)
+    ;;
+esac
 RCLONE_COMMON_ARGS=(
   --create-empty-src-dirs
   --check-access
@@ -139,7 +146,7 @@ remote_is_configured() {
 
 remote_is_reachable() {
   local remote_name="$1"
-  timeout 45 rclone lsf "${remote_name}:" --max-depth 1 >/dev/null 2>&1
+  timeout 45 rclone lsf "${remote_name}:" "${RCLONE_NETWORK_ARGS[@]}" --max-depth 1 >/dev/null 2>&1
 }
 
 run_bisync() {
@@ -182,6 +189,7 @@ run_bisync() {
 
   log_line "${log_file}" "===== ${remote_name} bisync started ====="
   if ! rclone bisync "${remote_path}" "${dest_path}" \
+    "${RCLONE_NETWORK_ARGS[@]}" \
     "${bisync_args[@]}" \
     --log-file "${log_file}" \
     --log-level INFO; then

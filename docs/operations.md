@@ -128,6 +128,17 @@ Behavior:
   failing the entire timer run
 - Google Drive dangling shortcuts are skipped because they cannot be read as
   source objects during mirror initialization
+- storage-host sync now defaults `RCLONE_FORCE_IPV4=true` so `rclone`
+  reachability probes and bisync runs avoid broken IPv6 egress on `kayraspi2`
+  when iCloud endpoints advertise unreachable IPv6 addresses
+- live proof on 2026-05-31 AKDT:
+  - `/srv/cloud-vault/logs/icloud.log` previously showed
+    `dial tcp [2620:149:a43:380::2:3]:443: connect: network is unreachable`
+  - after the storage-host asset refresh and one rerun,
+    `/srv/cloud-vault/logs/cloud-vault-sync-status.json` returned to:
+    - `overall_status=ok`
+    - `required_failures_present=false`
+    - `icloud.status=ok`
 - `RCLONE_TEST` is maintained as the access-health probe file for bisync
 - each sync run now also writes a machine-readable artifact at:
   - `/srv/cloud-vault/logs/cloud-vault-sync-status.json`
@@ -294,10 +305,11 @@ Current validation for the submission agent includes:
 - `tests/test_classification_submission.py`
 - `tests/test_status_api.py`
 - `tests/test_health_api.py`
-- Codex arbitration is opt-in only. Keep `CODEX_ARBITER_ENABLED=0` unless an
-  operator intentionally enables the Codex final-arbiter path tracked in issue
-  #20. With the default value, classifier submissions do not pass the Codex
-  arbiter flag into the note-generation process.
+- Codex arbitration is opt-in only. For the current live v1 path, keep
+  `CODEX_ARBITER_ENABLED=0` and rely on the verified Qwen runtime instead.
+  Issue #20 is now a cost-sensitive future enhancement, not a v1 release
+  blocker. With the default value, classifier submissions do not pass the
+  Codex arbiter flag into the note-generation process.
 - when issue #20 is being tested intentionally:
   - `CODEX_ARBITER_COMMAND` defaults to `codex exec`
   - `CODEX_ARBITER_TIMEOUT_SECONDS` defaults to `120`

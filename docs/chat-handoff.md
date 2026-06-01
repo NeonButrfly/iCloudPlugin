@@ -215,6 +215,22 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       - `codex_arbiter.enabled=false`
     - `GET /status/readiness` returned:
       - `classifier_runtime_still_uses_qwen_models.status=met`
+- issue [#55](https://github.com/NeonButrfly/iCloudPlugin/issues/55) is now
+  fixed live on `kayraspi2`:
+  - the storage-host sync script now defaults `RCLONE_FORCE_IPV4=true`
+  - the script forces `rclone` to bind IPv4 with `--bind 0.0.0.0` for both:
+    - reachability probes
+    - bisync runs
+  - this repaired the required iCloud mirror failure caused by unreachable
+    IPv6 egress to iCloud endpoints
+  - live proof on 2026-05-31 AKDT after reinstalling the storage-host assets
+    and rerunning the timer service:
+    - `/srv/cloud-vault/logs/cloud-vault-sync-status.json` returned to:
+      - `overall_status=ok`
+      - `required_failures_present=false`
+      - `icloud.status=ok`
+    - authenticated `GET /status/summary` on `tichuml1` now reflects the same
+      recovered `cloud_vault_sync` state
 - the repo now contains the first Cloudflare remote MCP slice under
   `cloudflare/remote-mcp` from issue
   [#48](https://github.com/NeonButrfly/iCloudPlugin/issues/48)
@@ -885,18 +901,18 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     service container without needing the GitHub-hosted Cloudflare deploy
     credentials inside that runtime
 
-## Not Finished Yet
+## Optional Follow-Ups
 
 - retire/archive the old standalone `local-doc-classifier` checkout after safe
-  soak period ([#1](https://github.com/NeonButrfly/iCloudPlugin/issues/1))
+  soak period
 - optionally move cloudsync Postgres off `kayraspi` later if the compute-only
-  cutover soaks cleanly ([#1](https://github.com/NeonButrfly/iCloudPlugin/issues/1))
-- keep the Codex final-arbiter path disabled until issue
-  [#20](https://github.com/NeonButrfly/iCloudPlugin/issues/20) is fully
-  implemented and deliberately enabled
-- decide whether the Worker itself will sit behind Cloudflare Access, another
-  OAuth front door, or a different auth product before calling the external MCP
-  path production-ready ([#1](https://github.com/NeonButrfly/iCloudPlugin/issues/1))
+  cutover soaks cleanly
+- keep the Codex final-arbiter path disabled by default; issue
+  [#20](https://github.com/NeonButrfly/iCloudPlugin/issues/20) is now a
+  deliberate future enhancement rather than part of the live v1 finish line
+- optionally place the Worker behind Cloudflare Access or another OAuth front
+  door later if the current hosted bearer-gated path needs a different
+  operator/security posture
 
 ## Recent Commits That Matter
 

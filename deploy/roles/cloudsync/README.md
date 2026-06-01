@@ -88,6 +88,11 @@ The script is intentionally resilient:
   so an empty local mirror cannot become the initial source of truth
 - dangling Google Drive shortcuts are skipped because rclone cannot read them
   as source objects
+- storage-host sync can force IPv4 for all `rclone` reachability checks and
+  bisync runs with:
+  - `RCLONE_FORCE_IPV4=true`
+  - this now defaults to `true` because `kayraspi2` can reach iCloud over IPv4
+    even when IPv6 egress is unavailable
 - ongoing runs use a dedicated state directory under
   `/srv/cloud-vault/.rclone-bisync`
 - it now also writes a machine-readable status artifact to:
