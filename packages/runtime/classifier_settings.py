@@ -64,6 +64,8 @@ class ClassifierRuntimeSettings:
     vault_root: Path
     api_token: str
     ollama_url: str
+    classify_model: str
+    vision_model: str
     shadow_worker_enabled: bool
     shadow_worker_interval_seconds: int
     codex_arbiter_enabled: bool
@@ -222,6 +224,8 @@ def load_classifier_runtime_settings() -> ClassifierRuntimeSettings:
         vault_root=_default_path("CLASSIFIER_VAULT_ROOT", "/vault"),
         api_token=os.getenv("CLASSIFIER_API_TOKEN", ""),
         ollama_url=os.getenv("OLLAMA_URL", "http://ollama:11434").strip() or "http://ollama:11434",
+        classify_model=os.getenv("CLASSIFY_MODEL", "qwen2.5:3b").strip() or "qwen2.5:3b",
+        vision_model=os.getenv("VISION_MODEL", "qwen2.5vl:3b").strip() or "qwen2.5vl:3b",
         shadow_worker_enabled=_env_flag("ENABLE_SHADOW_WORKER", "1"),
         shadow_worker_interval_seconds=shadow_worker_interval_seconds,
         codex_arbiter_enabled=_env_flag("CODEX_ARBITER_ENABLED", "0"),

@@ -33,6 +33,8 @@ APP = FastAPI(title="Local Document Classifier API", version="1.0.0")
 SETTINGS = load_classifier_runtime_settings()
 API_TOKEN = SETTINGS.api_token
 OLLAMA_URL = SETTINGS.ollama_url
+CLASSIFY_MODEL = SETTINGS.classify_model
+VISION_MODEL = SETTINGS.vision_model
 INPUT_ROOT = SETTINGS.input_root
 OUTPUT_ROOT = SETTINGS.output_root
 SOURCE_ROOT = SETTINGS.source_root
@@ -304,6 +306,8 @@ def health(x_api_key: Optional[str] = Header(default=None)):
         "ollama_ok": ollama_ok,
         "ollama_error": ollama_error,
         "ollama_url": OLLAMA_URL,
+        "classify_model": CLASSIFY_MODEL,
+        "vision_model": VISION_MODEL,
         "input_root": str(INPUT_ROOT),
         "source_root": str(SOURCE_ROOT),
         "output_root": str(OUTPUT_ROOT),

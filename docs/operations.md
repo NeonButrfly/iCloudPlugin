@@ -728,6 +728,24 @@ Canonical label-map alignment:
     `auto_retrain_min_new_rows` gate so a real new manual correction can force
     a LightGBM retrain even when the broader teacher corpus only grew by a
     couple of rows
+  - the live classifier `/health` payload now also reports:
+    - `classify_model`
+    - `vision_model`
+  - `GET /status/summary` now carries those fields through
+    `classifier_health`, and `GET /status/readiness` now includes an explicit
+    `classifier_runtime_still_uses_qwen_models` criterion
+    - `met` when both active models still start with `qwen`
+    - `blocked` when model verification is missing or the runtime drifts to a
+      different model family
+  - live proof on `tichuml1` on 2026-05-31 AKDT after a temporary
+    current-checkout redeploy:
+    - classifier `/health` returned:
+      - `classify_model=qwen2.5:3b`
+      - `vision_model=qwen2.5vl:3b`
+      - `codex_arbiter.enabled=false`
+    - authenticated `GET /status/readiness` returned:
+      - `classifier_runtime_still_uses_qwen_models.status=met`
+      - `details={classify_model:qwen2.5:3b, vision_model:qwen2.5vl:3b}`
   - those enriched manual-feedback rows now participate in heuristic
     fast-path learning by adding `force_inline_llm_for` rules when repeated
     human corrections show a parser plus heuristic-hint combination is unsafe

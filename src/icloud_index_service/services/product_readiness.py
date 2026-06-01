@@ -59,6 +59,11 @@ def _has_counts(payload: Any) -> bool:
     )
 
 
+def _is_qwen_model_name(value: Any) -> bool:
+    normalized = str(value or "").strip().lower()
+    return normalized.startswith("qwen")
+
+
 def _has_remote_mcp_tool_surface(tool_names: set[str]) -> tuple[bool, list[str]]:
     missing = [tool for tool in REQUIRED_REMOTE_MCP_TOOLS if tool not in tool_names]
     return not missing, missing
@@ -210,6 +215,39 @@ def _evaluate_ingestion(summary: dict[str, Any]) -> ReadinessCheck:
             "classification_job_counts": job_counts,
             "classification_state_counts": state_counts,
         },
+    )
+
+
+def _evaluate_qwen_runtime(summary: dict[str, Any]) -> ReadinessCheck:
+    if not summary:
+        return ReadinessCheck("blocked", "No authenticated status summary was provided.")
+
+    classifier_health = _coerce_mapping(summary.get("classifier_health"))
+    classify_model = classifier_health.get("classify_model")
+    vision_model = classifier_health.get("vision_model")
+    details = {
+        "classify_model": classify_model,
+        "vision_model": vision_model,
+    }
+
+    if not str(classify_model or "").strip() or not str(vision_model or "").strip():
+        return ReadinessCheck(
+            "blocked",
+            "Classifier model verification is missing from the live health payload.",
+            details,
+        )
+
+    if not _is_qwen_model_name(classify_model) or not _is_qwen_model_name(vision_model):
+        return ReadinessCheck(
+            "blocked",
+            "The live classifier runtime is no longer using the expected Qwen models.",
+            details,
+        )
+
+    return ReadinessCheck(
+        "met",
+        "The live classifier runtime is still using the expected Qwen models.",
+        details,
     )
 
 
@@ -424,6 +462,7 @@ def build_product_readiness_report(
     criteria = {
         "aggregate_indexing_operational_and_observable": _evaluate_aggregate_indexing(summary),
         "full_ingestion_path_operational_and_observable": _evaluate_ingestion(summary),
+        "classifier_runtime_still_uses_qwen_models": _evaluate_qwen_runtime(summary),
         "manual_note_feedback_loop_operational_and_observable": _evaluate_manual_feedback(summary),
         "generated_notes_use_correct_canonical_linking": _evaluate_canonical_linking(summary),
         "obsidian_vault_behavior_is_sane_and_documented": _evaluate_obsidian_vault(summary),

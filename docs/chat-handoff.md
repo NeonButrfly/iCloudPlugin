@@ -199,6 +199,22 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - `tichuml1` classifier containers were recreated from the monorepo compose on
   2026-05-29 AKDT while preserving the existing trained runtime/output
   directories under `/opt/local-doc-classifier` for continuity
+- as of 2026-05-31 AKDT, the live framework now also verifies that the
+  classifier runtime is still on Qwen without enabling Codex arbitration:
+  - classifier `/health` now reports:
+    - `classify_model`
+    - `vision_model`
+  - authenticated `GET /status/summary` now carries those fields under
+    `classifier_health`
+  - authenticated `GET /status/readiness` now includes:
+    - `classifier_runtime_still_uses_qwen_models`
+  - live proof on `tichuml1` after a temporary current-checkout redeploy:
+    - classifier `/health` returned:
+      - `classify_model=qwen2.5:3b`
+      - `vision_model=qwen2.5vl:3b`
+      - `codex_arbiter.enabled=false`
+    - `GET /status/readiness` returned:
+      - `classifier_runtime_still_uses_qwen_models.status=met`
 - the repo now contains the first Cloudflare remote MCP slice under
   `cloudflare/remote-mcp` from issue
   [#48](https://github.com/NeonButrfly/iCloudPlugin/issues/48)

@@ -209,7 +209,13 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
     monkeypatch.setattr(
         status_service_module,
         "fetch_classifier_health",
-        lambda: {"ok": True, "real_ingestion_allowed": True, "queue_depth": 0},
+        lambda: {
+            "ok": True,
+            "real_ingestion_allowed": True,
+            "queue_depth": 0,
+            "classify_model": "qwen2.5:3b",
+            "vision_model": "qwen2.5vl:3b",
+        },
     )
     main_module.app.dependency_overrides[get_session] = override_get_session
     main_module.app.state.auth_session_state = "configured"
@@ -242,6 +248,8 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
         "ok": True,
         "real_ingestion_allowed": True,
         "queue_depth": 0,
+        "classify_model": "qwen2.5:3b",
+        "vision_model": "qwen2.5vl:3b",
     }
     assert payload["classification_job_counts"] == {"completed": 1, "queued": 1}
     assert payload["classification_state_counts"] == {"completed": 1, "queued": 1}
@@ -314,7 +322,7 @@ def test_status_summary_requires_bearer_auth_when_plugin_token_is_set(tmp_path, 
     monkeypatch.setattr(
         status_service_module,
         "fetch_classifier_health",
-        lambda: {"ok": True},
+        lambda: {"ok": True, "classify_model": "qwen2.5:3b", "vision_model": "qwen2.5vl:3b"},
     )
     main_module.app.dependency_overrides[get_session] = override_get_session
 
@@ -361,7 +369,13 @@ def test_status_readiness_returns_live_summary_plus_readiness_report(tmp_path, m
     monkeypatch.setattr(
         status_service_module,
         "fetch_classifier_health",
-        lambda: {"ok": True, "real_ingestion_allowed": True, "queue_depth": 0},
+        lambda: {
+            "ok": True,
+            "real_ingestion_allowed": True,
+            "queue_depth": 0,
+            "classify_model": "qwen2.5:3b",
+            "vision_model": "qwen2.5vl:3b",
+        },
     )
     main_module.app.dependency_overrides[get_session] = override_get_session
     main_module.app.state.auth_session_state = "configured"
@@ -381,6 +395,9 @@ def test_status_readiness_returns_live_summary_plus_readiness_report(tmp_path, m
     assert payload["status_summary"]["auth_status"] == {"status": "configured", "database": "ok"}
     assert payload["product_readiness"]["success_criteria"][
         "cloudflare_remote_mcp_exists_and_is_the_intended_external_path"
+    ]["status"] == "met"
+    assert payload["product_readiness"]["success_criteria"][
+        "classifier_runtime_still_uses_qwen_models"
     ]["status"] == "met"
     assert payload["product_readiness"]["success_criteria"][
         "auth_and_deployment_story_is_real"

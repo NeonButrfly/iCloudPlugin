@@ -30,7 +30,11 @@ def test_product_readiness_report_marks_repo_surface_ready_but_cloudflare_auth_b
         "service_health": {"status": "ok"},
         "refresh_status": {"status": "running", "items_seen": 12},
         "provider_counts": {"icloud": 10, "google1": 3, "google2": 2},
-        "classifier_health": {"ok": True},
+        "classifier_health": {
+            "ok": True,
+            "classify_model": "qwen2.5:3b",
+            "vision_model": "qwen2.5vl:3b",
+        },
         "classification_job_counts": {"completed": 7, "queued": 1},
         "classification_state_counts": {"completed": 5, "queued": 2},
         "generated_note_context_gaps": {
@@ -55,6 +59,7 @@ def test_product_readiness_report_marks_repo_surface_ready_but_cloudflare_auth_b
     criteria = report["success_criteria"]
     assert criteria["aggregate_indexing_operational_and_observable"]["status"] == "met"
     assert criteria["full_ingestion_path_operational_and_observable"]["status"] == "met"
+    assert criteria["classifier_runtime_still_uses_qwen_models"]["status"] == "met"
     assert criteria["manual_note_feedback_loop_operational_and_observable"]["status"] == "met"
     assert criteria["generated_notes_use_correct_canonical_linking"]["status"] == "met"
     assert criteria["obsidian_vault_behavior_is_sane_and_documented"]["status"] == "met"
@@ -94,9 +99,50 @@ def test_product_readiness_report_blocks_runtime_checks_without_summary():
     criteria = report["success_criteria"]
     assert criteria["aggregate_indexing_operational_and_observable"]["status"] == "blocked"
     assert criteria["full_ingestion_path_operational_and_observable"]["status"] == "blocked"
+    assert criteria["classifier_runtime_still_uses_qwen_models"]["status"] == "blocked"
     assert criteria["manual_note_feedback_loop_operational_and_observable"]["status"] == "blocked"
     assert criteria["generated_notes_use_correct_canonical_linking"]["status"] == "unknown"
     assert (
         criteria["cloudflare_remote_mcp_exists_and_is_the_intended_external_path"]["status"]
         == "met"
     )
+
+
+def test_product_readiness_report_blocks_when_classifier_models_are_not_qwen():
+    repo_root = Path(__file__).resolve().parents[1]
+    summary_payload = {
+        "service_health": {"status": "ok"},
+        "refresh_status": {"status": "running", "items_seen": 12},
+        "provider_counts": {"icloud": 10},
+        "classifier_health": {
+            "ok": True,
+            "classify_model": "llama3.2:3b",
+            "vision_model": "qwen2.5vl:3b",
+        },
+        "classification_job_counts": {"completed": 7},
+        "classification_state_counts": {"completed": 5},
+        "generated_note_context_gaps": {
+            "total_generated_notes": 11,
+            "notes_missing_any_context": 0,
+            "missing_context_with_matching_completed_state": 0,
+            "missing_context_source_file_present": 0,
+        },
+        "vault_counts": {
+            "attachments_files": 0,
+            "classification_index_present": True,
+            "home_note_present": True,
+        },
+    }
+
+    report = build_product_readiness_report(
+        repo_root=repo_root,
+        summary_payload=summary_payload,
+        cloudflare_api_token_present=False,
+    )
+
+    criterion = report["success_criteria"]["classifier_runtime_still_uses_qwen_models"]
+    assert criterion["status"] == "blocked"
+    assert criterion["details"] == {
+        "classify_model": "llama3.2:3b",
+        "vision_model": "qwen2.5vl:3b",
+    }

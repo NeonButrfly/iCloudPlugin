@@ -74,6 +74,15 @@
 - Feedback-loop note: heuristics should keep learning from disagreement rules, LightGBM should retrain from the merged approved corpus, and Qwen should stay the shadow teacher through a dedicated single-runner `shadow-worker` service rather than an in-process API thread. If Qwen returns malformed non-JSON output during a shadow review, record a `shadow-error` row and drain that queue item instead of wedging the loop.
 - Affected systems: classifier runtime path resolution, readiness gating, LightGBM bootstrap/retrain path, shadow-worker deployment shape, operator docs.
 
+## 2026-05-31 - Keep Codex disabled and verify the live runtime is still on Qwen
+
+- Issue: [#53](https://github.com/NeonButrfly/iCloudPlugin/issues/53)
+- Source prompt: "continue without codex but put in framework verify we are still using qwen"
+- Interpreted requirement: keep Codex arbitration out of the live classifier path, but make the framework explicitly verify that the active text and vision models are still Qwen-based instead of assuming that from old deployment notes.
+- Runtime note: classifier `/health` should now expose `classify_model` and `vision_model`, and the consolidated cloudsync status/readiness surface should carry those through.
+- Readiness note: the product-readiness report should now expose a dedicated `classifier_runtime_still_uses_qwen_models` criterion that turns `blocked` if either active model is missing or no longer starts with `qwen`.
+- Affected systems: classifier API health payload, cloudsync status summary, product-readiness evaluation, operator docs.
+
 ## 2026-05-27 - Direct source-path ingestion instead of staged real-folder uploads
 
 - Issue: [#29](https://github.com/NeonButrfly/iCloudPlugin/issues/29)

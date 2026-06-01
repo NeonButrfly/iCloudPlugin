@@ -30,6 +30,8 @@ def test_classifier_runtime_paths_default_to_existing_locations(monkeypatch):
     assert settings.vault_root == expected_vault
     assert settings.manifest_path == expected_output / "manifest.jsonl"
     assert settings.readiness_report_path == expected_output / "readiness-report.json"
+    assert settings.classify_model == "qwen2.5:3b"
+    assert settings.vision_model == "qwen2.5vl:3b"
     assert settings.codex_arbiter_enabled is False
 
 
@@ -91,3 +93,15 @@ def test_codex_arbiter_runtime_settings_support_command_and_timeout_overrides(mo
 
     assert settings.codex_arbiter_command == "codex exec --skip-git-repo-check"
     assert settings.codex_arbiter_timeout_seconds == 45
+
+
+def test_classifier_runtime_settings_support_model_overrides(monkeypatch):
+    module = import_module("packages.runtime.classifier_settings")
+
+    monkeypatch.setenv("CLASSIFY_MODEL", "qwen2.5:7b")
+    monkeypatch.setenv("VISION_MODEL", "qwen2.5vl:7b")
+
+    settings = module.load_classifier_runtime_settings()
+
+    assert settings.classify_model == "qwen2.5:7b"
+    assert settings.vision_model == "qwen2.5vl:7b"
