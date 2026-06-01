@@ -878,11 +878,12 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - hosted MCP verification now succeeds for both:
     - `get_icloud_system_status`
     - `get_icloud_product_readiness`
-  - one nuance remains: the readiness payload can still report
-    `auth_and_deployment_story_is_real=blocked` from inside the origin service
-    container because that runtime does not itself carry the GitHub-hosted
-    Cloudflare deploy credentials, even though the hosted Worker proof is now
-    complete
+  - the readiness payload now uses the checked-in
+    `cloudflare/remote-mcp/live-hosted-proof.json` artifact as the durable
+    source of hosted-proof truth, so
+    `auth_and_deployment_story_is_real` can report `met` from the origin
+    service container without needing the GitHub-hosted Cloudflare deploy
+    credentials inside that runtime
 
 ## Not Finished Yet
 

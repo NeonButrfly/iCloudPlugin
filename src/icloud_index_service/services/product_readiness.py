@@ -21,6 +21,9 @@ REQUIRED_REMOTE_MCP_TOOLS = (
 )
 
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[3]
+REMOTE_MCP_HOSTED_PROOF_PATH = (
+    Path("cloudflare") / "remote-mcp" / "live-hosted-proof.json"
+)
 
 
 @dataclass(frozen=True)
@@ -98,6 +101,19 @@ def load_remote_mcp_tool_names(repo_root: Path) -> set[str]:
     return set()
 
 
+def load_remote_mcp_hosted_proof(repo_root: Path) -> dict[str, Any]:
+    proof_path = repo_root / REMOTE_MCP_HOSTED_PROOF_PATH
+    if not proof_path.is_file():
+        return {}
+
+    try:
+        payload = json.loads(proof_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    return payload if isinstance(payload, dict) else {}
+
+
 def collect_repo_surface_facts(repo_root: Path) -> dict[str, Any]:
     worker_dir = repo_root / "cloudflare" / "remote-mcp"
     plugin_server = repo_root / "src" / "icloud_plugin_mcp" / "server.py"
@@ -122,6 +138,7 @@ def collect_repo_surface_facts(repo_root: Path) -> dict[str, Any]:
         repo_root / "deploy" / "roles" / "cloudsync" / "run_targeted_classification_batch.sh"
     )
     tool_names = load_remote_mcp_tool_names(repo_root)
+    hosted_proof = load_remote_mcp_hosted_proof(repo_root)
     has_full_tool_surface, missing_tools = _has_remote_mcp_tool_surface(tool_names)
 
     return {
@@ -137,6 +154,8 @@ def collect_repo_surface_facts(repo_root: Path) -> dict[str, Any]:
         "codex_readiness_helper_present": codex_readiness_helper.is_file(),
         "codex_smoke_helper_present": codex_smoke_helper.is_file(),
         "legacy_note_reconciliation_helper_present": targeted_batch_helper.is_file(),
+        "remote_mcp_hosted_proof_present": bool(hosted_proof),
+        "remote_mcp_hosted_proof": hosted_proof,
         "remote_mcp_submission_tool_names": sorted(tool_names),
         "remote_mcp_has_full_required_tool_surface": has_full_tool_surface,
         "remote_mcp_missing_required_tools": missing_tools,
@@ -406,6 +425,28 @@ def _evaluate_auth_and_deploy_story(
         return ReadinessCheck(
             "blocked",
             "Remote MCP GitHub secret bootstrap helper is missing.",
+        )
+
+    hosted_proof = _coerce_mapping(repo_facts.get("remote_mcp_hosted_proof"))
+    workflow_runs = _coerce_mapping(hosted_proof.get("workflow_runs"))
+    verified_probe_tools = hosted_proof.get("verified_probe_tools")
+    if (
+        repo_facts.get("remote_mcp_hosted_proof_present") is True
+        and str(hosted_proof.get("worker_base_url", "")).strip()
+        and str(workflow_runs.get("deploy_and_verify", "")).strip()
+        and isinstance(verified_probe_tools, list)
+        and {"get_icloud_system_status", "get_icloud_product_readiness"} <= set(
+            str(item).strip() for item in verified_probe_tools
+        )
+    ):
+        return ReadinessCheck(
+            "met",
+            "Hosted Cloudflare remote MCP proof is captured in the repo.",
+            {
+                "worker_base_url": hosted_proof.get("worker_base_url"),
+                "workflow_runs": workflow_runs,
+                "verified_probe_tools": verified_probe_tools,
+            },
         )
 
     if cloudflare_api_token_present:

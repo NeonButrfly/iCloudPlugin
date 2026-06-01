@@ -1319,11 +1319,14 @@ cd cloudflare/remote-mcp
 node scripts/dev-and-verify.mjs --secrets-file .dev.vars --json
 ```
 
-One subtlety remains in the readiness surface: `GET /status/readiness` can still
-report the `auth_and_deployment_story_is_real` criterion conservatively from
-inside the origin service container because that runtime does not itself carry
-the GitHub-hosted Cloudflare deploy credentials. The hosted Worker proof above
-is the canonical evidence that the external path is now real.
+`GET /status/readiness` now treats the hosted Cloudflare path as fully proven
+when the repo carries a valid
+`cloudflare/remote-mcp/live-hosted-proof.json` artifact. That checked-in proof
+captures the hosted Worker URL, the successful GitHub workflow runs, and the
+verified MCP probe tools, so the
+`auth_and_deployment_story_is_real` criterion can report `met` even from inside
+the origin service container where the GitHub-side deploy credentials are not
+present.
 
 For one consolidated repo-plus-runtime audit while those external blockers are
 still in play, pair a saved live-status artifact with the readiness helper:

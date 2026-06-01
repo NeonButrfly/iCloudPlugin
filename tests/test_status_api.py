@@ -401,5 +401,5 @@ def test_status_readiness_returns_live_summary_plus_readiness_report(tmp_path, m
     ]["status"] == "met"
     assert payload["product_readiness"]["success_criteria"][
         "auth_and_deployment_story_is_real"
-    ]["status"] == "blocked"
+    ]["status"] == "met"
     assert isinstance(payload["generated_at"], str)

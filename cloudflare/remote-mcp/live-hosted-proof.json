@@ -1,0 +1,15 @@
+{
+  "worker_base_url": "https://icloudplugin-remote-mcp.kaymayers9.workers.dev",
+  "worker_health_url": "https://icloudplugin-remote-mcp.kaymayers9.workers.dev/healthz",
+  "verified_at": "2026-06-01T02:02:32+00:00",
+  "auth_mode": "worker-api-token",
+  "verified_probe_tools": [
+    "get_icloud_system_status",
+    "get_icloud_product_readiness"
+  ],
+  "workflow_runs": {
+    "mcp_verify_system_status": "https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26731186121",
+    "mcp_verify_product_readiness": "https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26731232850",
+    "deploy_and_verify": "https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26731247268"
+  }
+}
