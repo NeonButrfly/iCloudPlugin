@@ -458,6 +458,27 @@ For a bounded reconciliation-only proof of legacy-note context repair:
   - the helper prints before/after generated-note classifier-context gap counts
   - the JSON artifact captures both the gap summaries and the direct
     reconciliation result payload from `run_vault_reconciliation_once()`
+  - run this proof on the writable compute host (`tichuml1`), not on
+    `kayraspi`; `kayraspi` keeps the legacy Postgres role but its cloud-vault
+    mount is read-only and reconciliation repairs will fail when they try to
+    write updated notes
+  - live proof on `tichuml1` on 2026-05-31 AKDT with
+    `--reconciliation-limit 25`:
+    - first bounded pass reported
+      `{"ambiguous":0,"repaired":11,"scanned":25,"skipped":5,"unverified":0}`
+    - immediate second pass reported
+      `{"ambiguous":0,"repaired":0,"scanned":25,"skipped":5,"unverified":0}`
+    - stable after-state from the second pass:
+      - `total_generated_notes=139`
+      - `notes_missing_any_context=0`
+      - `missing_context_with_matching_completed_state=0`
+      - `missing_context_without_matching_state=0`
+      - `missing_context_source_file_present=0`
+    - spot-checked repaired notes now carry populated classifier-context
+      frontmatter such as:
+      - `source_parser`
+      - `heuristic_primary_hint`
+      - `hybrid_live_source`
 
 - for one unified live operator status read on the compute host, use:
 

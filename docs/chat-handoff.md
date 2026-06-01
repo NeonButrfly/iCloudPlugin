@@ -563,6 +563,31 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   run a bounded `--reconciliation-only` proof pass and capture before/after
   generated-note context-gap summaries plus the direct reconciliation result in
   one JSON artifact, which is the intended live-proof path for issue `#52`
+- live proof on 2026-05-31 AKDT now confirms the intended host split for
+  issue `#52`:
+  - `kayraspi` is **not** the right proof host for reconciliation repair
+    because its cloud-vault mount is read-only; a bounded reconciliation pass
+    there failed when note repair tried to write back into
+    `/srv/cloud-vault/document-vault`
+  - `tichuml1` **is** the right proof host because it has the writable shared
+    vault mount and can still reach the remote Postgres on `kayraspi`
+  - using a temporary current-checkout proof run on `tichuml1` with
+    `--reconciliation-limit 25`:
+    - the first bounded pass reported
+      `{"ambiguous":0,"repaired":11,"scanned":25,"skipped":5,"unverified":0}`
+    - an immediate second pass reported
+      `{"ambiguous":0,"repaired":0,"scanned":25,"skipped":5,"unverified":0}`
+    - stable post-repair note-context summary:
+      - `total_generated_notes=139`
+      - `notes_missing_any_context=0`
+      - `missing_context_with_matching_completed_state=0`
+      - `missing_context_without_matching_state=0`
+      - `missing_context_source_file_present=0`
+  - spot checks on freshly touched notes under `/mnt/cloud-vault/document-vault`
+    now show populated:
+    - `source_parser`
+    - `heuristic_primary_hint`
+    - `hybrid_live_source`
 - a bounded live reconciliation pass on 2026-05-29 AKDT repaired `24` out of
   `25` completed-state notes scanned and reduced generated notes missing that
   newer classifier-context frontmatter from `42` to `19`
