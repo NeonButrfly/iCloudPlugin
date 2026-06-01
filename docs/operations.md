@@ -515,11 +515,20 @@ For a bounded reconciliation-only proof of legacy-note context repair:
       - `02 Needs Review`
       - `90 Attachments`
       - `_system/extracted-markdown`
+  - use this on `tichuml1` for the live cloud-vault monitor path; `kayraspi`
+    no longer serves the active local `/refresh/status` listener
   - like the targeted batch helper, it supports the compute-only cutover where
     the cloudsync host uses remote Postgres instead of a local compose
     `postgres` service
   - if Docker requires elevation on the host, run it with either passwordless
     `sudo` or `SUDO_PASSWORD=...` for a one-shot elevated report
+  - live backlog triage on 2026-06-01 AKDT found the main failed-job spike was
+    caused by temporary classifier readiness-gate `409` responses with
+    `shadow-queue-backlog-too-deep`; the cloudsync worker now keeps those
+    submissions queued without consuming retry budget
+  - `classification_jobs` counts are cumulative history, so interpret them
+    alongside `classification_states` and classifier `/readiness` when judging
+    the live backlog
 
 - if a bounded run is interrupted, or a long file is intentionally stopped
   mid-pass, recover stale `running` jobs before the next batch:

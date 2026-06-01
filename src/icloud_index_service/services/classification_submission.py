@@ -805,8 +805,9 @@ def _persist_failed_classification(
     error_message: str,
     now: datetime,
     permanent: bool,
+    count_against_attempt_budget: bool = True,
 ) -> ClassificationJob:
-    attempt_count = job.attempt_count + 1
+    attempt_count = job.attempt_count + (1 if count_against_attempt_budget else 0)
     job.attempt_count = attempt_count
     job.worker_id = None
     job.claimed_at = None
@@ -906,7 +907,20 @@ def run_next_classification_job(
             now=_utc_now(),
             permanent=True,
         )
-    except (ClassifierSubmissionNotReadyError, RuntimeError, httpx.HTTPError) as exc:
+    except ClassifierSubmissionNotReadyError as exc:
+        return _persist_failed_classification(
+            session,
+            job=claimed_job,
+            file_record=file_record,
+            error_message=(
+                "Retrying classification job after classifier readiness gate "
+                f"without penalty: {exc}"
+            ),
+            now=_utc_now(),
+            permanent=False,
+            count_against_attempt_budget=False,
+        )
+    except (RuntimeError, httpx.HTTPError) as exc:
         return _persist_failed_classification(
             session,
             job=claimed_job,

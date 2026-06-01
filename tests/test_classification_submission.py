@@ -509,6 +509,75 @@ def test_classifier_api_client_treats_real_folder_readiness_conflict_as_retryabl
         client.submit_file(file_path=local_file, file_name=local_file.name)
 
 
+def test_run_next_classification_job_keeps_readiness_gated_failures_queued_without_penalty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    mirror_root = tmp_path / "mirror"
+    local_file = mirror_root / "Docs" / "Plan.txt"
+    local_file.parent.mkdir(parents=True)
+    local_file.write_bytes(b"plan")
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+
+    try:
+        _add_file(
+            session,
+            external_id="txt-readiness-1",
+            name="Plan.txt",
+            path="/Docs/Plan.txt",
+            mime_type="text/plain",
+            extension="txt",
+            size_bytes=4,
+        )
+        enqueue_classification_backfill(session, limit=10)
+        gated_client = FakeClassifierClient(
+            error=ClassifierSubmissionNotReadyError(
+                "Classifier API not ready yet (409): "
+                '{"detail":"Real-folder ingestion is blocked until readiness thresholds pass and '
+                'allow_real_ingestion is enabled: shadow-queue-backlog-too-deep"}'
+            )
+        )
+
+        first_attempt = run_next_classification_job(
+            session,
+            client=gated_client,
+            worker_id="classifier-a",
+        )
+        second_attempt = run_next_classification_job(
+            session,
+            client=gated_client,
+            worker_id="classifier-a",
+        )
+        third_attempt = run_next_classification_job(
+            session,
+            client=gated_client,
+            worker_id="classifier-a",
+        )
+        stored_job = session.scalar(select(ClassificationJob).order_by(ClassificationJob.id.desc()).limit(1))
+        stored_state = session.scalar(select(ClassificationState).limit(1))
+    finally:
+        session.close()
+
+    assert first_attempt is not None
+    assert first_attempt.status == CLASSIFICATION_STATUS_QUEUED
+    assert second_attempt is not None
+    assert second_attempt.status == CLASSIFICATION_STATUS_QUEUED
+    assert third_attempt is not None
+    assert third_attempt.status == CLASSIFICATION_STATUS_QUEUED
+    assert stored_job is not None
+    assert stored_job.attempt_count == 0
+    assert stored_job.error_message is not None
+    assert "without penalty" in stored_job.error_message
+    assert stored_state is not None
+    assert stored_state.submission_status == CLASSIFICATION_STATUS_QUEUED
+    assert stored_state.last_error is not None
+    assert "shadow-queue-backlog-too-deep" in stored_state.last_error
+
+
 def test_create_classifier_api_client_requires_token_when_submission_enabled(
     monkeypatch: pytest.MonkeyPatch,
 ):

@@ -92,8 +92,25 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 ## Current Status
 
 - `tichuml1` `iCloudPlugin` health is OK on `127.0.0.1:8080`
+- `tichuml1` is the authoritative live monitor target for cloud-vault refresh
+  and backlog checks
+- `kayraspi` no longer serves the live local `/refresh/status` listener; it now
+  only carries the legacy Postgres role during the compute-only cutover
 - `tichuml1` `/refresh/status` is still running the active aggregate
   background scan
+- live classifier backlog triage on 2026-06-01 AKDT found the main failed-job
+  spike was not a Qwen/model drift problem:
+  - `classification_jobs={completed:551, failed:140, queued:1257, running:1}`
+  - `classification_jobs` is cumulative job history, not just unsatisfied backlog
+  - classifier `/readiness` on `tichuml1` already showed
+    `real_ingestion_allowed=true`
+  - `132` failed jobs were legacy temporary 409 readiness-gate rejections with
+    `shadow-queue-backlog-too-deep`
+  - repo fix: the classification worker now keeps those readiness-gated
+    rejections queued without consuming attempt budget
+- issue [#58](https://github.com/NeonButrfly/iCloudPlugin/issues/58) tracks a
+  separate live-ops risk on `tichuml1`: root filesystem exhaustion can block
+  routine repo writes and deploy backups until space is reclaimed
 - live `/refresh/status` on 2026-05-30 AKDT shows:
   - `status=running`
   - `job_id=12`
