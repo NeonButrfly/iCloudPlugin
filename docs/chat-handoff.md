@@ -846,15 +846,30 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   `/srv/cloud-vault/mirrors/google1/Aetna Life Insurance Company - APPEAL 1 FFS.docx`
   and created an `appeal` note in `document-vault`
 - `kayraspi2` remains the storage/share/proxy host
+- Cloudflare remote MCP hosted proof is now real on 2026-05-31 AKDT:
+  - Worker URL:
+    - `https://icloudplugin-remote-mcp.kaymayers9.workers.dev`
+  - GitHub Actions hosted verification passed:
+    - `mcp-verify-only` with `get_icloud_system_status`:
+      - `https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26731186121`
+    - `mcp-verify-only` with default `get_icloud_product_readiness`:
+      - `https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26731232850`
+    - full `deploy-and-verify`:
+      - `https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26731247268`
+  - `tichuml1` origin was reproven from a temporary current checkout so
+    `GET /status/readiness` is now live both locally and through
+    `https://clouddrive.neonbutterfly.net/status/readiness`
+  - hosted MCP verification now succeeds for both:
+    - `get_icloud_system_status`
+    - `get_icloud_product_readiness`
+  - one nuance remains: the readiness payload can still report
+    `auth_and_deployment_story_is_real=blocked` from inside the origin service
+    container because that runtime does not itself carry the GitHub-hosted
+    Cloudflare deploy credentials, even though the hosted Worker proof is now
+    complete
 
 ## Not Finished Yet
 
-- prove and, if needed, finish the new source-derived repair path for the
-  remaining legacy generated notes that still lack `source_parser` /
-  `heuristic_primary_hint` / `hybrid_live_source` when their state rows are
-  still queued or missing entirely
-  ([#52](https://github.com/NeonButrfly/iCloudPlugin/issues/52),
-  [#1](https://github.com/NeonButrfly/iCloudPlugin/issues/1))
 - retire/archive the old standalone `local-doc-classifier` checkout after safe
   soak period ([#1](https://github.com/NeonButrfly/iCloudPlugin/issues/1))
 - optionally move cloudsync Postgres off `kayraspi` later if the compute-only
@@ -862,13 +877,9 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 - keep the Codex final-arbiter path disabled until issue
   [#20](https://github.com/NeonButrfly/iCloudPlugin/issues/20) is fully
   implemented and deliberately enabled
-- deploy and validate the new Cloudflare remote MCP slice once Cloudflare
-  account auth is available in-session
-  ([#48](https://github.com/NeonButrfly/iCloudPlugin/issues/48))
 - decide whether the Worker itself will sit behind Cloudflare Access, another
   OAuth front door, or a different auth product before calling the external MCP
-  path production-ready
-  ([#48](https://github.com/NeonButrfly/iCloudPlugin/issues/48))
+  path production-ready ([#1](https://github.com/NeonButrfly/iCloudPlugin/issues/1))
 
 ## Recent Commits That Matter
 

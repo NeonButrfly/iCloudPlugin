@@ -1040,9 +1040,9 @@ python ./scripts/report_product_readiness.py \
   - reconciliation proof helpers
 - if `PLUGIN_API_TOKEN` is present in the shell environment, the helper uses it
   to authenticate to `/status/summary`
-- if `CLOUDFLARE_API_TOKEN` is absent, the report keeps the auth/deploy
-  criterion explicitly blocked instead of implying the hosted Worker has
-  already been proven live
+- if `CLOUDFLARE_API_TOKEN` is absent in the local shell, the helper keeps the
+  auth/deploy criterion conservative instead of implying the hosted Worker has
+  already been proven from that local environment alone
 - use `--summary-file` when you want to evaluate a saved
   `report_live_status.sh --summary-json ...` artifact instead of calling the
   live service directly
@@ -1254,12 +1254,35 @@ Live proof used file `23`
   - `provider_counts={icloud:37866, google1:1991, google2:1409}`
   - `vault_counts={classified_files:9, needs_review_files:6, attachments_files:0, extracted_markdown_files:15}`
 
-Cloudflare account-side deployment is still blocked from this environment:
+Hosted Cloudflare proof is now live as of 2026-05-31 AKDT:
 
-- `npx wrangler whoami` reports `Not logged in`
-- non-interactive deploy/list flows require `CLOUDFLARE_API_TOKEN`
+- the Worker is live at:
+  - `https://icloudplugin-remote-mcp.kaymayers9.workers.dev`
+- the current GitHub-side bootstrap is now populated for the hosted path:
+  - repo secrets:
+    - `CLOUDFLARE_API_TOKEN`
+    - `REMOTE_MCP_ORIGIN_BASE_URL`
+    - `REMOTE_MCP_ORIGIN_API_TOKEN`
+    - `REMOTE_MCP_WORKER_API_TOKEN`
+  - repo variable:
+    - `REMOTE_MCP_PUBLIC_BASE_URL`
+- the origin service on `tichuml1` was reproven live from a temporary
+  current-checkout deployment so `GET /status/readiness` is now present both:
+  - locally on `http://127.0.0.1:8080/status/readiness`
+  - publicly through `https://clouddrive.neonbutterfly.net/status/readiness`
+- hosted proof succeeded through both the local verifier and the GitHub-hosted
+  workflow:
+  - local hosted MCP proof with worker token:
+    - `node scripts/verify-mcp-tools.mjs --base-url https://icloudplugin-remote-mcp.kaymayers9.workers.dev --token <worker token> --probe-tool get_icloud_product_readiness --json`
+  - GitHub Actions `mcp-verify-only` using `get_icloud_system_status`:
+    - `https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26731186121`
+  - GitHub Actions `mcp-verify-only` using the default
+    `get_icloud_product_readiness` probe:
+    - `https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26731232850`
+  - full GitHub Actions `deploy-and-verify` proof:
+    - `https://github.com/NeonButrfly/iCloudPlugin/actions/runs/26731247268`
 
-When Cloudflare auth is available again, the preferred deploy path is now:
+The preferred deploy path remains:
 
 ```bash
 cd cloudflare/remote-mcp
@@ -1270,13 +1293,19 @@ That flow pushes `ORIGIN_BASE_URL`, `ORIGIN_API_TOKEN`, and optional
 `WORKER_API_TOKEN` into Worker secrets before the deploy, instead of requiring
 separate manual `wrangler secret put` steps.
 
-When Cloudflare auth is still unavailable, the preferred local verification
-path is now:
+When you want a local deploy-shaped check without touching the hosted Worker,
+the preferred local verification path is:
 
 ```bash
 cd cloudflare/remote-mcp
 node scripts/dev-and-verify.mjs --secrets-file .dev.vars --json
 ```
+
+One subtlety remains in the readiness surface: `GET /status/readiness` can still
+report the `auth_and_deployment_story_is_real` criterion conservatively from
+inside the origin service container because that runtime does not itself carry
+the GitHub-hosted Cloudflare deploy credentials. The hosted Worker proof above
+is the canonical evidence that the external path is now real.
 
 For one consolidated repo-plus-runtime audit while those external blockers are
 still in play, pair a saved live-status artifact with the readiness helper:
