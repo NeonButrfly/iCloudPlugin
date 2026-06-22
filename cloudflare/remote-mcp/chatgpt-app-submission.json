@@ -127,6 +127,30 @@
         "open_world_justification": "Only enqueues work on the private cloud-vault backend and does not publish or send changes to public internet systems.",
         "destructive_justification": "Does not delete data or perform irreversible actions; it only requests a new internal refresh run."
       }
+    },
+    "pause_icloud_index": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Changes internal backend refresh state by pausing background indexing while preserving resumable progress.",
+        "open_world_justification": "Only updates the private cloud-vault backend control state and does not publish or send changes to public internet systems.",
+        "destructive_justification": "Does not delete data or perform irreversible actions; it only pauses the current internal refresh loop."
+      }
+    },
+    "resume_icloud_index": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Changes internal backend refresh state by resuming paused indexing from the saved frontier.",
+        "open_world_justification": "Only updates the private cloud-vault backend control state and does not publish or send changes to public internet systems.",
+        "destructive_justification": "Does not delete data or perform irreversible actions; it only resumes internal refresh work."
+      }
     }
   },
   "test_cases": [
@@ -176,6 +200,22 @@
       "file_attachment_urls": null,
       "tools_triggered": "refresh_icloud_index",
       "expected_output": "Acknowledges that a private refresh run was queued on the backing service.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Pause a long-running metadata refresh without losing progress.",
+      "user_prompt": "Pause the cloud-vault metadata refresh for now but keep the saved progress so it can resume later.",
+      "file_attachment_urls": null,
+      "tools_triggered": "pause_icloud_index",
+      "expected_output": "Acknowledges that the private refresh loop is paused and that resumable progress was preserved.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Resume a paused metadata refresh from the saved frontier.",
+      "user_prompt": "Resume the paused cloud-vault metadata refresh.",
+      "file_attachment_urls": null,
+      "tools_triggered": "resume_icloud_index",
+      "expected_output": "Acknowledges that paused refresh work was requeued or resumed from its saved progress state.",
       "expected_output_url": null
     },
     {

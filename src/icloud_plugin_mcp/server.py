@@ -149,6 +149,20 @@ def refresh_icloud_index() -> dict[str, Any]:
         return client.refresh_index()
 
 
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def pause_icloud_index() -> dict[str, Any]:
+    """Pause background iCloud Drive metadata refresh work while preserving resumable progress."""
+    with build_service_client_from_env() as client:
+        return client.pause_index()
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def resume_icloud_index() -> dict[str, Any]:
+    """Resume paused iCloud Drive metadata refresh work from the saved frontier."""
+    with build_service_client_from_env() as client:
+        return client.resume_index()
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run the local MCP proxy for the iCloud index service.",

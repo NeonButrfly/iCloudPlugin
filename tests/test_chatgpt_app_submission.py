@@ -33,12 +33,18 @@ def test_remote_mcp_chatgpt_app_submission_matches_current_tool_surface():
         "get_icloud_source_reference",
         "get_icloud_file_bundle",
         "refresh_icloud_index",
+        "pause_icloud_index",
+        "resume_icloud_index",
     }
 
     tools = payload["tools"]
     assert set(tools) == expected_tools
 
-    for tool_name in expected_tools - {"refresh_icloud_index"}:
+    for tool_name in expected_tools - {
+        "refresh_icloud_index",
+        "pause_icloud_index",
+        "resume_icloud_index",
+    }:
         annotations = tools[tool_name]["annotations"]
         assert annotations == {
             "readOnlyHint": True,
@@ -46,11 +52,12 @@ def test_remote_mcp_chatgpt_app_submission_matches_current_tool_surface():
             "destructiveHint": False,
         }
 
-    assert tools["refresh_icloud_index"]["annotations"] == {
-        "readOnlyHint": False,
-        "openWorldHint": False,
-        "destructiveHint": False,
-    }
+    for tool_name in {"refresh_icloud_index", "pause_icloud_index", "resume_icloud_index"}:
+        assert tools[tool_name]["annotations"] == {
+            "readOnlyHint": False,
+            "openWorldHint": False,
+            "destructiveHint": False,
+        }
 
     assert len(payload["test_cases"]) >= 5
     assert len(payload["negative_test_cases"]) >= 3

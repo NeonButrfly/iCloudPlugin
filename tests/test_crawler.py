@@ -24,16 +24,19 @@ from icloud_index_service.services.icloud_web_client import ICloudWebClient
 from icloud_index_service.services.job_runner import (
     JOB_STATUS_COMPLETED,
     JOB_STATUS_FAILED,
+    JOB_STATUS_PAUSED,
     JOB_STATUS_QUEUED,
     JOB_STATUS_RUNNING,
     METADATA_REFRESH_JOB_TYPE,
     apply_running_job_lease_update,
+    pause_background_refresh,
     SchemaNotReadyError,
     apply_stale_recovery_update,
     claim_next_metadata_refresh_job,
     enqueue_metadata_refresh,
     recover_stale_running_jobs,
     renew_refresh_job_heartbeat,
+    resume_background_refresh,
     run_next_job,
 )
 from icloud_index_service.worker import run_worker_loop
@@ -278,9 +281,17 @@ def test_refresh_status_reports_latest_job_progress(tmp_path):
     finally:
         session.close()
 
-    assert idle_payload == {"status": "idle"}
+    assert idle_payload == {
+        "status": "idle",
+        "paused": False,
+        "pause_updated_at": None,
+        "pause_reason": None,
+    }
     assert active_payload == {
         "status": "running",
+        "paused": False,
+        "pause_updated_at": None,
+        "pause_reason": None,
         "job_id": 1,
         "job_type": "metadata-refresh",
         "source": "background-scan",
@@ -353,6 +364,107 @@ def test_refresh_status_reports_batch_timing_and_liveness_details(tmp_path, monk
     assert active_payload["current_batch_items_remaining"] == 4
     assert active_payload["last_batch_size"] == 5
     assert active_payload["last_batch_duration_seconds"] == 14.25
+
+
+def test_pause_background_refresh_persists_pause_state_and_releases_active_lease(
+    tmp_path,
+    monkeypatch,
+):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+    control_path = tmp_path / "refresh-control.json"
+    monkeypatch.setenv("ICLOUD_REFRESH_CONTROL_PATH", str(control_path))
+
+    try:
+        queued_job = enqueue_metadata_refresh(session)
+        running_job = claim_next_metadata_refresh_job(session, worker_id="worker-a")
+
+        paused_payload = pause_background_refresh(session, reason="operator pause")
+        reloaded_job = session.scalar(select(Job).where(Job.id == queued_job.id))
+        status_payload = get_refresh_status(session)
+    finally:
+        session.close()
+
+    assert running_job is not None
+    assert paused_payload["paused"] is True
+    assert paused_payload["reason"] == "operator pause"
+    assert control_path.is_file()
+    assert reloaded_job is not None
+    assert reloaded_job.status == JOB_STATUS_PAUSED
+    reloaded_job_payload = json.loads(reloaded_job.payload_json or "{}")
+    assert "claimed_at" not in reloaded_job_payload
+    assert "heartbeat_at" not in reloaded_job_payload
+    assert "worker_id" not in reloaded_job_payload
+    assert status_payload["paused"] is True
+    assert status_payload["status"] == JOB_STATUS_PAUSED
+
+
+def test_resume_background_refresh_clears_pause_state_and_requeues_paused_job(
+    tmp_path,
+    monkeypatch,
+):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+    control_path = tmp_path / "refresh-control.json"
+    monkeypatch.setenv("ICLOUD_REFRESH_CONTROL_PATH", str(control_path))
+
+    try:
+        queued_job = enqueue_metadata_refresh(session)
+        claim_next_metadata_refresh_job(session, worker_id="worker-a")
+        pause_background_refresh(session, reason="operator pause")
+
+        resumed_payload = resume_background_refresh(session, reason="operator resume")
+        reloaded_job = session.scalar(select(Job).where(Job.id == queued_job.id))
+        status_payload = get_refresh_status(session)
+    finally:
+        session.close()
+
+    assert resumed_payload["paused"] is False
+    assert resumed_payload["reason"] == "operator resume"
+    assert reloaded_job is not None
+    assert reloaded_job.status == JOB_STATUS_QUEUED
+    assert status_payload["paused"] is False
+    assert status_payload["status"] == JOB_STATUS_QUEUED
+
+
+def test_run_worker_once_skips_refresh_work_while_paused(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    setup_session = session_factory()
+    control_path = tmp_path / "refresh-control.json"
+    monkeypatch.setenv("ICLOUD_REFRESH_CONTROL_PATH", str(control_path))
+    monkeypatch.setenv("BACKGROUND_REFRESH_INTERVAL_SECONDS", "60")
+
+    try:
+        enqueue_metadata_refresh(setup_session)
+        pause_background_refresh(setup_session, reason="operator pause")
+    finally:
+        setup_session.close()
+
+    processed_count = worker_module.run_worker_once(
+        session_factory=session_factory,
+        worker_id="worker-a",
+        client=FakeICloudWebClient(
+            [
+                {
+                    "id": "paused-file",
+                    "name": "Paused.txt",
+                    "path": "/Work/Paused.txt",
+                    "extension": "txt",
+                    "contentType": "text/plain",
+                }
+            ]
+        ),
+    )
+
+    verification_session = session_factory()
+    try:
+        stored_jobs = verification_session.scalars(select(Job).order_by(Job.id.asc())).all()
+    finally:
+        verification_session.close()
+
+    assert processed_count == 0
+    assert len(stored_jobs) == 1
+    assert stored_jobs[0].status == JOB_STATUS_PAUSED
 
 
 def test_refresh_job_schema_readiness_caches_success_by_bind(tmp_path, monkeypatch):

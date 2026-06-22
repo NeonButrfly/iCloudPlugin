@@ -200,6 +200,14 @@ SUDO_PASSWORD=... bash ./deploy/roles/cloudsync/install_storage_host_sync_assets
 - `ICLOUD_PDF_OCR_DPI` controls PDF page render resolution for OCR fallback
 - batch progress is stored in the `jobs` payload, so the worker can immediately
   resume where it left off after a restart
+- operators can now explicitly pause and resume aggregate refresh work without
+  discarding the saved frontier:
+  - `POST /refresh/pause`
+  - `POST /refresh/resume`
+  - pause state is stored in `.runtime/refresh-control.json` by default
+  - paused refresh jobs move to `status=paused` and release their active lease
+  - resume requeues the latest paused job so the worker continues from the
+    saved progress snapshot
 - `/refresh/status` now exposes live batch-liveness fields from that payload so
   operators can tell the difference between a stalled worker and a slow OCR-
   heavy batch, including:
@@ -1011,6 +1019,8 @@ The local MCP bridge now exposes:
 - `get_icloud_source_reference`
 - `get_icloud_file_bundle`
 - `refresh_icloud_index`
+- `pause_icloud_index`
+- `resume_icloud_index`
 
 The backing service now exposes plugin-facing note/source routes:
 
@@ -1110,7 +1120,8 @@ first production-shaped external MCP slice in
   explicit MCP tool annotations:
   - read tools set `readOnlyHint=true`, `openWorldHint=false`,
     `destructiveHint=false`
-  - `refresh_icloud_index` sets `readOnlyHint=false`,
+  - `refresh_icloud_index`, `pause_icloud_index`, and `resume_icloud_index`
+    set `readOnlyHint=false`,
     `openWorldHint=false`, `destructiveHint=false`
 - both MCP surfaces now also advertise an explicit `outputSchema` for every
   tool instead of leaving object-shaped results implicit

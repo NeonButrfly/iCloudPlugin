@@ -22,6 +22,8 @@ def test_remote_mcp_submission_artifact_exposes_expected_tool_surface():
         "get_icloud_source_reference",
         "get_icloud_file_bundle",
         "refresh_icloud_index",
+        "pause_icloud_index",
+        "resume_icloud_index",
     }
 
 
@@ -75,7 +77,9 @@ def _build_minimal_repo_root(
     "get_icloud_note": {},
     "get_icloud_source_reference": {},
     "get_icloud_file_bundle": {},
-    "refresh_icloud_index": {}
+    "refresh_icloud_index": {},
+    "pause_icloud_index": {},
+    "resume_icloud_index": {}
   }
 }
 """,

@@ -292,6 +292,38 @@ export function createServer(env: Env, request: Request): McpServer {
     },
   );
 
+  server.registerTool(
+    "pause_icloud_index",
+    {
+      description: "Pause background metadata refresh work on the backing cloud-vault index service.",
+      inputSchema: {},
+      outputSchema: genericJsonObjectSchema,
+      annotations: internalWriteAnnotations,
+    },
+    async () => {
+      const payload = await fetchOriginJson(env, "/refresh/pause", {
+        method: "POST",
+      });
+      return jsonToolResult(payload);
+    },
+  );
+
+  server.registerTool(
+    "resume_icloud_index",
+    {
+      description: "Resume paused background metadata refresh work from the saved cloud-vault frontier.",
+      inputSchema: {},
+      outputSchema: genericJsonObjectSchema,
+      annotations: internalWriteAnnotations,
+    },
+    async () => {
+      const payload = await fetchOriginJson(env, "/refresh/resume", {
+        method: "POST",
+      });
+      return jsonToolResult(payload);
+    },
+  );
+
   return server;
 }
 

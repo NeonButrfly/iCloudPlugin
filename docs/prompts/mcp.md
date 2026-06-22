@@ -129,6 +129,18 @@
   - both the repo-local FastMCP bridge and the Cloudflare Worker tool surface
     should expose an `outputSchema` for every tool
 - Follow-up implementation slice:
+  - add explicit aggregate refresh control surfaces so operators can pause and
+    resume a long-running index without losing the saved frontier
+  - expose:
+    - origin `POST /refresh/pause`
+    - origin `POST /refresh/resume`
+    - local MCP `pause_icloud_index`
+    - local MCP `resume_icloud_index`
+    - Cloudflare Worker `pause_icloud_index`
+    - Cloudflare Worker `resume_icloud_index`
+  - persist pause state outside the database so worker restarts continue to
+    respect the operator pause until an explicit resume request arrives
+- Follow-up implementation slice:
   - add a `chatgpt-app-submission.json` artifact for the remote MCP surface so
     the current ChatGPT Apps submission-facing view of the product is checked
     into the repo instead of being reconstructed from memory

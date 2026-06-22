@@ -17,6 +17,8 @@ remote MCP tools over Streamable HTTP at `/mcp`.
 - `get_icloud_source_reference`
 - `get_icloud_file_bundle`
 - `refresh_icloud_index`
+- `pause_icloud_index`
+- `resume_icloud_index`
 
 The source-reference tool includes a Worker download URL when the origin reports
 that the original file can be handed off safely.
@@ -28,6 +30,8 @@ All Worker tools now also declare explicit MCP tool annotations:
   - `openWorldHint=false`
   - `destructiveHint=false`
 - `refresh_icloud_index` sets:
+- `pause_icloud_index` sets:
+- `resume_icloud_index` sets:
   - `readOnlyHint=false`
   - `openWorldHint=false`
   - `destructiveHint=false`

@@ -141,6 +141,60 @@ def test_refresh_index_posts_to_refresh_endpoint():
     assert str(captured_request.url) == "http://service.test/refresh"
 
 
+def test_pause_index_posts_to_refresh_pause_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(
+            202,
+            json={"paused": True, "status": "paused"},
+        )
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.pause_index()
+    finally:
+        client.close()
+
+    assert payload == {"paused": True, "status": "paused"}
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    assert str(captured_request.url) == "http://service.test/refresh/pause"
+
+
+def test_resume_index_posts_to_refresh_resume_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(
+            202,
+            json={"paused": False, "status": "queued"},
+        )
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.resume_index()
+    finally:
+        client.close()
+
+    assert payload == {"paused": False, "status": "queued"}
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    assert str(captured_request.url) == "http://service.test/refresh/resume"
+
+
 def test_get_file_note_trims_note_content_locally():
     def handler(request: httpx.Request) -> httpx.Response:
         assert str(request.url) == "http://service.test/files/9/note"

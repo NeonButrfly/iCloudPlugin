@@ -113,6 +113,12 @@ class ICloudIndexServiceClient:
     def refresh_index(self) -> dict[str, Any]:
         return self._request("POST", "/refresh")
 
+    def pause_index(self) -> dict[str, Any]:
+        return self._request("POST", "/refresh/pause")
+
+    def resume_index(self) -> dict[str, Any]:
+        return self._request("POST", "/refresh/resume")
+
     def _request(
         self,
         method: str,

@@ -871,6 +871,20 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   compute-only cutover; the old service and worker are stopped there
 - an earlier pause request for the aggregate background scan was not kept as the
   live steady state; the scan is active again on `tichuml1`
+- the repo now also has explicit aggregate refresh pause/resume control
+  surfaces ready for the next deploy:
+  - origin endpoints:
+    - `POST /refresh/pause`
+    - `POST /refresh/resume`
+  - repo-local MCP tools:
+    - `pause_icloud_index`
+    - `resume_icloud_index`
+  - Cloudflare Worker MCP tools:
+    - `pause_icloud_index`
+    - `resume_icloud_index`
+  - pause state persists in `.runtime/refresh-control.json` so a paused
+    aggregate scan does not silently auto-resume before an operator chooses to
+    resume it
 - live proof on 2026-05-31 AKDT showed the public scan progressing inside one
   running batch rather than only at full batch boundaries
 - `classification-worker` on `kayraspi` is intentionally stopped after reset

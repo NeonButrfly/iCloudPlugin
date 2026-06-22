@@ -290,9 +290,18 @@ def fetch_classifier_health() -> dict[str, Any]:
 
     url = _resolve_classifier_health_url()
     try:
-        with httpx.Client(timeout=DEFAULT_CLASSIFIER_HEALTH_TIMEOUT_SECONDS) as client:
+        with httpx.Client(
+            timeout=DEFAULT_CLASSIFIER_HEALTH_TIMEOUT_SECONDS,
+            trust_env=False,
+        ) as client:
             response = client.get(url, headers={"X-API-Key": token})
             response.raise_for_status()
+    except OSError as exc:
+        return {
+            "ok": False,
+            "error": "classifier-health-client-init-failed",
+            "detail": str(exc),
+        }
     except httpx.HTTPError as exc:
         return {
             "ok": False,

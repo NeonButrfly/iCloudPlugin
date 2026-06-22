@@ -6,6 +6,7 @@ import os
 import weakref
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from sqlalchemy import inspect, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
@@ -26,6 +27,7 @@ from icloud_index_service.services.icloud_web_client import (
 METADATA_REFRESH_JOB_TYPE = "metadata-refresh"
 JOB_STATUS_QUEUED = "queued"
 JOB_STATUS_RUNNING = "running"
+JOB_STATUS_PAUSED = "paused"
 JOB_STATUS_COMPLETED = "completed"
 JOB_STATUS_FAILED = "failed"
 REQUIRED_REFRESH_JOB_TABLES = ("jobs", "sync_runs")
@@ -56,6 +58,7 @@ LAST_BATCH_COMPLETED_AT_FIELD = "last_batch_completed_at"
 LAST_BATCH_SIZE_FIELD = "last_batch_size"
 LAST_BATCH_DURATION_SECONDS_FIELD = "last_batch_duration_seconds"
 BACKGROUND_REFRESH_SOURCE = "background-scan"
+DEFAULT_REFRESH_CONTROL_PATH = ".runtime/refresh-control.json"
 
 
 class SchemaNotReadyError(RuntimeError):
@@ -104,6 +107,74 @@ def ensure_refresh_job_schema_ready(session: Session) -> None:
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _resolve_repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def _resolve_refresh_control_path() -> Path:
+    configured_path = (os.getenv("ICLOUD_REFRESH_CONTROL_PATH") or "").strip()
+    if configured_path:
+        return Path(configured_path).expanduser()
+    return _resolve_repo_root() / DEFAULT_REFRESH_CONTROL_PATH
+
+
+def _read_refresh_control_state() -> dict[str, object]:
+    control_path = _resolve_refresh_control_path()
+    default_state: dict[str, object] = {
+        "paused": False,
+        "updated_at": None,
+        "reason": None,
+        "control_path": str(control_path),
+    }
+    if not control_path.is_file():
+        return default_state
+    try:
+        payload = json.loads(control_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {
+            **default_state,
+            "error": "refresh-control-invalid",
+        }
+    if not isinstance(payload, dict):
+        return {
+            **default_state,
+            "error": "refresh-control-non-object",
+        }
+    return {
+        **default_state,
+        "paused": bool(payload.get("paused")),
+        "updated_at": payload.get("updated_at"),
+        "reason": payload.get("reason"),
+    }
+
+
+def _write_refresh_control_state(
+    *,
+    paused: bool,
+    now: datetime | None = None,
+    reason: str | None = None,
+) -> dict[str, object]:
+    control_path = _resolve_refresh_control_path()
+    control_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "paused": paused,
+        "updated_at": (now or _utc_now()).isoformat(),
+        "reason": reason,
+    }
+    control_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        **payload,
+        "control_path": str(control_path),
+    }
+
+
+def is_background_refresh_paused() -> bool:
+    return bool(_read_refresh_control_state().get("paused"))
 
 
 def _deserialize_payload(payload_json: str | None) -> dict[str, object]:
@@ -247,6 +318,22 @@ def _find_latest_completed_sync_run(session: Session) -> SyncRun | None:
         .order_by(SyncRun.completed_at.desc(), SyncRun.id.desc())
         .limit(1)
     )
+
+
+def _find_latest_paused_metadata_refresh_job(session: Session) -> Job | None:
+    return session.scalar(
+        select(Job)
+        .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
+        .where(Job.status == JOB_STATUS_PAUSED)
+        .order_by(Job.id.desc())
+        .limit(1)
+    )
+
+
+def _clear_refresh_lease_fields(payload: dict[str, object]) -> None:
+    payload.pop(CLAIMED_AT_FIELD, None)
+    payload.pop(HEARTBEAT_AT_FIELD, None)
+    payload.pop(WORKER_ID_FIELD, None)
 
 
 def _coerce_content_bytes(raw_item: dict[str, object]) -> bytes | None:
@@ -548,9 +635,7 @@ def recover_stale_running_jobs(
         if heartbeat_at > stale_cutoff:
             continue
 
-        payload.pop(CLAIMED_AT_FIELD, None)
-        payload.pop(HEARTBEAT_AT_FIELD, None)
-        payload.pop(WORKER_ID_FIELD, None)
+        _clear_refresh_lease_fields(payload)
 
         if apply_stale_recovery_update(
             session,
@@ -575,6 +660,8 @@ def claim_next_metadata_refresh_job(
     now: datetime | None = None,
 ) -> Job | None:
     ensure_refresh_job_schema_ready(session)
+    if is_background_refresh_paused():
+        return None
     claimed_at = now or _utc_now()
 
     while True:
@@ -661,6 +748,8 @@ def maybe_enqueue_background_refresh(
     now: datetime | None = None,
 ) -> Job | None:
     ensure_refresh_job_schema_ready(session)
+    if is_background_refresh_paused():
+        return None
     existing_job = _find_existing_active_metadata_refresh_job(session)
     if existing_job is not None:
         return existing_job
@@ -689,6 +778,7 @@ def maybe_enqueue_background_refresh(
 
 def get_refresh_status_snapshot(session: Session) -> dict[str, object]:
     ensure_refresh_job_schema_ready(session)
+    control_state = _read_refresh_control_state()
     latest_job = session.scalar(
         select(Job)
         .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
@@ -696,11 +786,19 @@ def get_refresh_status_snapshot(session: Session) -> dict[str, object]:
         .limit(1)
     )
     if latest_job is None:
-        return {"status": "idle"}
+        return {
+            "status": "idle",
+            "paused": bool(control_state.get("paused")),
+            "pause_updated_at": control_state.get("updated_at"),
+            "pause_reason": control_state.get("reason"),
+        }
 
     payload = _deserialize_payload(latest_job.payload_json)
     snapshot: dict[str, object] = {
         "status": latest_job.status,
+        "paused": bool(control_state.get("paused")),
+        "pause_updated_at": control_state.get("updated_at"),
+        "pause_reason": control_state.get("reason"),
         "job_id": latest_job.id,
         "job_type": latest_job.job_type,
         "source": payload.get("source"),
@@ -759,6 +857,74 @@ def get_refresh_status_snapshot(session: Session) -> dict[str, object]:
     if isinstance(last_batch_duration_seconds, (int, float)):
         snapshot["last_batch_duration_seconds"] = float(last_batch_duration_seconds)
     return snapshot
+
+
+def pause_background_refresh(
+    session: Session,
+    *,
+    reason: str | None = None,
+    now: datetime | None = None,
+) -> dict[str, object]:
+    ensure_refresh_job_schema_ready(session)
+    current_time = now or _utc_now()
+    active_jobs = session.scalars(
+        select(Job)
+        .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
+        .where(Job.status.in_([JOB_STATUS_QUEUED, JOB_STATUS_RUNNING]))
+        .order_by(Job.id.asc())
+    ).all()
+    for job in active_jobs:
+        payload = _deserialize_payload(job.payload_json)
+        _clear_refresh_lease_fields(payload)
+        job.status = JOB_STATUS_PAUSED
+        job.payload_json = _serialize_payload(payload)
+        session.flush()
+    session.commit()
+    control_state = _write_refresh_control_state(
+        paused=True,
+        now=current_time,
+        reason=reason,
+    )
+    return {
+        **control_state,
+        "status": JOB_STATUS_PAUSED if active_jobs else "idle",
+    }
+
+
+def resume_background_refresh(
+    session: Session,
+    *,
+    reason: str | None = None,
+    now: datetime | None = None,
+) -> dict[str, object]:
+    ensure_refresh_job_schema_ready(session)
+    current_time = now or _utc_now()
+    paused_job = _find_latest_paused_metadata_refresh_job(session)
+    if paused_job is not None:
+        payload = _deserialize_payload(paused_job.payload_json)
+        _clear_refresh_lease_fields(payload)
+        paused_job.status = JOB_STATUS_QUEUED
+        paused_job.payload_json = _serialize_payload(payload)
+        session.commit()
+    else:
+        session.commit()
+        if _find_existing_active_metadata_refresh_job(session) is None:
+            enqueue_metadata_refresh_with_source(session, source="resume-endpoint")
+    control_state = _write_refresh_control_state(
+        paused=False,
+        now=current_time,
+        reason=reason,
+    )
+    latest_job = session.scalar(
+        select(Job)
+        .where(Job.job_type == METADATA_REFRESH_JOB_TYPE)
+        .order_by(Job.id.desc())
+        .limit(1)
+    )
+    return {
+        **control_state,
+        "status": latest_job.status if latest_job is not None else "idle",
+    }
 
 
 def run_next_job(
@@ -908,9 +1074,7 @@ def run_next_job(
             progress_callback=persist_mid_batch_progress,
         )
         payload = _deserialize_payload(lease_payload_json)
-        payload.pop(CLAIMED_AT_FIELD, None)
-        payload.pop(HEARTBEAT_AT_FIELD, None)
-        payload.pop(WORKER_ID_FIELD, None)
+        _clear_refresh_lease_fields(payload)
         payload["source"] = str(payload.get("source") or "refresh-endpoint")
         payload[ITEMS_SEEN_FIELD] = max(
             int(payload.get(ITEMS_SEEN_FIELD, 0)),
@@ -970,9 +1134,7 @@ def run_next_job(
         attempt_count = _parse_attempt_count(payload) + 1
         max_attempts = _parse_max_attempts(payload)
 
-        payload.pop(CLAIMED_AT_FIELD, None)
-        payload.pop(HEARTBEAT_AT_FIELD, None)
-        payload.pop(WORKER_ID_FIELD, None)
+        _clear_refresh_lease_fields(payload)
         payload[ATTEMPT_COUNT_FIELD] = attempt_count
         payload[MAX_ATTEMPTS_FIELD] = max_attempts
         next_payload_json = _serialize_payload(payload)

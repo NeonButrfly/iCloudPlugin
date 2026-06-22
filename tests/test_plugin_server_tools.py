@@ -31,9 +31,10 @@ def test_plugin_server_tools_expose_annotations_and_output_schemas():
         assert tool.annotations.openWorldHint is False
         assert tool.annotations.destructiveHint is False
 
-    refresh_tool = tools_by_name["refresh_icloud_index"]
-    assert refresh_tool.outputSchema is not None
-    assert refresh_tool.annotations is not None
-    assert refresh_tool.annotations.readOnlyHint is False
-    assert refresh_tool.annotations.openWorldHint is False
-    assert refresh_tool.annotations.destructiveHint is False
+    for tool_name in {"refresh_icloud_index", "pause_icloud_index", "resume_icloud_index"}:
+        tool = tools_by_name[tool_name]
+        assert tool.outputSchema is not None
+        assert tool.annotations is not None
+        assert tool.annotations.readOnlyHint is False
+        assert tool.annotations.openWorldHint is False
+        assert tool.annotations.destructiveHint is False

@@ -235,6 +235,9 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
     assert payload["auth_status"] == {"status": "configured", "database": "ok"}
     assert payload["refresh_status"] == {
         "status": "running",
+        "paused": False,
+        "pause_updated_at": None,
+        "pause_reason": None,
         "job_id": 1,
         "job_type": "metadata-refresh",
         "source": "background-scan",
@@ -403,3 +406,21 @@ def test_status_readiness_returns_live_summary_plus_readiness_report(tmp_path, m
         "auth_and_deployment_story_is_real"
     ]["status"] == "met"
     assert isinstance(payload["generated_at"], str)
+
+
+def test_fetch_classifier_health_handles_httpx_client_init_failure(monkeypatch):
+    monkeypatch.setenv("CLASSIFIER_API_TOKEN", "secret-token")
+
+    class BrokenClient:
+        def __init__(self, *args, **kwargs) -> None:
+            raise FileNotFoundError("missing CA bundle")
+
+    monkeypatch.setattr(status_service_module.httpx, "Client", BrokenClient)
+
+    payload = status_service_module.fetch_classifier_health()
+
+    assert payload == {
+        "ok": False,
+        "error": "classifier-health-client-init-failed",
+        "detail": "missing CA bundle",
+    }
