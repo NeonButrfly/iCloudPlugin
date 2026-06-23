@@ -247,3 +247,49 @@ def test_product_readiness_report_blocks_when_classifier_models_are_not_qwen():
         "classify_model": "llama3.2:3b",
         "vision_model": "qwen2.5vl:3b",
     }
+
+
+def test_product_readiness_report_blocks_when_qwen_models_are_not_loaded():
+    repo_root = Path(__file__).resolve().parents[1]
+    summary_payload = {
+        "service_health": {"status": "ok"},
+        "refresh_status": {"status": "running", "items_seen": 12},
+        "provider_counts": {"icloud": 10},
+        "classifier_health": {
+            "ok": False,
+            "classify_model": "qwen2.5:3b",
+            "vision_model": "qwen2.5vl:3b",
+            "available_models": [],
+            "missing_models": ["qwen2.5:3b", "qwen2.5vl:3b"],
+            "required_models_present": False,
+        },
+        "classification_job_counts": {"completed": 7},
+        "classification_state_counts": {"completed": 5},
+        "generated_note_context_gaps": {
+            "total_generated_notes": 11,
+            "notes_missing_any_context": 0,
+            "missing_context_with_matching_completed_state": 0,
+            "missing_context_source_file_present": 0,
+        },
+        "vault_counts": {
+            "attachments_files": 0,
+            "classification_index_present": True,
+            "home_note_present": True,
+        },
+    }
+
+    report = build_product_readiness_report(
+        repo_root=repo_root,
+        summary_payload=summary_payload,
+        cloudflare_api_token_present=False,
+    )
+
+    criterion = report["success_criteria"]["classifier_runtime_still_uses_qwen_models"]
+    assert criterion["status"] == "blocked"
+    assert criterion["details"] == {
+        "classify_model": "qwen2.5:3b",
+        "vision_model": "qwen2.5vl:3b",
+        "available_models": [],
+        "missing_models": ["qwen2.5:3b", "qwen2.5vl:3b"],
+        "required_models_present": False,
+    }

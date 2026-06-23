@@ -80,7 +80,7 @@
 - Source prompt: "continue without codex but put in framework verify we are still using qwen"
 - Interpreted requirement: keep Codex arbitration out of the live classifier path, but make the framework explicitly verify that the active text and vision models are still Qwen-based instead of assuming that from old deployment notes.
 - Runtime note: classifier `/health` should now expose `classify_model` and `vision_model`, and the consolidated cloudsync status/readiness surface should carry those through.
-- Readiness note: the product-readiness report should now expose a dedicated `classifier_runtime_still_uses_qwen_models` criterion that turns `blocked` if either active model is missing or no longer starts with `qwen`.
+- Readiness note: the product-readiness report should now expose a dedicated `classifier_runtime_still_uses_qwen_models` criterion that turns `blocked` if either active model is missing, unloaded from Ollama, or no longer starts with `qwen`.
 - Scope note: as of 2026-05-31 AKDT, the live product decision is to keep
   Codex arbitration disabled for v1 because the ongoing per-document cost is
   not justified. The live classifier path should remain Qwen-based unless a

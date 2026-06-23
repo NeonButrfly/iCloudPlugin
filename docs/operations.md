@@ -780,7 +780,7 @@ Canonical label-map alignment:
       - `vision_model=qwen2.5vl:3b`
       - `codex_arbiter.enabled=false`
     - authenticated `GET /status/readiness` returned:
-      - `classifier_runtime_still_uses_qwen_models.status=met`
+      - `classifier_runtime_still_uses_qwen_models.status=met` only when the live health payload confirms both configured Qwen model names and both loaded Ollama models
       - `details={classify_model:qwen2.5:3b, vision_model:qwen2.5vl:3b}`
   - those enriched manual-feedback rows now participate in heuristic
     fast-path learning by adding `force_inline_llm_for` rules when repeated

@@ -250,6 +250,9 @@ def _evaluate_qwen_runtime(summary: dict[str, Any]) -> ReadinessCheck:
         "classify_model": classify_model,
         "vision_model": vision_model,
     }
+    for key in ("available_models", "missing_models", "required_models_present"):
+        if key in classifier_health:
+            details[key] = classifier_health.get(key)
 
     if not str(classify_model or "").strip() or not str(vision_model or "").strip():
         return ReadinessCheck(
@@ -262,6 +265,13 @@ def _evaluate_qwen_runtime(summary: dict[str, Any]) -> ReadinessCheck:
         return ReadinessCheck(
             "blocked",
             "The live classifier runtime is no longer using the expected Qwen models.",
+            details,
+        )
+
+    if classifier_health.get("required_models_present") is False:
+        return ReadinessCheck(
+            "blocked",
+            "The live classifier runtime is configured for Qwen, but the required Ollama models are not currently loaded.",
             details,
         )
 

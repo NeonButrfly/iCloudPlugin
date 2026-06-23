@@ -55,6 +55,7 @@ from .hybrid_runtime import (
     run_autonomous_shadow_cycle,
     write_readiness_report,
 )
+from .ollama_runtime import wait_for_ollama
 
 ALASKA_TZ = ZoneInfo("America/Anchorage")
 RUNTIME_SETTINGS = load_classifier_runtime_settings()
@@ -1938,25 +1939,6 @@ def write_index(
 
     index.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-def wait_for_ollama(ollama_url: str, timeout_seconds: int = 120) -> None:
-    import time
-
-    deadline = time.time() + timeout_seconds
-    last_error = None
-
-    while time.time() < deadline:
-        try:
-            response = requests.get(f"{ollama_url.rstrip('/')}/api/tags", timeout=5)
-            if response.ok:
-                return
-            last_error = f"HTTP {response.status_code}"
-        except Exception as e:
-            last_error = str(e)
-
-        time.sleep(2)
-
-    raise RuntimeError(f"Ollama did not become ready at {ollama_url}: {last_error}")
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Dockerized local document classifier that writes to an Obsidian vault.")
     parser.add_argument("input", nargs="?", default="/input", help="Input file or folder inside the container. Default: /input")
@@ -1996,9 +1978,11 @@ def main() -> int:
     output.mkdir(parents=True, exist_ok=True)
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    wait_for_ollama(args.ollama_url)
-
     if args.process_shadow_queue:
+        wait_for_ollama(
+            args.ollama_url,
+            required_models=[args.model, args.vision_model],
+        )
         result = process_shadow_queue_command(
             categories=categories,
             ollama_url=args.ollama_url,
@@ -2024,6 +2008,10 @@ def main() -> int:
         return 0
 
     if args.self_test:
+        wait_for_ollama(
+            args.ollama_url,
+            required_models=[args.model, args.vision_model],
+        )
         print(json.dumps({
             "ok": True,
             "time_alaska": now_ak(),
@@ -2041,6 +2029,17 @@ def main() -> int:
         return 2
 
     files = list(iter_input_files(input_path))
+
+    required_models = [args.model]
+    if args.process_shadow_queue or (
+        not args.no_vision and any(path.suffix.lower() in IMAGE_EXTENSIONS for path in files)
+    ):
+        required_models.append(args.vision_model)
+
+    wait_for_ollama(
+        args.ollama_url,
+        required_models=required_models,
+    )
 
     if not files:
         print(f"[WARN] No supported files found under: {input_path}")

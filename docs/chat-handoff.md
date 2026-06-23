@@ -231,7 +231,7 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       - `vision_model=qwen2.5vl:3b`
       - `codex_arbiter.enabled=false`
     - `GET /status/readiness` returned:
-      - `classifier_runtime_still_uses_qwen_models.status=met`
+      - `classifier_runtime_still_uses_qwen_models.status=met` only when the live health payload shows both configured Qwen model names and both models loaded in Ollama
 - issue [#55](https://github.com/NeonButrfly/iCloudPlugin/issues/55) is now
   fixed live on `kayraspi2`:
   - the storage-host sync script now defaults `RCLONE_FORCE_IPV4=true`

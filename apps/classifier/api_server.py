@@ -27,6 +27,7 @@ from .hybrid_runtime import (
     load_json,
     write_readiness_report,
 )
+from .ollama_runtime import ensure_ollama_models_present
 
 APP = FastAPI(title="Local Document Classifier API", version="1.0.0")
 
@@ -61,6 +62,14 @@ def get_codex_arbiter_readiness() -> dict:
         enabled=CODEX_ARBITER_ENABLED,
         command=SETTINGS.codex_arbiter_command,
         timeout_seconds=SETTINGS.codex_arbiter_timeout_seconds,
+    )
+
+
+def get_ollama_runtime_status(*, auto_pull_missing_models: bool = False) -> dict:
+    return ensure_ollama_models_present(
+        OLLAMA_URL,
+        required_models=[CLASSIFY_MODEL, VISION_MODEL],
+        auto_pull_missing_models=auto_pull_missing_models,
     )
 
 def check_token(x_api_key: Optional[str]) -> None:
@@ -292,12 +301,26 @@ def health(x_api_key: Optional[str] = Header(default=None)):
 
     ollama_ok = False
     ollama_error = None
+    ollama_status = {
+        "available_models": [],
+        "required_models": [CLASSIFY_MODEL, VISION_MODEL],
+        "missing_models": [CLASSIFY_MODEL, VISION_MODEL],
+        "pulled_models": [],
+        "required_models_present": False,
+    }
 
     try:
-        response = requests.get(f"{OLLAMA_URL.rstrip('/')}/api/tags", timeout=5)
-        ollama_ok = response.ok
-        if not response.ok:
-            ollama_error = f"HTTP {response.status_code}"
+        ollama_status = get_ollama_runtime_status(auto_pull_missing_models=False)
+        ollama_ok = bool(ollama_status.get("required_models_present"))
+        if not ollama_ok:
+            missing_models = [
+                str(item).strip()
+                for item in ollama_status.get("missing_models", [])
+                if str(item).strip()
+            ]
+            ollama_error = "missing required Ollama models"
+            if missing_models:
+                ollama_error += f": {', '.join(missing_models)}"
     except Exception as e:
         ollama_error = str(e)
 
@@ -317,6 +340,7 @@ def health(x_api_key: Optional[str] = Header(default=None)):
         "classifier_script_exists": CLASSIFIER_SCRIPT.exists(),
         "category_count": len(load_categories()),
         "codex_arbiter": get_codex_arbiter_readiness(),
+        **ollama_status,
     }
 
 @APP.post("/classify/upload")

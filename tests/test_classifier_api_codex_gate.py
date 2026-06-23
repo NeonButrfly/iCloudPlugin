@@ -303,9 +303,15 @@ def test_classifier_health_reports_codex_arbiter_readiness(monkeypatch, tmp_path
     monkeypatch.setattr(api_server, "maybe_start_shadow_worker", lambda: None)
     monkeypatch.setattr(api_server, "load_categories", lambda: ["financial", "technical"])
     monkeypatch.setattr(
-        api_server.requests,
-        "get",
-        lambda *args, **kwargs: SimpleNamespace(ok=True, status_code=200),
+        api_server,
+        "get_ollama_runtime_status",
+        lambda *_args, **_kwargs: {
+            "available_models": ["qwen2.5:3b", "qwen2.5vl:3b"],
+            "required_models": ["qwen2.5:3b", "qwen2.5vl:3b"],
+            "missing_models": [],
+            "pulled_models": [],
+            "required_models_present": True,
+        },
     )
     monkeypatch.setattr(api_server, "get_codex_arbiter_readiness", lambda: {
         "enabled": True,
@@ -334,3 +340,39 @@ def test_classifier_health_reports_codex_arbiter_readiness(monkeypatch, tmp_path
         "auth_mode": "codex-auth-file",
         "auth_present": True,
     }
+
+
+def test_classifier_health_blocks_when_required_qwen_models_are_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(api_server, "INPUT_ROOT", tmp_path / "input")
+    monkeypatch.setattr(api_server, "OUTPUT_ROOT", tmp_path / "output")
+    monkeypatch.setattr(api_server, "VAULT_ROOT", tmp_path / "vault")
+    monkeypatch.setattr(api_server, "MANIFEST_PATH", tmp_path / "output" / "manifest.jsonl")
+    monkeypatch.setattr(api_server, "CODEX_ARBITER_ENABLED", False)
+    monkeypatch.setattr(api_server, "CLASSIFY_MODEL", "qwen2.5:3b")
+    monkeypatch.setattr(api_server, "VISION_MODEL", "qwen2.5vl:3b")
+    monkeypatch.setattr(api_server, "maybe_start_shadow_worker", lambda: None)
+    monkeypatch.setattr(api_server, "load_categories", lambda: ["financial", "technical"])
+    monkeypatch.setattr(
+        api_server,
+        "get_ollama_runtime_status",
+        lambda *_args, **_kwargs: {
+            "available_models": [],
+            "required_models": ["qwen2.5:3b", "qwen2.5vl:3b"],
+            "missing_models": ["qwen2.5:3b", "qwen2.5vl:3b"],
+            "pulled_models": [],
+            "required_models_present": False,
+        },
+    )
+    monkeypatch.setattr(api_server, "get_codex_arbiter_readiness", lambda: {"enabled": False})
+
+    with TestClient(api_server.APP) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is False
+    assert payload["ollama_ok"] is False
+    assert payload["available_models"] == []
+    assert payload["missing_models"] == ["qwen2.5:3b", "qwen2.5vl:3b"]
+    assert payload["required_models_present"] is False
+    assert "missing required Ollama models" in payload["ollama_error"]
