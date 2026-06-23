@@ -852,6 +852,17 @@ Canonical label-map alignment:
     ignored by bootstrap feedback import, so stale no-op rewrites do not count
     as teacher corrections for readiness, LightGBM retraining, or heuristic
     gating updates
+  - the same bounded targeted-requeue path now also repairs legacy SMS and
+    Messenger rows whose completed state drifted out of explicit
+    `primary_label='needs-review'`
+    - message-like paths such as `/icloud/Text Messages/...`,
+      `/your_facebook_activity/messages/...`, `your_messages.html`, and
+      `/messenger/...` are eligible
+    - the worker requeues them when the completed state still points at
+      `/vault/02 Needs Review/...` or the completed state is missing a
+      primary label entirely
+    - this keeps older message exports replayable through the current
+      Qwen-backed classifier path without requiring a manual note move first
   - `CLASSIFICATION_TARGETED_REQUEUE_ENABLED` and
     `CLASSIFICATION_TARGETED_REQUEUE_LIMIT` bound this behavior
   - set `CLASSIFICATION_BACKFILL_ENABLED=false` when you want a bounded worker

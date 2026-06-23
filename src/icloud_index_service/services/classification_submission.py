@@ -69,6 +69,14 @@ DOCUMENT_EXTENSIONS = frozenset(
 IMAGE_EXTENSIONS = frozenset({"png", "jpg", "jpeg", "tif", "tiff", "bmp", "webp"})
 SUPPORTED_EXTENSIONS = DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS
 TEXT_BACKED_BUCKET_EXCLUDED_EXTENSIONS = DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS
+MESSAGE_REVIEW_NOTE_PREFIX = "/vault/02 Needs Review/"
+MESSAGE_PATH_MARKERS = (
+    "/text messages/",
+    "/messenger/",
+    "/your_facebook_activity/messages/",
+    "your_messages.html",
+    "/sms/",
+)
 
 
 class ClassifierSubmissionNotReadyError(RuntimeError):
@@ -419,6 +427,56 @@ def _find_file_record_for_source_path(
     return session.scalar(select(FileRecord).where(FileRecord.path == normalized_path))
 
 
+def _is_message_like_path(path_value: str | None) -> bool:
+    normalized_path = str(path_value or "").strip().lower()
+    if not normalized_path:
+        return False
+    return any(marker in normalized_path for marker in MESSAGE_PATH_MARKERS)
+
+
+def _message_like_path_predicate() -> object:
+    return or_(*(FileRecord.path.ilike(f"%{marker}%") for marker in MESSAGE_PATH_MARKERS))
+
+
+def _is_needs_review_note_path(note_path_value: str | None) -> bool:
+    normalized_note_path = str(note_path_value or "").strip().lower()
+    return normalized_note_path.startswith(MESSAGE_REVIEW_NOTE_PREFIX.lower())
+
+
+def _enqueue_reclassification_job_for_file(
+    session: Session,
+    *,
+    file_record: FileRecord,
+) -> ClassificationJob:
+    extracted_content = session.scalar(
+        select(ExtractedContent).where(ExtractedContent.file_id == file_record.id)
+    )
+    source_fingerprint = compute_source_fingerprint(
+        file_record=file_record,
+        extracted_content=extracted_content,
+    )
+    priority_bucket, _ = _determine_priority_bucket(
+        file_record=file_record,
+        extracted_content=extracted_content,
+    )
+    job = ClassificationJob(
+        file_id=file_record.id,
+        status=CLASSIFICATION_STATUS_QUEUED,
+        priority_bucket=priority_bucket,
+        priority_rank=-1,
+        source_fingerprint=source_fingerprint,
+        max_attempts=get_classification_max_attempts(),
+    )
+    session.add(job)
+    _upsert_classification_state(
+        session,
+        file_record=file_record,
+        source_fingerprint=source_fingerprint,
+        submission_status=CLASSIFICATION_STATUS_QUEUED,
+    )
+    return job
+
+
 def enqueue_targeted_reclassification_from_manual_feedback(
     session: Session,
     *,
@@ -485,33 +543,66 @@ def enqueue_targeted_reclassification_from_manual_feedback(
             if (state.primary_label or "").strip() == correct_label:
                 continue
 
-        extracted_content = session.scalar(
-            select(ExtractedContent).where(ExtractedContent.file_id == file_record.id)
-        )
-        source_fingerprint = compute_source_fingerprint(
-            file_record=file_record,
-            extracted_content=extracted_content,
-        )
-        priority_bucket, _ = _determine_priority_bucket(
-            file_record=file_record,
-            extracted_content=extracted_content,
-        )
-        job = ClassificationJob(
-            file_id=file_record.id,
-            status=CLASSIFICATION_STATUS_QUEUED,
-            priority_bucket=priority_bucket,
-            priority_rank=-1,
-            source_fingerprint=source_fingerprint,
-            max_attempts=get_classification_max_attempts(),
-        )
-        session.add(job)
-        _upsert_classification_state(
+        job = _enqueue_reclassification_job_for_file(
             session,
             file_record=file_record,
-            source_fingerprint=source_fingerprint,
-            submission_status=CLASSIFICATION_STATUS_QUEUED,
         )
         created_jobs.append(job)
+
+    if len(created_jobs) < limit:
+        remaining = limit - len(created_jobs)
+        legacy_statement = (
+            select(FileRecord, ClassificationState)
+            .join(ClassificationState, ClassificationState.file_id == FileRecord.id)
+            .where(FileRecord.is_deleted.is_(False))
+            .where(_classifiable_extension_predicate())
+            .where(ClassificationState.submission_status == CLASSIFICATION_STATUS_COMPLETED)
+            .where(_message_like_path_predicate())
+            .where(
+                or_(
+                    ClassificationState.primary_label.is_(None),
+                    ClassificationState.primary_label == "",
+                    and_(
+                        ClassificationState.classifier_note_path.is_not(None),
+                        ClassificationState.classifier_note_path.startswith(MESSAGE_REVIEW_NOTE_PREFIX),
+                    ),
+                )
+            )
+            .order_by(FileRecord.id.asc())
+            .limit(max(remaining * 5, 25))
+        )
+        for file_record, state in session.execute(legacy_statement).all():
+            if len(created_jobs) >= limit:
+                break
+
+            active_job_exists = session.scalar(
+                select(ClassificationJob.id)
+                .where(ClassificationJob.file_id == file_record.id)
+                .where(
+                    ClassificationJob.status.in_(
+                        [CLASSIFICATION_STATUS_QUEUED, CLASSIFICATION_STATUS_RUNNING]
+                    )
+                )
+                .limit(1)
+            )
+            if active_job_exists is not None:
+                continue
+            if state is None:
+                continue
+            if (
+                not _is_message_like_path(file_record.path)
+                or (
+                    not _is_needs_review_note_path(state.classifier_note_path)
+                    and (state.primary_label or "").strip()
+                )
+            ):
+                continue
+
+            job = _enqueue_reclassification_job_for_file(
+                session,
+                file_record=file_record,
+            )
+            created_jobs.append(job)
 
     session.commit()
     return created_jobs

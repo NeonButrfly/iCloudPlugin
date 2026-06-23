@@ -1019,3 +1019,121 @@ def test_enqueue_targeted_reclassification_from_manual_feedback_skips_when_feedb
         session.close()
 
     assert created_jobs == []
+
+
+def test_enqueue_targeted_reclassification_from_manual_feedback_queues_completed_sms_with_null_label(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    mirror_root = tmp_path / "mirrors"
+    local_file = mirror_root / "icloud" / "Text Messages" / "Messages" / "Angelina Fleckenstein.pdf"
+    local_file.parent.mkdir(parents=True, exist_ok=True)
+    local_file.write_bytes(b"sms-pdf")
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "true")
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    try:
+        file_record = _add_file(
+            session,
+            external_id="sms-1",
+            name="Angelina Fleckenstein.pdf",
+            path="/icloud/Text Messages/Messages/Angelina Fleckenstein.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=len(b"sms-pdf"),
+        )
+        session.add(
+            ClassificationState(
+                file_id=file_record.id,
+                source_fingerprint=compute_source_fingerprint(
+                    file_record=file_record,
+                    extracted_content=None,
+                ),
+                source_size_bytes=file_record.size_bytes,
+                submission_status=CLASSIFICATION_STATUS_COMPLETED,
+                primary_label=None,
+                classifier_note_path="/vault/02 Needs Review/Angelina Fleckenstein - needs-review.md",
+            )
+        )
+        session.commit()
+
+        created_jobs = enqueue_targeted_reclassification_from_manual_feedback(session, limit=10)
+        stored_state = session.scalar(
+            select(ClassificationState).where(ClassificationState.file_id == file_record.id)
+        )
+    finally:
+        session.close()
+
+    assert len(created_jobs) == 1
+    assert created_jobs[0].file_id == file_record.id
+    assert stored_state is not None
+    assert stored_state.submission_status == CLASSIFICATION_STATUS_QUEUED
+
+
+def test_enqueue_targeted_reclassification_from_manual_feedback_queues_messenger_review_note_without_manual_feedback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    mirror_root = tmp_path / "mirrors"
+    local_file = (
+        mirror_root
+        / "google2"
+        / "meta-2025-May-02-05-47-46"
+        / "facebook-kaymayers49-2025-05-02-6iqlH3mC"
+        / "your_facebook_activity"
+        / "messages"
+        / "your_messages.html"
+    )
+    local_file.parent.mkdir(parents=True, exist_ok=True)
+    local_file.write_text("<html>messenger export</html>", encoding="utf-8")
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "true")
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    try:
+        file_record = _add_file(
+            session,
+            external_id="messenger-1",
+            name="your_messages.html",
+            path=(
+                "/google2/meta-2025-May-02-05-47-46/"
+                "facebook-kaymayers49-2025-05-02-6iqlH3mC/"
+                "your_facebook_activity/messages/your_messages.html"
+            ),
+            mime_type="text/html",
+            extension="html",
+            size_bytes=len("<html>messenger export</html>"),
+        )
+        session.add(
+            ClassificationState(
+                file_id=file_record.id,
+                source_fingerprint=compute_source_fingerprint(
+                    file_record=file_record,
+                    extracted_content=None,
+                ),
+                source_size_bytes=file_record.size_bytes,
+                submission_status=CLASSIFICATION_STATUS_COMPLETED,
+                primary_label="personal",
+                classifier_note_path="/vault/02 Needs Review/your_messages - personal.md",
+            )
+        )
+        session.commit()
+
+        created_jobs = enqueue_targeted_reclassification_from_manual_feedback(session, limit=10)
+        stored_state = session.scalar(
+            select(ClassificationState).where(ClassificationState.file_id == file_record.id)
+        )
+    finally:
+        session.close()
+
+    assert len(created_jobs) == 1
+    assert created_jobs[0].file_id == file_record.id
+    assert stored_state is not None
+    assert stored_state.submission_status == CLASSIFICATION_STATUS_QUEUED

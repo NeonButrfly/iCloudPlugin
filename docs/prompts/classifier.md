@@ -107,6 +107,27 @@
 - Affected systems: classifier readiness gating, classifier API ingestion path,
   live cloudsync classification backlog, operator docs.
 
+## 2026-06-23 - Resubmit legacy SMS and Messenger review rows through Qwen
+
+- Issue: [#63](https://github.com/NeonButrfly/iCloudPlugin/issues/63)
+- Source prompt: "resubmit needs review to qwen and classify sms / messenger messages and sms/messenger"
+- Interpreted requirement: keep the live classifier runtime on Qwen, but
+  broaden the bounded targeted-requeue path so legacy message artifacts can be
+  rediscovered even when their old state no longer presents as an explicit
+  `primary_label='needs-review'`.
+- Legacy-state note: some completed message artifacts can have
+  `classification_states.primary_label` missing while still pointing at a note
+  under `/vault/02 Needs Review/`, so a narrow `needs-review` label query does
+  not find them for replay.
+- Requeue note: the worker should now seed bounded reclassification jobs for
+  message-like paths such as iCloud SMS exports and Messenger HTML exports when
+  either the completed state still points at `02 Needs Review` or the completed
+  state is missing a primary label.
+- Runtime note: this repair is still meant to go back through the normal
+  Qwen-backed classifier path with Codex arbitration disabled.
+- Affected systems: classification worker queue seeding, legacy live
+  classification-state repair, operator docs.
+
 ## 2026-05-27 - Direct source-path ingestion instead of staged real-folder uploads
 
 - Issue: [#29](https://github.com/NeonButrfly/iCloudPlugin/issues/29)
