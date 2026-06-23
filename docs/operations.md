@@ -677,6 +677,13 @@ Readiness behavior:
 - readiness counts both:
   - Qwen shadow-comparison approvals from `shadow-comparisons.jsonl`
   - reviewed bootstrap examples from `examples.jsonl` and `corrections.jsonl`
+- when operators must intentionally continue a bounded live run before every
+  threshold is green, `CLASSIFIER_FORCE_REAL_INGESTION=1` now acts as an
+  explicit override:
+  - `thresholds_pass` stays truthful
+  - `operator_real_ingestion_override_active=true`
+  - warning `operator-real-ingestion-override-active`
+  - `real_ingestion_allowed=true`
 - this removes the old catch-22 where real-folder ingestion was blocked until
   shadow approvals existed, even though a reviewed teacher corpus was already
   available
@@ -1422,6 +1429,7 @@ CLASSIFICATION_BACKFILL_ENABLED=true
 CLASSIFICATION_SUBMISSION_POLL_INTERVAL_SECONDS=5
 CLASSIFICATION_MAX_ATTEMPTS=3
 CLASSIFICATION_RETRY_BACKOFF_SECONDS=0
+CLASSIFIER_FORCE_REAL_INGESTION=0
 CLASSIFIER_SOURCE_ROOT=/source
 CLASSIFIER_SOURCE_MOUNT_SOURCE=/mnt/cloud-vault/mirrors
 ICLOUD_SOURCE_MODE=filesystem-mirror

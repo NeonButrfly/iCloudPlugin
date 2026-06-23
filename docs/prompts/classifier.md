@@ -87,6 +87,26 @@
   later explicit operator decision reopens the optional Codex arbiter track.
 - Affected systems: classifier API health payload, cloudsync status summary, product-readiness evaluation, operator docs.
 
+## 2026-06-23 - Force bounded Qwen ingestion with an explicit operator override
+
+- Issue: [#62](https://github.com/NeonButrfly/iCloudPlugin/issues/62)
+- Source prompt: "resubmit anything that was not properly classified and force qwen to analyze"
+- Interpreted requirement: keep the live classifier path on Qwen, but add an
+  explicit operator-controlled way to admit bounded real-folder ingestion when
+  the runtime is healthy and only narrowly below readiness threshold instead of
+  silently lowering the gate.
+- Runtime note: the classifier worker already talks to the Qwen-backed API and
+  keeps Codex arbitration disabled; the new behavior is the explicit
+  `CLASSIFIER_FORCE_REAL_INGESTION=1` override that makes `/readiness` stay
+  truthful about thresholds while exposing that operators intentionally
+  unblocked live ingestion.
+- Transparency note: `/readiness` should keep `thresholds_pass=false` when the
+  override is carrying the run, and must expose
+  `operator_real_ingestion_override_active=true` plus warning
+  `operator-real-ingestion-override-active`.
+- Affected systems: classifier readiness gating, classifier API ingestion path,
+  live cloudsync classification backlog, operator docs.
+
 ## 2026-05-27 - Direct source-path ingestion instead of staged real-folder uploads
 
 - Issue: [#29](https://github.com/NeonButrfly/iCloudPlugin/issues/29)

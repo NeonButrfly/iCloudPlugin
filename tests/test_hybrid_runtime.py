@@ -251,6 +251,49 @@ def test_build_readiness_report_counts_manual_obsidian_feedback(tmp_path: Path):
     assert report["real_ingestion_allowed"] is False
 
 
+def test_build_readiness_report_operator_override_can_admit_real_ingestion(tmp_path: Path):
+    model_path = tmp_path / "lightgbm.joblib"
+    model_path.write_bytes(b"model")
+    examples_path = tmp_path / "examples.jsonl"
+    examples_path.write_text(
+        "".join(
+            json.dumps(
+                {
+                    "filename": f"reviewed-{index}.pdf",
+                    "source_filename": f"reviewed-{index}.pdf",
+                    "correct_label": "appeal",
+                    "old_label": "unknown",
+                    "confidence": 0.99,
+                    "summary": f"Reviewed example {index}",
+                    "secondary_labels": ["reviewed"],
+                }
+            )
+            + "\n"
+            for index in range(1, 11)
+        ),
+        encoding="utf-8",
+    )
+
+    report = hybrid_runtime.build_readiness_report(
+        gating_config={
+            **hybrid_runtime.DEFAULT_HYBRID_GATING,
+            "allow_real_ingestion": True,
+            "force_real_ingestion_override": True,
+        },
+        comparisons_path=tmp_path / "shadow-comparisons.jsonl",
+        queue_dir=tmp_path / "shadow-queue",
+        model_path=model_path,
+        examples_path=examples_path,
+        corrections_path=tmp_path / "corrections.jsonl",
+    )
+
+    assert report["thresholds_pass"] is False
+    assert report["force_real_ingestion_override"] is True
+    assert report["operator_real_ingestion_override_active"] is True
+    assert report["real_ingestion_allowed"] is True
+    assert "operator-real-ingestion-override-active" in report["warnings"]
+
+
 def test_maybe_retrain_from_shadow_data_uses_bootstrap_examples(tmp_path: Path):
     examples_path = tmp_path / "examples.jsonl"
     examples_path.write_text(

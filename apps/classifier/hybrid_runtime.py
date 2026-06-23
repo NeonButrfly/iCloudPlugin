@@ -56,6 +56,7 @@ DEFAULT_HYBRID_GATING = {
     "readiness_min_teacher_approval_rate": 0.70,
     "readiness_max_queue_depth": 25,
     "allow_real_ingestion": False,
+    "force_real_ingestion_override": False,
 }
 
 DEFAULT_HEURISTIC_RULES = {
@@ -165,6 +166,10 @@ def safe_float(value: Any, default: float = 0.0) -> float:
         return float(value)
     except Exception:
         return default
+
+
+def env_flag(name: str, default: str = "0") -> bool:
+    return str(os.getenv(name, default)).strip().lower() not in {"", "0", "false", "no", "off"}
 
 
 def choose_live_decision(
@@ -1183,6 +1188,11 @@ def build_readiness_report(
     min_approval = safe_float(gating.get("readiness_min_teacher_approval_rate"), 0.70)
     max_queue_depth = int(gating.get("readiness_max_queue_depth", 25))
     allow_real_ingestion = bool(gating.get("allow_real_ingestion", False))
+    force_real_ingestion_override = bool(gating.get("force_real_ingestion_override", False))
+    env_force_real_ingestion_override = env_flag("CLASSIFIER_FORCE_REAL_INGESTION", "0")
+    operator_real_ingestion_override_active = (
+        force_real_ingestion_override or env_force_real_ingestion_override
+    )
 
     thresholds_pass = (
         model_exists
@@ -1214,7 +1224,13 @@ def build_readiness_report(
         warnings.append("shadow-queue-backlog-too-deep")
     if thresholds_pass and not allow_real_ingestion:
         warnings.append("manual-real-ingestion-enable-still-required")
+    if operator_real_ingestion_override_active:
+        warnings.append("operator-real-ingestion-override-active")
 
+    real_ingestion_allowed = (
+        (thresholds_pass and allow_real_ingestion)
+        or operator_real_ingestion_override_active
+    )
     return {
         "generated_at": utc_now(),
         "ok": True,
@@ -1242,7 +1258,10 @@ def build_readiness_report(
         },
         "thresholds_pass": thresholds_pass,
         "allow_real_ingestion": allow_real_ingestion,
-        "real_ingestion_allowed": thresholds_pass and allow_real_ingestion,
+        "force_real_ingestion_override": force_real_ingestion_override,
+        "env_force_real_ingestion_override": env_force_real_ingestion_override,
+        "operator_real_ingestion_override_active": operator_real_ingestion_override_active,
+        "real_ingestion_allowed": real_ingestion_allowed,
         "warnings": warnings,
     }
 

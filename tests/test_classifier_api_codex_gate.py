@@ -169,6 +169,40 @@ def test_classifier_api_source_ingestion_reads_from_source_root_without_staging(
     assert not (tmp_path / "input").exists()
 
 
+def test_classifier_api_source_ingestion_blocks_real_folder_without_override(
+    monkeypatch,
+    tmp_path,
+):
+    source_root = tmp_path / "source"
+    source_file = source_root / "google1" / "Docs" / "Appeal.pdf"
+    source_file.parent.mkdir(parents=True)
+    source_file.write_bytes(b"pdf-bytes")
+
+    monkeypatch.setattr(api_server, "SOURCE_ROOT", source_root)
+    monkeypatch.setattr(api_server, "maybe_start_shadow_worker", lambda: None)
+    monkeypatch.setattr(
+        api_server,
+        "load_json",
+        lambda *_args, **_kwargs: {
+            "real_ingestion_allowed": False,
+            "warnings": ["teacher-approval-rate-below-threshold"],
+        },
+    )
+
+    with TestClient(api_server.APP) as client:
+        response = client.post(
+            "/classify/source",
+            data={
+                "source_relative_path": "google1/Docs/Appeal.pdf",
+                "attach_originals": "false",
+                "ingestion_mode": "real-folder",
+            },
+        )
+
+    assert response.status_code == 409
+    assert "teacher-approval-rate-below-threshold" in response.text
+
+
 def test_classifier_api_source_ingestion_override_enables_codex_arbiter(
     monkeypatch,
     tmp_path,

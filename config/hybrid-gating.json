@@ -17,5 +17,6 @@
   "readiness_min_teacher_agreement_rate": 0.8,
   "readiness_min_teacher_approval_rate": 0.7,
   "readiness_max_queue_depth": 25,
-  "allow_real_ingestion": false
+  "allow_real_ingestion": false,
+  "force_real_ingestion_override": false
 }
