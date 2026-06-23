@@ -318,6 +318,77 @@ def test_run_next_classification_job_submits_file_and_persists_completed_state(
     assert state.retrieval_text == "Finance Team budget forecast draft"
 
 
+def test_run_next_classification_job_strips_nul_bytes_before_persisting_completed_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    mirror_root = tmp_path / "mirror"
+    local_file = mirror_root / "Finance" / "Budget.txt"
+    local_file.parent.mkdir(parents=True)
+    local_file.write_bytes(b"budget-text")
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+
+    nul_response = {
+        "ok": True,
+        "record": {
+            "primary_label": "Tech\x00nical",
+            "summary": "Quarterly\x00 budget draft",
+            "confidence": 0.75,
+            "reasoning": "Contains\x00 planning details.",
+            "note_path": "01 Classified/technical/Budget\x00.md",
+            "entity_summary": "teams:\x00 Finance",
+            "topic_summary": "technical,\x00 budget",
+            "retrieval_terms": ["budget", "tech\x00nical", "forecast"],
+            "retrieval_text": "Budget\x00 retrieval text",
+        },
+        "stdout_tail": "ok\x00tail",
+    }
+
+    try:
+        file_record = _add_file(
+            session,
+            external_id="txt-1",
+            name="Budget.txt",
+            path="/Finance/Budget.txt",
+            mime_type="text/plain",
+            extension="txt",
+            size_bytes=11,
+        )
+        enqueue_classification_backfill(session, limit=10)
+        client = FakeClassifierClient(response=nul_response)
+
+        completed_job = run_next_classification_job(
+            session,
+            client=client,
+            worker_id="classifier-a",
+        )
+        state = session.scalar(
+            select(ClassificationState).where(ClassificationState.file_id == file_record.id)
+        )
+    finally:
+        session.close()
+
+    assert completed_job is not None
+    assert completed_job.status == CLASSIFICATION_STATUS_COMPLETED
+    assert state is not None
+    assert state.primary_label == "Technical"
+    assert state.summary == "Quarterly budget draft"
+    assert state.reasoning == "Contains planning details."
+    assert state.classifier_note_path == "01 Classified/technical/Budget.md"
+    assert state.entity_summary == "teams: Finance"
+    assert state.topic_summary == "technical, budget"
+    assert state.retrieval_terms_json == '["budget", "technical", "forecast"]'
+    assert state.retrieval_text == "Budget retrieval text"
+    assert "\x00" not in (state.classifier_manifest_record or "")
+    assert "\x00" not in (state.response_payload_json or "")
+    assert "\x00" not in (completed_job.classifier_response_json or "")
+
+
 def test_run_next_classification_job_supports_nested_provider_root(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -727,9 +727,30 @@ def _extract_record_field(response_payload: dict[str, object], field_name: str) 
     return None
 
 
+def _strip_nul_bytes(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return value.replace("\x00", "")
+
+
+def _sanitize_json_compatible(value: object) -> object:
+    if isinstance(value, str):
+        return _strip_nul_bytes(value)
+    if isinstance(value, dict):
+        return {key: _sanitize_json_compatible(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_sanitize_json_compatible(item) for item in value]
+    if isinstance(value, tuple):
+        return [_sanitize_json_compatible(item) for item in value]
+    return value
+
+
 def _extract_record_text(response_payload: dict[str, object], field_name: str) -> str | None:
     value = _extract_record_field(response_payload, field_name)
-    return value if isinstance(value, str) and value.strip() else None
+    if not isinstance(value, str):
+        return None
+    cleaned = _strip_nul_bytes(value)
+    return cleaned if cleaned and cleaned.strip() else None
 
 
 def _extract_record_string_list(response_payload: dict[str, object], field_name: str) -> list[str]:
@@ -741,7 +762,7 @@ def _extract_record_string_list(response_payload: dict[str, object], field_name:
     for item in value:
         if not isinstance(item, str):
             continue
-        normalized = item.strip()
+        normalized = (_strip_nul_bytes(item) or "").strip()
         if not normalized:
             continue
         key = normalized.casefold()
@@ -760,6 +781,9 @@ def _persist_completed_classification(
     response_payload: dict[str, object],
     now: datetime,
 ) -> ClassificationJob:
+    sanitized_response_payload = _sanitize_json_compatible(response_payload)
+    if not isinstance(sanitized_response_payload, dict):
+        sanitized_response_payload = {}
     state = _upsert_classification_state(
         session,
         file_record=file_record,
@@ -768,21 +792,30 @@ def _persist_completed_classification(
     )
     state.last_submitted_at = job.claimed_at or now
     state.last_completed_at = now
-    state.classifier_note_path = _extract_record_text(response_payload, "note_path")
-    record = response_payload.get("record")
-    state.classifier_manifest_record = json.dumps(record) if isinstance(record, dict) else None
-    primary_label = _extract_record_field(response_payload, "primary_label")
-    state.primary_label = primary_label if isinstance(primary_label, str) else None
-    state.summary = _extract_record_text(response_payload, "summary")
-    confidence = _extract_record_field(response_payload, "confidence")
+    state.classifier_note_path = _extract_record_text(sanitized_response_payload, "note_path")
+    record = sanitized_response_payload.get("record")
+    state.classifier_manifest_record = (
+        json.dumps(record, ensure_ascii=False) if isinstance(record, dict) else None
+    )
+    primary_label = _extract_record_field(sanitized_response_payload, "primary_label")
+    state.primary_label = (
+        _strip_nul_bytes(primary_label) if isinstance(primary_label, str) else None
+    )
+    state.summary = _extract_record_text(sanitized_response_payload, "summary")
+    confidence = _extract_record_field(sanitized_response_payload, "confidence")
     state.confidence = float(confidence) if isinstance(confidence, (int, float)) else None
-    state.reasoning = _extract_record_text(response_payload, "reasoning")
-    state.entity_summary = _extract_record_text(response_payload, "entity_summary")
-    state.topic_summary = _extract_record_text(response_payload, "topic_summary")
-    retrieval_terms = _extract_record_string_list(response_payload, "retrieval_terms")
-    state.retrieval_terms_json = json.dumps(retrieval_terms, ensure_ascii=False) if retrieval_terms else None
-    state.retrieval_text = _extract_record_text(response_payload, "retrieval_text")
-    state.response_payload_json = json.dumps(response_payload)
+    state.reasoning = _extract_record_text(sanitized_response_payload, "reasoning")
+    state.entity_summary = _extract_record_text(sanitized_response_payload, "entity_summary")
+    state.topic_summary = _extract_record_text(sanitized_response_payload, "topic_summary")
+    retrieval_terms = _extract_record_string_list(
+        sanitized_response_payload,
+        "retrieval_terms",
+    )
+    state.retrieval_terms_json = (
+        json.dumps(retrieval_terms, ensure_ascii=False) if retrieval_terms else None
+    )
+    state.retrieval_text = _extract_record_text(sanitized_response_payload, "retrieval_text")
+    state.response_payload_json = json.dumps(sanitized_response_payload, ensure_ascii=False)
     state.last_error = None
 
     job.status = CLASSIFICATION_STATUS_COMPLETED
@@ -790,7 +823,7 @@ def _persist_completed_classification(
     job.claimed_at = None
     job.heartbeat_at = None
     job.next_attempt_at = None
-    job.classifier_response_json = json.dumps(response_payload)
+    job.classifier_response_json = json.dumps(sanitized_response_payload, ensure_ascii=False)
     job.error_message = None
     job.updated_at = now
     session.commit()
@@ -807,13 +840,14 @@ def _persist_failed_classification(
     permanent: bool,
     count_against_attempt_budget: bool = True,
 ) -> ClassificationJob:
+    sanitized_error_message = _strip_nul_bytes(error_message) or ""
     attempt_count = job.attempt_count + (1 if count_against_attempt_budget else 0)
     job.attempt_count = attempt_count
     job.worker_id = None
     job.claimed_at = None
     job.heartbeat_at = None
     job.updated_at = now
-    job.error_message = error_message
+    job.error_message = sanitized_error_message
 
     should_fail = permanent or attempt_count >= job.max_attempts
     if should_fail:
@@ -831,7 +865,7 @@ def _persist_failed_classification(
         submission_status=job.status,
     )
     state.last_submitted_at = state.last_submitted_at or now
-    state.last_error = error_message
+    state.last_error = sanitized_error_message
     if should_fail:
         state.last_completed_at = now
 

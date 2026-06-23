@@ -235,8 +235,8 @@ SUDO_PASSWORD=... bash ./deploy/roles/cloudsync/install_storage_host_sync_assets
   real crawl, auth, extraction, or unusable-state failures
 - file presence is tracked per sync run; deletions are applied only when the
   whole run finishes
-- extracted text is sanitized before persistence so embedded NUL bytes do not
-  crash Postgres writes
+- extracted text plus persisted classifier manifest/response text are sanitized
+  before persistence so embedded NUL bytes do not crash Postgres writes
 
 ## Background classification
 
