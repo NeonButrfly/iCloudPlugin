@@ -13,6 +13,7 @@ from icloud_index_service.models.classification_job import ClassificationJob
 from icloud_index_service.models.classification_state import ClassificationState
 from icloud_index_service.models.extracted_content import ExtractedContent
 from icloud_index_service.models.file import FileRecord
+from icloud_index_service.services import classification_submission
 from icloud_index_service.services.classification_submission import (
     CLASSIFICATION_STATUS_COMPLETED,
     CLASSIFICATION_STATUS_FAILED,
@@ -1137,3 +1138,158 @@ def test_enqueue_targeted_reclassification_from_manual_feedback_queues_messenger
     assert created_jobs[0].file_id == file_record.id
     assert stored_state is not None
     assert stored_state.submission_status == CLASSIFICATION_STATUS_QUEUED
+
+
+def test_enqueue_classification_backfill_skips_duplicate_active_job_race_and_continues(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+
+    try:
+        first_file = _add_file(
+            session,
+            external_id="race-doc-1",
+            name="Alpha.pdf",
+            path="/Docs/Alpha.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=10,
+        )
+        second_file = _add_file(
+            session,
+            external_id="race-doc-2",
+            name="Beta.pdf",
+            path="/Docs/Beta.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=11,
+        )
+
+        original_upsert = classification_submission._upsert_classification_state
+        collision_triggered = False
+
+        def _collision_upsert(*args, **kwargs):
+            nonlocal collision_triggered
+            file_record = kwargs["file_record"]
+            if not collision_triggered and file_record.id == first_file.id:
+                collision_triggered = True
+                session.add(
+                    ClassificationJob(
+                        file_id=first_file.id,
+                        status=CLASSIFICATION_STATUS_QUEUED,
+                        priority_bucket="document",
+                        priority_rank=0,
+                        source_fingerprint="conflicting-fingerprint",
+                        max_attempts=DEFAULT_CLASSIFICATION_MAX_ATTEMPTS,
+                    )
+                )
+            return original_upsert(*args, **kwargs)
+
+        monkeypatch.setattr(classification_submission, "_upsert_classification_state", _collision_upsert)
+
+        created_jobs = enqueue_classification_backfill(session, limit=10)
+        stored_jobs = session.scalars(select(ClassificationJob).order_by(ClassificationJob.id.asc())).all()
+    finally:
+        session.close()
+
+    assert collision_triggered is True
+    assert [job.file_id for job in created_jobs] == [second_file.id]
+    assert [job.file_id for job in stored_jobs] == [second_file.id]
+
+
+def test_enqueue_targeted_reclassification_from_manual_feedback_skips_duplicate_active_job_race_and_continues(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    mirror_root = tmp_path / "mirrors"
+    first_local_file = mirror_root / "icloud" / "Text Messages" / "Messages" / "Alpha.pdf"
+    second_local_file = mirror_root / "icloud" / "Text Messages" / "Messages" / "Beta.pdf"
+    first_local_file.parent.mkdir(parents=True, exist_ok=True)
+    first_local_file.write_bytes(b"alpha")
+    second_local_file.write_bytes(b"beta")
+
+    monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "true")
+
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    try:
+        first_file = _add_file(
+            session,
+            external_id="target-race-1",
+            name="Alpha.pdf",
+            path="/icloud/Text Messages/Messages/Alpha.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=5,
+        )
+        second_file = _add_file(
+            session,
+            external_id="target-race-2",
+            name="Beta.pdf",
+            path="/icloud/Text Messages/Messages/Beta.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=4,
+        )
+        session.add_all(
+            [
+                ClassificationState(
+                    file_id=first_file.id,
+                    source_fingerprint=compute_source_fingerprint(
+                        file_record=first_file,
+                        extracted_content=None,
+                    ),
+                    source_size_bytes=first_file.size_bytes,
+                    submission_status=CLASSIFICATION_STATUS_COMPLETED,
+                    primary_label=None,
+                    classifier_note_path="/vault/02 Needs Review/Alpha - needs-review.md",
+                ),
+                ClassificationState(
+                    file_id=second_file.id,
+                    source_fingerprint=compute_source_fingerprint(
+                        file_record=second_file,
+                        extracted_content=None,
+                    ),
+                    source_size_bytes=second_file.size_bytes,
+                    submission_status=CLASSIFICATION_STATUS_COMPLETED,
+                    primary_label=None,
+                    classifier_note_path="/vault/02 Needs Review/Beta - needs-review.md",
+                ),
+            ]
+        )
+        session.commit()
+
+        original_upsert = classification_submission._upsert_classification_state
+        collision_triggered = False
+
+        def _collision_upsert(*args, **kwargs):
+            nonlocal collision_triggered
+            file_record = kwargs["file_record"]
+            if not collision_triggered and file_record.id == first_file.id:
+                collision_triggered = True
+                session.add(
+                    ClassificationJob(
+                        file_id=first_file.id,
+                        status=CLASSIFICATION_STATUS_QUEUED,
+                        priority_bucket="document",
+                        priority_rank=0,
+                        source_fingerprint="conflicting-fingerprint",
+                        max_attempts=DEFAULT_CLASSIFICATION_MAX_ATTEMPTS,
+                    )
+                )
+            return original_upsert(*args, **kwargs)
+
+        monkeypatch.setattr(classification_submission, "_upsert_classification_state", _collision_upsert)
+
+        created_jobs = enqueue_targeted_reclassification_from_manual_feedback(session, limit=10)
+        stored_jobs = session.scalars(select(ClassificationJob).order_by(ClassificationJob.id.asc())).all()
+    finally:
+        session.close()
+
+    assert collision_triggered is True
+    assert [job.file_id for job in created_jobs] == [second_file.id]
+    assert [job.file_id for job in stored_jobs] == [second_file.id]

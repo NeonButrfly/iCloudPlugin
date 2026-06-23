@@ -9,6 +9,7 @@ from pathlib import Path
 
 import httpx
 from sqlalchemy import Select, and_, case, exists, not_, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from icloud_index_service.models.classification_job import ClassificationJob
@@ -390,21 +391,14 @@ def enqueue_classification_backfill(
                 if priority_bucket != bucket:
                     continue
 
-                job = ClassificationJob(
-                    file_id=file_record.id,
-                    status=CLASSIFICATION_STATUS_QUEUED,
-                    priority_bucket=priority_bucket,
-                    priority_rank=priority_rank,
-                    source_fingerprint=source_fingerprint,
-                    max_attempts=get_classification_max_attempts(),
-                )
-                session.add(job)
-                _upsert_classification_state(
+                job = _enqueue_reclassification_job_for_file(
                     session,
                     file_record=file_record,
-                    source_fingerprint=source_fingerprint,
-                    submission_status=CLASSIFICATION_STATUS_QUEUED,
                 )
+                if job is None:
+                    continue
+                job.priority_bucket = priority_bucket
+                job.priority_rank = priority_rank
                 created_jobs.append(job)
                 if len(created_jobs) >= limit:
                     break
@@ -447,7 +441,7 @@ def _enqueue_reclassification_job_for_file(
     session: Session,
     *,
     file_record: FileRecord,
-) -> ClassificationJob:
+) -> ClassificationJob | None:
     extracted_content = session.scalar(
         select(ExtractedContent).where(ExtractedContent.file_id == file_record.id)
     )
@@ -459,22 +453,26 @@ def _enqueue_reclassification_job_for_file(
         file_record=file_record,
         extracted_content=extracted_content,
     )
-    job = ClassificationJob(
-        file_id=file_record.id,
-        status=CLASSIFICATION_STATUS_QUEUED,
-        priority_bucket=priority_bucket,
-        priority_rank=-1,
-        source_fingerprint=source_fingerprint,
-        max_attempts=get_classification_max_attempts(),
-    )
-    session.add(job)
-    _upsert_classification_state(
-        session,
-        file_record=file_record,
-        source_fingerprint=source_fingerprint,
-        submission_status=CLASSIFICATION_STATUS_QUEUED,
-    )
-    return job
+    try:
+        with session.begin_nested():
+            job = ClassificationJob(
+                file_id=file_record.id,
+                status=CLASSIFICATION_STATUS_QUEUED,
+                priority_bucket=priority_bucket,
+                priority_rank=-1,
+                source_fingerprint=source_fingerprint,
+                max_attempts=get_classification_max_attempts(),
+            )
+            session.add(job)
+            _upsert_classification_state(
+                session,
+                file_record=file_record,
+                source_fingerprint=source_fingerprint,
+                submission_status=CLASSIFICATION_STATUS_QUEUED,
+            )
+            return job
+    except IntegrityError:
+        return None
 
 
 def enqueue_targeted_reclassification_from_manual_feedback(
@@ -547,6 +545,8 @@ def enqueue_targeted_reclassification_from_manual_feedback(
             session,
             file_record=file_record,
         )
+        if job is None:
+            continue
         created_jobs.append(job)
 
     if len(created_jobs) < limit:
@@ -602,6 +602,8 @@ def enqueue_targeted_reclassification_from_manual_feedback(
                 session,
                 file_record=file_record,
             )
+            if job is None:
+                continue
             created_jobs.append(job)
 
     session.commit()
