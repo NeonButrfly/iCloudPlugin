@@ -327,6 +327,62 @@ def test_resolve_hybrid_document_decision_uses_canonical_source_path_for_reviewe
     assert hybrid_meta["decision"]["live_source"] == "manual-correction-override"
 
 
+def test_resolve_hybrid_document_decision_forces_inline_llm_for_review_bound_fast_path(
+    tmp_path: Path,
+    monkeypatch,
+):
+    source_path = tmp_path / "uncertain.pdf"
+    source_path.write_bytes(b"%PDF-1.7 fake")
+
+    monkeypatch.setattr(classifier_module, "build_retrieval_metadata", lambda **_: {})
+    monkeypatch.setattr(
+        classifier_module,
+        "select_candidate_categories",
+        lambda **_: ["financial", "report", "unknown", "needs-review"],
+    )
+    monkeypatch.setattr(
+        classifier_module,
+        "find_reviewed_label_override",
+        lambda **_: None,
+        raising=False,
+    )
+    monkeypatch.setattr(classifier_module, "predict_lightgbm_result", lambda **_: None)
+
+    llm_calls = {"count": 0}
+
+    def _inline_llm(**_kwargs):
+        llm_calls["count"] += 1
+        return {
+            "primary_label": "financial",
+            "secondary_labels": ["report"],
+            "confidence": 0.86,
+            "summary": "Inline Qwen clarified the uncertain document.",
+            "reason": "Review-bound items must pass through Qwen before returning to the vault.",
+            "sensitive_flags": ["financial"],
+            "recommended_action": "keep",
+            "file_date_guess": "unknown",
+            "language": "English",
+        }
+
+    monkeypatch.setattr(classifier_module, "classify_markdown", _inline_llm)
+
+    classification, hybrid_meta = classifier_module.resolve_hybrid_document_decision(
+        source_path=source_path,
+        markdown="Sparse statement text with conflicting cues.",
+        parser_name="pdftotext",
+        categories=["financial", "report", "unknown", "needs-review"],
+        heuristic_result={"primary_label": "unknown", "confidence": 0.31},
+        ollama_url="http://example.invalid",
+        model="qwen2.5:3b",
+        max_chars=4000,
+    )
+
+    assert llm_calls["count"] == 1
+    assert classification["primary_label"] == "financial"
+    assert hybrid_meta["decision"]["live_source"] == "inline-llm"
+    assert hybrid_meta["decision"]["decision_reason"] == "review-bound-inline-llm"
+
+
 def test_manual_override_notes_persist_unknown_heuristic_hint_when_fast_path_has_no_label(tmp_path: Path):
     from apps.classifier.classify_to_obsidian import ensure_vault, write_obsidian_note
 
@@ -361,3 +417,54 @@ def test_manual_override_notes_persist_unknown_heuristic_hint_when_fast_path_has
     note_text = note_path.read_text(encoding="utf-8")
 
     assert 'heuristic_primary_hint: "unknown"' in note_text
+
+
+def test_write_obsidian_note_normalizes_message_exports_to_text_message(tmp_path: Path):
+    vault = tmp_path / "vault"
+    source_path = tmp_path / "icloud" / "Text Messages" / "Messages" / "Angelina Fleckenstein.pdf"
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_bytes(b"sms-export")
+    classifier_module.ensure_vault(vault)
+
+    note_path = classifier_module.write_obsidian_note(
+        vault=vault,
+        source_path=source_path,
+        file_hash="hash",
+        markdown="Conversation export preview",
+        classification={
+            "primary_label": "work",
+            "secondary_labels": ["report"],
+            "confidence": 0.92,
+            "summary": "Conversation with deployment details.",
+            "reason": "Topical cues suggested work before message normalization.",
+            "sensitive_flags": ["none"],
+            "recommended_action": "keep",
+            "file_date_guess": "unknown",
+            "language": "English",
+            "candidate_categories_used": ["work", "report", "text-message", "unknown", "needs-review"],
+        },
+        attach_originals=False,
+        canonical_source_path="/srv/cloud-vault/mirrors/icloud/Text Messages/Messages/Angelina Fleckenstein.pdf",
+    )
+
+    note_text = note_path.read_text(encoding="utf-8")
+
+    assert note_path.parent.relative_to(vault).as_posix() == "01 Classified/text-message"
+    assert note_path.name == "Angelina Fleckenstein - text-message.md"
+    assert 'primary_label: "text-message"' in note_text
+
+
+def test_apply_text_message_override_matches_facebook_message_exports():
+    classification = classifier_module.apply_text_message_override(
+        {
+            "primary_label": "financial",
+            "secondary_labels": [],
+            "confidence": 0.55,
+            "candidate_categories_used": ["financial", "personal", "text-message", "needs-review"],
+        },
+        source_path="/srv/cloud-vault/mirrors/google2/meta-2025-May-02/facebook/your_facebook_activity/messages/your_messages.html",
+        candidate_categories=["financial", "personal", "text-message", "needs-review"],
+    )
+
+    assert classification["primary_label"] == "text-message"
+    assert "financial" in classification["secondary_labels"]

@@ -98,6 +98,9 @@
   "tax-forms": {
     "primary_label": "tax-form"
   },
+  "text-messages": {
+    "primary_label": "text-message"
+  },
   "technical": {
     "primary_label": "technical"
   },

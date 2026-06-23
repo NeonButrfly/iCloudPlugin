@@ -21,7 +21,7 @@ IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 DEFAULT_CATEGORIES = [
     "receipt", "invoice", "reimbursement-packet", "legal", "medical",
     "insurance", "tax", "financial", "identity-document", "school",
-    "work", "technical", "marketing", "personal", "reference-image",
+    "work", "technical", "marketing", "personal", "text-message", "reference-image",
     "concept-art", "environment-art", "game-reference", "architecture",
     "industrial", "sci-fi", "snow-ice", "screenshot", "product-photo",
     "image-only", "unknown", "needs-review"
@@ -31,7 +31,7 @@ DEFAULT_GROUPS = {
     "documents": [
         "receipt", "invoice", "reimbursement-packet", "legal", "medical",
         "insurance", "tax", "financial", "identity-document", "school",
-        "work", "technical", "marketing", "personal", "statement", "letter",
+        "work", "technical", "marketing", "personal", "text-message", "statement", "letter",
         "form", "contract", "policy", "manual", "report", "spreadsheet",
         "presentation", "source-code", "markdown-note", "unknown", "needs-review"
     ],
@@ -63,6 +63,14 @@ DEFAULT_GROUPS = {
     ],
 }
 
+MESSAGE_PATH_MARKERS = (
+    "/text messages/",
+    "/messenger/",
+    "/your_facebook_activity/messages/",
+    "your_messages.html",
+    "/sms/",
+)
+
 def _clean_label(value: str) -> str:
     value = value.strip().lower()
     value = value.split("#", 1)[0].strip()
@@ -70,6 +78,13 @@ def _clean_label(value: str) -> str:
     value = re.sub(r"[^a-z0-9._/ -]", " ", value)
     value = re.sub(r"\s+", "-", value).strip("-")
     return value
+
+
+def is_text_message_source_path(source_path: str | Path | None) -> bool:
+    source_text = str(source_path or "").replace("\\", "/").lower().strip()
+    if not source_text:
+        return False
+    return any(marker in source_text for marker in MESSAGE_PATH_MARKERS)
 
 def load_categories() -> List[str]:
     candidates: List[str] = []

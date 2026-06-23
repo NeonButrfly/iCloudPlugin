@@ -241,4 +241,19 @@
   `CLASSIFICATION_BACKFILL_ENABLED=false` or use
   `run_targeted_classification_batch.sh --targeted-feedback-only` to process
   strong manual corrections without seeding the broader backfill queue.
+- Issue [#66](https://github.com/NeonButrfly/iCloudPlugin/issues/66): when a
+  classification result would otherwise land in `02 Needs Review`, the
+  document path must be sent through the live Qwen inline classifier before
+  the note is written back into the vault; review should mean "Qwen already
+  inspected it," not "the heuristic path punted early."
+- Issue [#66](https://github.com/NeonButrfly/iCloudPlugin/issues/66): mirror
+  artifacts that are intrinsically SMS, iMessage, or Messenger exports should
+  be normalized to the canonical `text-message` category regardless of topical
+  content, while preserving any useful topical signal as secondary labels.
+- Issue [#66](https://github.com/NeonButrfly/iCloudPlugin/issues/66): the
+  live reset flow for this recovery should remain scoped to generated vault
+  outputs only:
+  `01 Classified`, `02 Needs Review`, `90 Attachments`,
+  `_system/classifications`, `_system/extracted-markdown`, and
+  `Classification Index.md`.
 - Affected systems: manual note feedback export, shadow worker, classifier readiness/bootstrap inputs, operator docs, classifier config.

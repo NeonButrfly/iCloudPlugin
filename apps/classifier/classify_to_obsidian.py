@@ -38,6 +38,7 @@ from .category_manager import (
     find_reviewed_label_override,
     format_examples_for_prompt,
     image_safe_categories,
+    is_text_message_source_path,
     load_categories,
     load_relevant_examples,
     normalize_image_classification_result,
@@ -221,6 +222,52 @@ def normalize_vault_classification(
             normalized["secondary_labels"] = ["appeals", *normalized["secondary_labels"]]
 
     return normalized
+
+
+def classification_requires_review(classification: Dict[str, Any]) -> bool:
+    primary = obsidian_tag(str((classification or {}).get("primary_label", "") or ""))
+    confidence = _coerce_float((classification or {}).get("confidence"), 0.0)
+    return primary in {"unknown", "needs-review"} or confidence < 0.70
+
+
+def apply_text_message_override(
+    classification: Dict[str, Any],
+    *,
+    source_path: str | Path | None,
+    candidate_categories: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    if not is_text_message_source_path(source_path):
+        return classification
+
+    normalized = normalize_vault_classification(
+        classification,
+        candidate_categories=candidate_categories,
+    )
+    previous_primary = obsidian_tag(str(normalized.get("primary_label", "") or ""))
+    merged_secondary: List[str] = []
+    seen_secondary: set[str] = set()
+
+    for item in [previous_primary, *(normalized.get("secondary_labels", []) or [])]:
+        tag = obsidian_tag(str(item))
+        if tag in {"", "unknown", "needs-review", "text-message"}:
+            continue
+        if tag in seen_secondary:
+            continue
+        seen_secondary.add(tag)
+        merged_secondary.append(tag)
+
+    candidate_categories_used: List[str] = []
+    for item in ["text-message", *merged_secondary, *((normalized.get("candidate_categories_used", []) or []))]:
+        tag = obsidian_tag(str(item))
+        if tag and tag not in candidate_categories_used:
+            candidate_categories_used.append(tag)
+
+    return {
+        **normalized,
+        "primary_label": "text-message",
+        "secondary_labels": merged_secondary,
+        "candidate_categories_used": candidate_categories_used or ["text-message", "unknown", "needs-review"],
+    }
 
 
 def vault_category_parts(primary: str, secondary: List[Any]) -> List[str]:
@@ -1094,6 +1141,18 @@ def resolve_hybrid_document_decision(
                 "live_source": "inline-llm",
                 "decision_reason": "forced-inline-from-disagreement-config",
             }
+    fast_path_preview = apply_text_message_override(
+        heuristic_result or {},
+        source_path=reviewed_source_path_text,
+        candidate_categories=taxonomy_candidates,
+    )
+    if not decision["use_inline_llm"] and classification_requires_review(fast_path_preview):
+        decision = {
+            **decision,
+            "use_inline_llm": True,
+            "live_source": "inline-llm",
+            "decision_reason": "review-bound-inline-llm",
+        }
 
     if timing is not None:
         timing["hybrid_live_source"] = decision.get("live_source")
@@ -1129,6 +1188,11 @@ def resolve_hybrid_document_decision(
             "language": "unknown",
             "candidate_categories_used": taxonomy_candidates,
         }
+    classification = apply_text_message_override(
+        classification,
+        source_path=reviewed_source_path_text,
+        candidate_categories=taxonomy_candidates,
+    )
 
     hybrid_meta = {
         "taxonomy_candidates": taxonomy_candidates,
@@ -1602,6 +1666,11 @@ def classify_image(
         vision_model=vision_model,
         timing=timing,
     )
+    classification = apply_text_message_override(
+        classification,
+        source_path=reviewed_source_path or source_path,
+        candidate_categories=list(classification.get("candidate_categories_used", []) or []),
+    )
     classification["ocr_engine"] = ocr_engine
     classification["ocr_quality"] = ocr_quality
     classification["ocr_char_count"] = int(ocr_evidence.get("char_count", 0) or 0)
@@ -1643,6 +1712,11 @@ def write_obsidian_note(
         fallback_primary=str(hybrid_fallback["fallback_primary"] or ""),
         fallback_confidence=hybrid_fallback["fallback_confidence"],
         fallback_secondary=list(hybrid_fallback["fallback_secondary"]),
+    )
+    classification = apply_text_message_override(
+        classification,
+        source_path=canonical_source_path or source_path,
+        candidate_categories=list(hybrid_fallback["candidate_categories"]),
     )
 
     primary = str(classification.get("primary_label", "unknown") or "unknown")
@@ -2227,6 +2301,13 @@ def main() -> int:
                 timing["codex_arbiter_applied"] = bool(codex_arbiter_meta.get("applied"))
                 if codex_arbiter_meta.get("duration_ms") is not None:
                     timing["codex_arbiter_ms"] = codex_arbiter_meta.get("duration_ms")
+                classification = apply_text_message_override(
+                    classification,
+                    source_path=args.canonical_source_path or source_path,
+                    candidate_categories=list(
+                        ((hybrid_meta or {}).get("taxonomy_candidates") or classification.get("candidate_categories_used", []) or [])
+                    ),
+                )
                 timing["final_live_source"] = hybrid_live_source
                 retrieval_text_source = "\n".join(
                     filter(
