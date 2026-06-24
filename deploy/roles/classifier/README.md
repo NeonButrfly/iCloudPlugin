@@ -10,6 +10,9 @@ Typical host:
 Expected shared mount:
 
 - current live path on `tichuml1`: `/mnt/cloud-vault/document-vault`
+- storage-host backing path on `kayraspi2`: `/srv/cloud-vault/document-vault`
+- operator-facing SMB path should be a direct vault share such as
+  `\\192.168.50.86\document-vault`
 - legacy compatibility path on the storage host: `/srv/cloud-vault/local-doc-classifier-vault`
 
 Live migration note:
@@ -52,6 +55,9 @@ Operational defaults:
 - keep `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors` aligned with the
   canonical source paths stored in generated notes, even when the host-mounted
   mirror tree comes from `/mnt/cloud-vault/mirrors`
+- keep `CLASSIFIER_VAULT_DIR=/mnt/cloud-vault/document-vault` on compute
+  hosts so generated notes land in the shared vault rather than a host-local
+  duplicate under `/srv/cloud-vault/document-vault`
 - keep `CLASSIFIER_SOURCE_MOUNT_SOURCE` pointed at the host-visible mirror tree
   and `CLASSIFIER_SOURCE_ROOT` at the in-container mount path (default
   `/source`); the shadow worker now translates canonical mirror paths from

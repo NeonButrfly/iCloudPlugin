@@ -68,8 +68,8 @@ services:
       - ${CLASSIFIER_CONFIG_DIR:-../../../config}:/config:ro
       - ${CLASSIFIER_INPUT_DIR:-./input}:/input
       - ${CLASSIFIER_OUTPUT_DIR:-./output}:/output
-      - ${CLASSIFIER_SOURCE_MOUNT_SOURCE:-/srv/cloud-vault/mirrors}:${CLASSIFIER_SOURCE_ROOT:-/source}:ro
-      - ${CLASSIFIER_VAULT_DIR:-/srv/cloud-vault/document-vault}:/vault
+      - ${CLASSIFIER_SOURCE_MOUNT_SOURCE:-/mnt/cloud-vault/mirrors}:${CLASSIFIER_SOURCE_ROOT:-/source}:ro
+      - ${CLASSIFIER_VAULT_DIR:-/mnt/cloud-vault/document-vault}:/vault
       - ${CLASSIFIER_CACHE_DIR:-./cache}:/root/.cache
       - ${CLASSIFIER_LOG_DIR:-./logs}:/logs
       - ${CLASSIFIER_TMP_DIR:-./tmp}:/tmp/work
@@ -115,8 +115,8 @@ services:
       - ${CLASSIFIER_CONFIG_DIR:-../../../config}:/config:ro
       - ${CLASSIFIER_INPUT_DIR:-./input}:/input
       - ${CLASSIFIER_OUTPUT_DIR:-./output}:/output
-      - ${CLASSIFIER_SOURCE_MOUNT_SOURCE:-/srv/cloud-vault/mirrors}:${CLASSIFIER_SOURCE_ROOT:-/source}:ro
-      - ${CLASSIFIER_VAULT_DIR:-/srv/cloud-vault/document-vault}:/vault
+      - ${CLASSIFIER_SOURCE_MOUNT_SOURCE:-/mnt/cloud-vault/mirrors}:${CLASSIFIER_SOURCE_ROOT:-/source}:ro
+      - ${CLASSIFIER_VAULT_DIR:-/mnt/cloud-vault/document-vault}:/vault
       - ${CLASSIFIER_CACHE_DIR:-./cache}:/root/.cache
       - ${CLASSIFIER_LOG_DIR:-./logs}:/logs
       - ${CLASSIFIER_TMP_DIR:-./tmp}:/tmp/work

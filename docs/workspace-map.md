@@ -47,8 +47,15 @@ This repo is the canonical workspace for the cloud-vault platform work.
 
 ## Canonical Obsidian Vault
 
-- canonical live vault path is `/srv/cloud-vault/document-vault`
-- `tichuml1` mounts it at `/mnt/cloud-vault/document-vault`
+- storage-host canonical vault path is `/srv/cloud-vault/document-vault` on
+  `kayraspi2`
+- compute-host canonical mounted vault path is
+  `/mnt/cloud-vault/document-vault` on `tichuml1`
+- current operator-facing UNC is `\\192.168.50.86\cloud-vault\document-vault`
+- if a direct vault SMB share is added later, it should be
+  `\\192.168.50.86\document-vault` and point at that same backing folder
 - `/srv/cloud-vault/local-doc-classifier-vault` is a compatibility symlink to
   `document-vault` during the soak period
-- use `document-vault` for all new Obsidian and classifier configuration
+- `tichuml1:/srv/cloud-vault/document-vault` should not be a separate local
+  vault tree; if present, convert it into a compatibility link to the shared
+  mounted vault

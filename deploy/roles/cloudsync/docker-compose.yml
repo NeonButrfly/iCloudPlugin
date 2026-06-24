@@ -73,7 +73,7 @@ services:
     command: uv run uvicorn icloud_index_service.main:app --host 0.0.0.0 --port 8080
     volumes:
       - ../../..:/app
-      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}:/srv/cloud-vault:ro
+      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}:/srv/cloud-vault:ro
     ports:
       - "${SERVICE_PORT:-8080}:8080"
     depends_on:
@@ -116,7 +116,7 @@ services:
     command: uv run python -m icloud_index_service.worker
     volumes:
       - ../../..:/app
-      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}:/srv/cloud-vault:ro
+      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}:/srv/cloud-vault:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -153,7 +153,7 @@ services:
     command: uv run python -m icloud_index_service.classification_worker
     volumes:
       - ../../..:/app
-      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}:/srv/cloud-vault
+      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}:/srv/cloud-vault
     depends_on:
       postgres:
         condition: service_healthy
