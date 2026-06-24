@@ -11,8 +11,7 @@ Expected shared mount:
 
 - current live path on `tichuml1`: `/mnt/cloud-vault/document-vault`
 - storage-host backing path on `kayraspi2`: `/srv/cloud-vault/document-vault`
-- operator-facing SMB path should be a direct vault share such as
-  `\\192.168.50.86\document-vault`
+- operator-facing SMB path is `\\192.168.50.86\document-vault`
 - legacy compatibility path on the storage host: `/srv/cloud-vault/local-doc-classifier-vault`
 
 Live migration note:

@@ -964,14 +964,13 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 1. Use `C:\Code\iCloudPlugin` as the workspace.
 2. Read `docs/workspace-map.md`.
 3. Read this file.
-4. Treat `kayraspi2:/srv/cloud-vault/document-vault` and
-   `tichuml1:/mnt/cloud-vault/document-vault` as the same canonical Obsidian
-   vault. Today the live SMB path is still
-   `\\192.168.50.86\cloud-vault\document-vault`; if a direct
-   `\\192.168.50.86\document-vault` share is added later, keep it pointed at
-   that same backing folder. Do not let
-   `tichuml1:/srv/cloud-vault/document-vault` drift into a separate host-local
-   duplicate.
+4. Treat `kayraspi2:/srv/cloud-vault/document-vault`,
+   `tichuml1:/mnt/cloud-vault/document-vault`, and the direct SMB path
+   `\\192.168.50.86\document-vault` as the same canonical Obsidian vault.
+   `\\192.168.50.86\cloud-vault\document-vault` reaches the same folder through
+   the parent share, but the direct share is now the preferred operator path.
+   Do not let `tichuml1:/srv/cloud-vault/document-vault` drift into a separate
+   host-local duplicate.
 5. Assume:
    - `kayraspi2` is storage/share/proxy
    - `tichuml1` is classifier plus live cloudsync compute host

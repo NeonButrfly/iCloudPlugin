@@ -51,9 +51,9 @@ This repo is the canonical workspace for the cloud-vault platform work.
   `kayraspi2`
 - compute-host canonical mounted vault path is
   `/mnt/cloud-vault/document-vault` on `tichuml1`
-- current operator-facing UNC is `\\192.168.50.86\cloud-vault\document-vault`
-- if a direct vault SMB share is added later, it should be
-  `\\192.168.50.86\document-vault` and point at that same backing folder
+- preferred operator-facing UNC is `\\192.168.50.86\document-vault`
+- parent-share UNC `\\192.168.50.86\cloud-vault\document-vault` points at the
+  same backing folder but should no longer be the primary instruction
 - `/srv/cloud-vault/local-doc-classifier-vault` is a compatibility symlink to
   `document-vault` during the soak period
 - `tichuml1:/srv/cloud-vault/document-vault` should not be a separate local
