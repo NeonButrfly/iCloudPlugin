@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import random
@@ -12,9 +13,11 @@ from typing import Any, Iterable
 import psycopg
 from psycopg.rows import dict_row
 
+from packages.runtime import load_classifier_runtime_settings
 from .external_taxonomy import match_external_taxonomy_candidates
 from .label_map import canonicalize_label, canonicalize_labels
 
+SETTINGS = load_classifier_runtime_settings()
 LIVE_INDEX_DEFAULTS = {
     "host": "192.168.50.232",
     "port": 5432,
@@ -249,6 +252,52 @@ def fetch_index_corpus(database_url: str | None = None, content_chars: int = 120
     return [dict(row) for row in rows]
 
 
+def fetch_index_training_corpus(
+    database_url: str | None = None,
+    *,
+    content_chars: int = 4000,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    db_url = database_url or resolve_index_database_url()
+    limit_sql = ""
+    params: dict[str, Any] = {"content_chars": content_chars}
+    if limit is not None:
+        params["row_limit"] = max(int(limit), 0)
+        limit_sql = "\n        limit %(row_limit)s"
+    sql = f"""
+        select
+            f.id,
+            f.external_id,
+            f.name,
+            f.path,
+            f.mime_type,
+            coalesce(f.extension, '') as extension,
+            coalesce(substr(ec.content_text, 1, %(content_chars)s), '') as content_text,
+            cs.submission_status,
+            cs.classifier_note_path,
+            cs.classifier_manifest_record,
+            cs.primary_label as state_primary_label,
+            cs.summary as state_summary,
+            cs.confidence as state_confidence,
+            cs.reasoning as state_reasoning,
+            cs.entity_summary,
+            cs.topic_summary,
+            cs.retrieval_terms_json,
+            cs.retrieval_text,
+            cs.response_payload_json,
+            cs.last_error
+        from files f
+        left join extracted_contents ec on ec.file_id = f.id
+        left join classification_states cs on cs.file_id = f.id
+        where not f.is_deleted
+        order by f.id asc{limit_sql}
+    """
+
+    with psycopg.connect(db_url, row_factory=dict_row) as conn:
+        rows = conn.execute(sql, params).fetchall()
+    return [dict(row) for row in rows]
+
+
 def _provider_from_path(path: str) -> str:
     segments = [segment for segment in str(path).split("/") if segment]
     if not segments:
@@ -263,6 +312,44 @@ def _extension_from_record(record: dict[str, Any]) -> str:
     name = str(record.get("name") or "")
     suffix = Path(name).suffix.lower().lstrip(".")
     return suffix
+
+
+def _json_object(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if not isinstance(value, str) or not value.strip():
+        return {}
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return {}
+    return dict(parsed) if isinstance(parsed, dict) else {}
+
+
+def _json_string_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        raw_items = value
+    elif isinstance(value, str) and value.strip():
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            parsed = []
+        raw_items = parsed if isinstance(parsed, list) else []
+    else:
+        raw_items = []
+
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for item in raw_items:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(text)
+    return cleaned
 
 
 def _is_doc_like(extension: str, mime_type: str) -> bool:
@@ -718,6 +805,181 @@ def build_stratified_training_rows(
     return selected_rows, report
 
 
+def build_taxonomy_training_dataset(
+    records: list[dict[str, Any]],
+    *,
+    text_preview_chars: int = 4000,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    provider_counts: Counter[str] = Counter()
+    submission_status_counts: Counter[str] = Counter()
+    current_label_counts: Counter[str] = Counter()
+    teacher_label_counts: Counter[str] = Counter()
+    training_target_counts: Counter[str] = Counter()
+    file_type_counts: Counter[str] = Counter()
+    topic_counts: Counter[str] = Counter()
+    review_reason_counts: Counter[str] = Counter()
+    top_candidate_counts: Counter[str] = Counter()
+
+    with_state = 0
+    review_recommended = 0
+    teacher_disagreement = 0
+
+    for record in records:
+        annotated = _annotate_record(record)
+        response_payload = _json_object(record.get("response_payload_json"))
+        manifest_record = _json_object(record.get("classifier_manifest_record"))
+        retrieval_terms = _json_string_list(record.get("retrieval_terms_json"))
+        secondary_labels = canonicalize_labels(
+            response_payload.get("secondary_labels")
+            if isinstance(response_payload.get("secondary_labels"), list)
+            else []
+        )
+        current_primary_raw = str(
+            record.get("state_primary_label")
+            or response_payload.get("primary_label")
+            or manifest_record.get("primary_label")
+            or ""
+        ).strip()
+        current_primary = canonicalize_label(current_primary_raw) if current_primary_raw else ""
+        current_confidence = record.get("state_confidence")
+        try:
+            current_confidence_value = float(current_confidence) if current_confidence is not None else 0.0
+        except (TypeError, ValueError):
+            current_confidence_value = 0.0
+        taxonomy_matches = match_external_taxonomy_candidates(annotated["query_text"], limit=8)
+        taxonomy_candidates = canonicalize_labels([str(item.get("label") or "") for item in taxonomy_matches])
+        training_target = current_primary if current_primary and current_primary not in {"unknown", "needs-review"} else canonicalize_label(annotated["teacher_label"])
+        review_reasons: list[str] = []
+        if not current_primary:
+            review_reasons.append("missing-classifier-label")
+        elif current_primary in {"unknown", "needs-review"}:
+            review_reasons.append("classifier-review-label")
+        if current_confidence_value and current_confidence_value < 0.70:
+            review_reasons.append("classifier-low-confidence")
+        if annotated["teacher_confidence"] < 0.45:
+            review_reasons.append("teacher-low-confidence")
+        if current_primary and current_primary not in {"unknown", "needs-review"}:
+            teacher_primary = canonicalize_label(annotated["teacher_primary"])
+            if current_primary != teacher_primary:
+                review_reasons.append("teacher-current-disagreement")
+
+        needs_review = bool(review_reasons)
+        if needs_review:
+            review_recommended += 1
+        if "teacher-current-disagreement" in review_reasons:
+            teacher_disagreement += 1
+
+        row = {
+            "file_id": annotated["file_id"],
+            "external_id": annotated["external_id"],
+            "filename": annotated["filename"],
+            "path": annotated["path"],
+            "provider": annotated["provider"],
+            "extension": annotated["extension"],
+            "mime_type": annotated["mime_type"],
+            "file_type_group": annotated["file_type_group"],
+            "submission_status": str(record.get("submission_status") or ""),
+            "classifier_note_path": str(record.get("classifier_note_path") or ""),
+            "classifier_primary_label": current_primary,
+            "classifier_primary_label_raw": current_primary_raw,
+            "classifier_secondary_labels": secondary_labels,
+            "classifier_confidence": round(current_confidence_value, 4) if current_confidence is not None else None,
+            "classifier_summary": str(record.get("state_summary") or response_payload.get("summary") or ""),
+            "classifier_reasoning": str(record.get("state_reasoning") or response_payload.get("reasoning") or ""),
+            "entity_summary": str(record.get("entity_summary") or response_payload.get("entity_summary") or ""),
+            "topic_summary": str(record.get("topic_summary") or response_payload.get("topic_summary") or ""),
+            "retrieval_terms": retrieval_terms,
+            "retrieval_text": str(record.get("retrieval_text") or response_payload.get("retrieval_text") or ""),
+            "last_error": str(record.get("last_error") or ""),
+            "naive_label": canonicalize_label(annotated["naive_label"]),
+            "teacher_label": canonicalize_label(annotated["teacher_label"]),
+            "teacher_primary": canonicalize_label(annotated["teacher_primary"]),
+            "teacher_secondary": canonicalize_label(annotated["teacher_secondary"]),
+            "teacher_confidence": annotated["teacher_confidence"],
+            "teacher_ranked_labels": canonicalize_labels(annotated["teacher_ranked_labels"]),
+            "teacher_evidence": list(annotated["teacher_evidence"]),
+            "surface_primary": canonicalize_label(annotated["surface_primary"]),
+            "surface_confidence": annotated["surface_confidence"],
+            "ambiguity_score": annotated["ambiguity_score"],
+            "sensitive_topics": list(annotated["sensitive_topics"]),
+            "taxonomy_candidates": taxonomy_candidates,
+            "training_target_label": training_target,
+            "review_recommended": needs_review,
+            "review_reasons": review_reasons,
+            "text_preview": annotated["query_text"][:text_preview_chars],
+        }
+        rows.append(row)
+
+        provider_counts[row["provider"]] += 1
+        submission_status_counts[row["submission_status"] or "unsubmitted"] += 1
+        current_label_counts[row["classifier_primary_label"] or "unclassified"] += 1
+        teacher_label_counts[row["teacher_label"]] += 1
+        training_target_counts[row["training_target_label"]] += 1
+        file_type_counts[row["file_type_group"]] += 1
+        if row["submission_status"]:
+            with_state += 1
+        for topic in row["sensitive_topics"]:
+            topic_counts[topic] += 1
+        for reason in review_reasons:
+            review_reason_counts[reason] += 1
+        for label in row["taxonomy_candidates"][:3]:
+            top_candidate_counts[label] += 1
+
+    report = {
+        "ok": True,
+        "kind": "taxonomy-training-dataset-v1",
+        "total_rows": len(rows),
+        "rows_with_classification_state": with_state,
+        "review_recommended_rows": review_recommended,
+        "teacher_current_disagreement_rows": teacher_disagreement,
+        "provider_counts": dict(sorted(provider_counts.items())),
+        "submission_status_counts": dict(sorted(submission_status_counts.items())),
+        "classifier_label_counts": dict(sorted(current_label_counts.items())),
+        "teacher_label_counts": dict(sorted(teacher_label_counts.items())),
+        "training_target_counts": dict(sorted(training_target_counts.items())),
+        "file_type_counts": dict(sorted(file_type_counts.items())),
+        "sensitive_topic_counts": dict(sorted(topic_counts.items())),
+        "review_reason_counts": dict(sorted(review_reason_counts.items())),
+        "top_taxonomy_candidates": dict(top_candidate_counts.most_common(20)),
+    }
+    return rows, report
+
+
+def export_taxonomy_training_dataset(
+    *,
+    database_url: str | None = None,
+    output_path: Path,
+    report_path: Path,
+    content_chars: int = 4000,
+    limit: int | None = None,
+) -> dict[str, Any]:
+    records = fetch_index_training_corpus(
+        database_url=database_url,
+        content_chars=content_chars,
+        limit=limit,
+    )
+    rows, report = build_taxonomy_training_dataset(records, text_preview_chars=content_chars)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    full_report = dict(report)
+    full_report.update(
+        {
+            "database_url_source": "explicit" if database_url else "environment",
+            "output_path": str(output_path),
+            "report_path": str(report_path),
+            "content_chars": content_chars,
+            "limit": limit,
+        }
+    )
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(full_report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return full_report
+
+
 def train_lightgbm_from_index(
     *,
     database_url: str | None = None,
@@ -764,3 +1026,56 @@ def train_lightgbm_from_index(
     )
     report_path.write_text(json.dumps(model_report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return model_report
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Export classifier taxonomy/training datasets or train LightGBM from the index.")
+    parser.add_argument(
+        "--mode",
+        choices=("export-taxonomy-dataset", "train-lightgbm"),
+        default="export-taxonomy-dataset",
+        help="Operation to run.",
+    )
+    parser.add_argument("--database-url", default=None, help="Optional explicit Postgres URL for the live index.")
+    parser.add_argument("--content-chars", type=int, default=4000, help="Maximum extracted content chars to include per row.")
+    parser.add_argument("--limit", type=int, default=None, help="Optional maximum row count to export.")
+    parser.add_argument("--seed", type=int, default=7, help="Sampling seed for LightGBM training mode.")
+    parser.add_argument(
+        "--output-path",
+        default=None,
+        help="Optional output path override. Defaults to the runtime taxonomy dataset or LightGBM model path.",
+    )
+    parser.add_argument(
+        "--report-path",
+        default=None,
+        help="Optional report path override. Defaults to the runtime taxonomy dataset report or LightGBM report path.",
+    )
+    args = parser.parse_args(argv)
+
+    if args.mode == "train-lightgbm":
+        model_path = Path(args.output_path) if args.output_path else SETTINGS.lightgbm_model_path
+        report_path = Path(args.report_path) if args.report_path else SETTINGS.lightgbm_report_path
+        result = train_lightgbm_from_index(
+            database_url=args.database_url,
+            model_path=model_path,
+            report_path=report_path,
+            seed=args.seed,
+        )
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return 0
+
+    output_path = Path(args.output_path) if args.output_path else SETTINGS.taxonomy_training_dataset_path
+    report_path = Path(args.report_path) if args.report_path else SETTINGS.taxonomy_training_dataset_report_path
+    result = export_taxonomy_training_dataset(
+        database_url=args.database_url,
+        output_path=output_path,
+        report_path=report_path,
+        content_chars=args.content_chars,
+        limit=args.limit,
+    )
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

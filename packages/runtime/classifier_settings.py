@@ -150,6 +150,14 @@ class ClassifierRuntimeSettings:
         return self.readable_config_path("example-mining-report.json")
 
     @property
+    def taxonomy_training_dataset_path(self) -> Path:
+        return self.output_root / "taxonomy-training-dataset.jsonl"
+
+    @property
+    def taxonomy_training_dataset_report_path(self) -> Path:
+        return self.output_root / "taxonomy-training-dataset-report.json"
+
+    @property
     def hybrid_gating_path(self) -> Path:
         return self.artifact_path("hybrid-gating.json")
 

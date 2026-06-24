@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from apps.classifier import hybrid_runtime
-from apps.classifier.index_training import build_stratified_training_rows, resolve_index_database_url
+from apps.classifier.index_training import (
+    build_stratified_training_rows,
+    build_taxonomy_training_dataset,
+    resolve_index_database_url,
+)
 from apps.classifier.label_map import canonicalize_label
 
 
@@ -136,3 +141,96 @@ def test_choose_live_decision_aligns_on_canonical_labels():
     assert decision["use_inline_llm"] is False
     assert decision["live_source"] == "heuristic-fast-path"
     assert decision["selected_primary_hint"] == "insurance"
+
+
+def test_build_taxonomy_training_dataset_uses_classifier_state_and_teacher_signals():
+    records = [
+        {
+            **_make_record(
+                21,
+                provider="icloud",
+                name="benefits_appeal.pdf",
+                path_tail="Benefits/benefits_appeal.pdf",
+                mime_type="application/pdf",
+                extension="pdf",
+                content_text="medical appeal insurance benefits claim form",
+            ),
+            "submission_status": "completed",
+            "classifier_note_path": "02 Needs Review/benefits_appeal.md",
+            "classifier_manifest_record": json.dumps({"primary_label": "needs-review"}),
+            "state_primary_label": "needs-review",
+            "state_summary": "Needs a closer read.",
+            "state_confidence": 0.61,
+            "state_reasoning": "Low confidence result.",
+            "entity_summary": "organizations: Moda",
+            "topic_summary": "insurance, appeal",
+            "retrieval_terms_json": json.dumps(["appeal", "benefits", "claim"]),
+            "retrieval_text": "appeal benefits claim",
+            "response_payload_json": json.dumps(
+                {
+                    "primary_label": "needs-review",
+                    "secondary_labels": ["appeal", "benefits"],
+                    "summary": "Needs a closer read.",
+                    "reasoning": "Low confidence result.",
+                }
+            ),
+            "last_error": "",
+        },
+        {
+            **_make_record(
+                22,
+                provider="google1",
+                name="invoice_april.pdf",
+                path_tail="Finance/invoice_april.pdf",
+                mime_type="application/pdf",
+                extension="pdf",
+                content_text="invoice payment balance due account summary",
+            ),
+            "submission_status": "completed",
+            "classifier_note_path": "01 Classified/invoice_april.md",
+            "classifier_manifest_record": json.dumps({"primary_label": "invoice"}),
+            "state_primary_label": "invoice",
+            "state_summary": "Invoice for April.",
+            "state_confidence": 0.94,
+            "state_reasoning": "Clear invoice terminology.",
+            "entity_summary": "vendors: Utility Company",
+            "topic_summary": "invoice, financial",
+            "retrieval_terms_json": json.dumps(["invoice", "payment"]),
+            "retrieval_text": "invoice payment balance due",
+            "response_payload_json": json.dumps(
+                {
+                    "primary_label": "invoice",
+                    "secondary_labels": ["financial"],
+                    "summary": "Invoice for April.",
+                    "reasoning": "Clear invoice terminology.",
+                }
+            ),
+            "last_error": "",
+        },
+    ]
+
+    rows, report = build_taxonomy_training_dataset(records)
+
+    assert len(rows) == 2
+    first = rows[0]
+    assert first["classifier_primary_label"] == "needs-review"
+    assert first["classifier_secondary_labels"] == ["insurance"]
+    assert first["review_recommended"] is True
+    assert "classifier-review-label" in first["review_reasons"]
+    assert "classifier-low-confidence" in first["review_reasons"]
+    assert first["training_target_label"] == first["teacher_label"]
+    assert "insurance" in first["taxonomy_candidates"]
+    assert first["retrieval_terms"] == ["appeal", "benefits", "claim"]
+
+    second = rows[1]
+    assert second["classifier_primary_label"] == "financial"
+    assert second["review_recommended"] is False
+    assert second["training_target_label"] == "financial"
+
+    assert report["total_rows"] == 2
+    assert report["rows_with_classification_state"] == 2
+    assert report["review_recommended_rows"] == 1
+    assert report["provider_counts"] == {"google1": 1, "icloud": 1}
+    assert report["submission_status_counts"] == {"completed": 2}
+    assert report["classifier_label_counts"]["financial"] == 1
+    assert report["classifier_label_counts"]["needs-review"] == 1

@@ -951,6 +951,48 @@ The example corpus and report now include:
 Those fields are consumed by the taxonomy router and LightGBM runtime training
 rows so both layers train on the same evidence-rich examples.
 
+## Taxonomy dataset export
+
+Issue [#69](https://github.com/NeonButrfly/iCloudPlugin/issues/69) adds a
+first-class export path for category design and retraining analysis from the
+live index.
+
+Export the full evidence-rich taxonomy/training dataset:
+
+```bash
+python -m apps.classifier.index_training --mode export-taxonomy-dataset
+```
+
+By default that writes:
+
+- `.runtime/classifier/taxonomy-training-dataset.jsonl`
+- `.runtime/classifier/taxonomy-training-dataset-report.json`
+
+Each JSONL row joins indexed file metadata with current classifier state plus
+teacher-style training signals, including:
+
+- provider, path, extension, mime type, and file type group
+- current classifier label, confidence, note path, and review/error state
+- retrieval metadata (`entity_summary`, `topic_summary`, `retrieval_terms`)
+- heuristic/teacher labels, ranked candidates, evidence, and ambiguity score
+- suggested `training_target_label`
+- `review_recommended` plus concrete `review_reasons`
+- `taxonomy_candidates` and `text_preview`
+
+Use that dataset to:
+
+- have ChatGPT analyze recurring patterns and propose stronger category groups
+- identify which labels or providers overproduce `needs-review`
+- create targeted Qwen prompt examples for weak or ambiguous buckets
+- choose high-value reviewed rows for LightGBM retraining
+
+Useful flags:
+
+```bash
+python -m apps.classifier.index_training --mode export-taxonomy-dataset --limit 250 --content-chars 2500
+python -m apps.classifier.index_training --mode export-taxonomy-dataset --output-path C:/temp/taxonomy.jsonl --report-path C:/temp/taxonomy-report.json
+```
+
 ## OCR-rich classifier feature text
 
 Issue [#27](https://github.com/NeonButrfly/iCloudPlugin/issues/27) promotes OCR
