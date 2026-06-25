@@ -406,9 +406,9 @@ sudo docker compose -p icloudplugin --env-file .env `
   uv run python -c "from icloud_index_service.classification_worker import run_classification_worker_loop; print(run_classification_worker_loop(max_polls=3, poll_interval_seconds=0.1))"
 ```
 
-For the preferred compute-only cutover to `tichuml1`, start the long-running
-cloudsync stack with the host-local mount path instead of the old read-only Pi
-mount:
+For the preferred clean split-host deployment on `tichuml1`, start the
+long-running cloudsync stack with local Postgres and the shared storage mount
+from `kayraspi2`:
 
 ```bash
 cd /opt/iCloudPlugin
@@ -420,15 +420,15 @@ sudo docker compose -p icloudplugin \
   up -d --build postgres migrate service worker
 ```
 
-Recommended first cutover values in `deploy/roles/cloudsync/.env.live`:
+Recommended values in `deploy/roles/cloudsync/.env.live`:
 
-- `POSTGRES_HOST=192.168.50.232`
+- `POSTGRES_HOST=postgres`
 - `POSTGRES_PORT=5432`
 - `ICLOUD_MIRROR_MOUNT_SOURCE=/mnt/cloud-vault`
 - `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors`
 
-That keeps the existing Postgres on `kayraspi` for the first compute move
-while shifting the expensive API and refresh worker load onto `tichuml1`.
+That keeps compute plus Postgres on `tichuml1` while `kayraspi2` remains the
+single storage/share host for mirrors and the Obsidian vault.
 
 - for repeated targeted batches such as `Scanned`-first passes, prefer the
   helper script added in issue [#36](https://github.com/NeonButrfly/iCloudPlugin/issues/36):
@@ -457,9 +457,11 @@ while shifting the expensive API and refresh worker load onto `tichuml1`.
     artifact with before/after counts, queue previews, recent completions,
     generated-note context-gap summaries, reconciliation results, and timeout
     status for the bounded run
-  - on the compute-only `tichuml1` deployment, the helper now talks to the
-    configured remote Postgres through a disposable `postgres:16` client
-    container instead of requiring a local compose `postgres` service
+  - on the preferred `tichuml1` split-host deployment, the helper talks to the
+    local compose `postgres` service directly
+  - if you intentionally point the stack at a remote Postgres host, the helper
+    falls back to a disposable `postgres:16` client container instead of
+    requiring a local compose `postgres` service
   - if Docker access on the compute host requires elevation, run the helper
     with passwordless `sudo` or `SUDO_PASSWORD=...`
 
@@ -478,10 +480,8 @@ For a bounded reconciliation-only proof of legacy-note context repair:
   - the helper prints before/after generated-note classifier-context gap counts
   - the JSON artifact captures both the gap summaries and the direct
     reconciliation result payload from `run_vault_reconciliation_once()`
-  - run this proof on the writable compute host (`tichuml1`), not on
-    `kayraspi`; `kayraspi` keeps the legacy Postgres role but its cloud-vault
-    mount is read-only and reconciliation repairs will fail when they try to
-    write updated notes
+  - run this proof on the writable compute host (`tichuml1`), not on any
+    storage-only or legacy host
   - live proof on `tichuml1` on 2026-05-31 AKDT with
     `--reconciliation-limit 25`:
     - first bounded pass reported
@@ -525,9 +525,9 @@ For a bounded reconciliation-only proof of legacy-note context repair:
       - `_system/extracted-markdown`
   - use this on `tichuml1` for the live cloud-vault monitor path; `kayraspi`
     no longer serves the active local `/refresh/status` listener
-  - like the targeted batch helper, it supports the compute-only cutover where
-    the cloudsync host uses remote Postgres instead of a local compose
-    `postgres` service
+  - like the targeted batch helper, it prefers the local compose `postgres`
+    service on `tichuml1`, but can still fall back to the remote-Postgres path
+    when that is intentionally configured
   - if Docker requires elevation on the host, run it with either passwordless
     `sudo` or `SUDO_PASSWORD=...` for a one-shot elevated report
   - live backlog triage on 2026-06-01 AKDT found the main failed-job spike was

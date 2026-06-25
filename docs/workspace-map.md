@@ -11,12 +11,13 @@ This repo is the canonical workspace for the cloud-vault platform work.
 
 - `kayraspi` (`192.168.50.232`)
   - transitional legacy `iCloudPlugin` host
-  - still hosts the live cloudsync Postgres database during the compute-only cutover
+  - should not host the live cloudsync Postgres database after the clean split-host cutover
   - repo path: `/opt/iCloudPlugin`
 
 - `tichuml1` (`192.168.50.196`)
   - live classifier host
   - live sync/index/API compute host
+  - target live cloudsync Postgres host
   - repo path: `/opt/iCloudPlugin`
   - main service port: `8080`
   - classifier API port: `4319`

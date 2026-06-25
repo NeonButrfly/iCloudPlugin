@@ -122,6 +122,41 @@ def test_write_obsidian_note_prefers_canonical_filename_over_staged_upload_name(
         assert extracted.exists()
 
 
+def test_write_obsidian_note_uses_unc_canonical_filename_basename():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        vault = root / "vault"
+        source_path = root / "input" / "api" / "GAS MPB.pdf"
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_bytes(b"appeal-pdf")
+        ensure_vault(vault)
+
+        note_path = write_obsidian_note(
+            vault=vault,
+            source_path=source_path,
+            file_hash="abcdef1234567890",
+            markdown="Appeal preview",
+            classification={
+                "primary_label": "marketing",
+                "secondary_labels": [],
+                "confidence": 0.61,
+                "summary": "Needs review summary.",
+                "reason": "Low-confidence classification.",
+                "sensitive_flags": [],
+                "recommended_action": "review",
+                "file_date_guess": "unknown",
+                "language": "English",
+            },
+            attach_originals=False,
+            canonical_source_path=r"\\192.168.50.86\cloud-vault\mirrors\google1\Appeal\GAS MPB.pdf",
+            canonical_source_hash="abcdef1234567890",
+        )
+
+        assert note_path.parent.relative_to(vault).as_posix() == "02 Needs Review"
+        assert note_path.name == "GAS MPB - marketing.md"
+        assert "192.168.50.86" not in note_path.as_posix()
+
+
 def test_write_obsidian_note_recovers_malformed_payload_from_hybrid_hint():
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)

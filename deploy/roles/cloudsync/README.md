@@ -54,12 +54,12 @@ The sync/index/classifier-facing mirror root should point at:
 That keeps one local source of truth for indexing and classifier submission
 while still preserving provider-specific provenance by folder.
 
-For the compute-only deployment on `tichuml1`:
+For the preferred clean split-host deployment on `tichuml1`:
 
 - keep `kayraspi2` authoritative for `/srv/cloud-vault`
-- keep the existing cloudsync Postgres on `kayraspi` during the first cutover
 - mount `192.168.50.86:/srv/cloud-vault` at `/mnt/cloud-vault` on `tichuml1`
-- set `POSTGRES_HOST=192.168.50.232`
+- run the cloudsync Postgres service locally on `tichuml1`
+- set `POSTGRES_HOST=postgres`
 - set `POSTGRES_PORT=5432`
 - set `ICLOUD_MIRROR_MOUNT_SOURCE=/mnt/cloud-vault`
 - leave `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors` so the container path
@@ -72,12 +72,17 @@ For the compute-only deployment on `tichuml1`:
   cadence for image-heavy or OCR-heavy workloads:
   - `ICLOUD_REFRESH_PROGRESS_HEARTBEAT_SECONDS`
   - `ICLOUD_REFRESH_PROGRESS_HEARTBEAT_ITEMS`
-- when the host is using a remote Postgres instance and you only need to bring
-  up `classification-worker`, prefer `docker start icloudplugin-classification-worker-1`
-  or `docker compose ... up -d --no-deps classification-worker` so compose does
-  not try to recreate the local `postgres` service unnecessarily
 - prefer `docker compose -p icloudplugin --env-file deploy/roles/cloudsync/.env.live`
   so the cloudsync project name remains stable during cutover
+
+Legacy fallback:
+
+- the helper scripts and compose wiring still support a remote Postgres host
+  for recovery or transitional maintenance
+- if you intentionally point `POSTGRES_HOST` at another machine, the bounded
+  batch and live-status helpers can still use the disposable `postgres:16`
+  client path instead of assuming the local compose `postgres` service is the
+  active source of truth
 
 The script is intentionally resilient:
 
@@ -154,8 +159,9 @@ The refresh-status payload now includes mid-batch timing/liveness fields such as
 On long OCR-heavy batches, those fields let operators confirm that the worker
 is still advancing even before `batch_count` changes.
 
-It supports the current compute-only cutover with remote Postgres by using the
-same direct `postgres:16` client fallback as the targeted batch helper.
+It supports both the preferred local-Postgres split-host deployment and the
+legacy remote-Postgres fallback by using the same direct `postgres:16` client
+path as the targeted batch helper when needed.
 
 If the host account is not in the Docker group, the helper can also use:
 
@@ -178,9 +184,9 @@ That helper can:
 - optionally print newest completed rows across the whole queue with `--run-live-summary`
 - optionally write a machine-readable JSON run summary with `--summary-json /path/to/output.json`
 - restore deferred jobs automatically on exit
-- when the sync host is using the compute-only cutover with remote Postgres,
-  the helper now falls back to a disposable `postgres:16` client container
-  instead of assuming a local compose `postgres` service exists
+- when the sync host is intentionally using a remote Postgres instance, the
+  helper falls back to a disposable `postgres:16` client container instead of
+  assuming a local compose `postgres` service exists
 - if Docker requires elevation on the host, the helper now also supports:
   - passwordless `sudo`, or
   - `SUDO_PASSWORD=...` for a one-shot elevated run

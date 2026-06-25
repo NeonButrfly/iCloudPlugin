@@ -213,9 +213,11 @@ def test_cloudsync_docs_reference_targeted_batch_helper():
     assert "run_targeted_classification_batch.sh" in role_readme.read_text(encoding="utf-8")
     assert "report_live_status.sh" in role_readme.read_text(encoding="utf-8")
     assert "RCLONE_FORCE_IPV4" in role_readme.read_text(encoding="utf-8")
+    assert "POSTGRES_HOST=postgres" in role_readme.read_text(encoding="utf-8")
     assert "run_targeted_classification_batch.sh" in operations_doc.read_text(encoding="utf-8")
     assert "report_live_status.sh" in operations_doc.read_text(encoding="utf-8")
     assert "RCLONE_FORCE_IPV4" in operations_doc.read_text(encoding="utf-8")
+    assert "POSTGRES_HOST=postgres" in operations_doc.read_text(encoding="utf-8")
 
 
 def test_reindex_helpers_match_role_based_cloudsync_runtime():

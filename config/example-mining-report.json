@@ -1,35 +1,35 @@
 {
   "ok": true,
   "primary_public_dataset": "rvl_cdip_static",
-  "database_url_used": "postgresql://icloud:change-me@192.168.50.232:5432/icloud_index",
+  "database_url_used": "postgresql://icloud:change-me@192.168.50.196:5432/icloud_index",
   "existing_rows_preserved": 3,
-  "mined_rows_added": 497,
-  "total_rows_written": 500,
+  "mined_rows_added": 556,
+  "total_rows_written": 559,
   "selected_label_counts": {
-    "appeal": 17,
-    "appeal-template": 5,
+    "appeal": 18,
+    "appeal-template": 8,
     "benefits": 10,
     "explanation-of-benefits": 25,
     "denial-letter": 15,
-    "claim": 17,
-    "claim-form": 1,
+    "claim": 20,
+    "claim-form": 4,
     "invoice": 20,
     "receipt": 8,
     "medical-receipt": 2,
-    "reimbursement-packet": 13,
-    "billing-statement": 3,
-    "bank-statement": 0,
+    "reimbursement-packet": 12,
+    "billing-statement": 19,
+    "bank-statement": 2,
     "tax": 15,
-    "tax-form": 14,
-    "check": 0,
+    "tax-form": 20,
+    "check": 1,
     "contract": 15,
     "policy": 15,
-    "identity-document": 1,
+    "identity-document": 12,
     "medical-estimate": 15,
-    "eligibility-notice": 0,
+    "eligibility-notice": 3,
     "payment-history": 15,
     "spreadsheet": 20,
-    "manual": 0,
+    "manual": 9,
     "legal": 25,
     "medical": 25,
     "technical": 20,
@@ -38,12 +38,12 @@
     "source-code": 10,
     "school": 15,
     "financial": 20,
-    "ui-screenshot": 0,
-    "return-summary": 13,
+    "ui-screenshot": 1,
+    "return-summary": 12,
     "product-photo": 0,
     "consumer-report": 2,
     "utility-bill": 1,
-    "hotel-folio": 0,
+    "hotel-folio": 2,
     "insurance": 20,
     "form": 20,
     "report": 25,
@@ -51,13 +51,13 @@
     "work": 20
   },
   "rejected_reasons": {
-    "required-terms-missing": 2013,
-    "too-little-content": 1880,
-    "teacher-mismatch": 255,
-    "excluded-term": 6,
-    "generic-placeholder-signal": 284,
-    "path-hint-missing": 66,
-    "wrong-extension": 178,
+    "teacher-mismatch": 314,
+    "required-terms-missing": 2461,
+    "too-little-content": 958,
+    "excluded-term": 3,
+    "generic-placeholder-signal": 195,
+    "path-hint-missing": 126,
+    "wrong-extension": 306,
     "not-document-like": 1
   },
   "taxonomy_expansion": {
@@ -108,109 +108,112 @@
       "work"
     ],
     "live_index_label_counts": {
-      "appeal": 219,
-      "appeal-template": 219,
+      "appeal": 242,
+      "appeal-template": 242,
       "benefits": 250,
-      "explanation-of-benefits": 523,
-      "denial-letter": 246,
-      "claim": 84,
-      "claim-form": 248,
-      "invoice": 124,
-      "receipt": 58,
-      "medical-receipt": 124,
-      "reimbursement-packet": 94,
-      "billing-statement": 55,
-      "bank-statement": 217,
+      "explanation-of-benefits": 541,
+      "denial-letter": 271,
+      "claim": 99,
+      "claim-form": 277,
+      "invoice": 149,
+      "receipt": 62,
+      "medical-receipt": 140,
+      "reimbursement-packet": 104,
+      "billing-statement": 76,
+      "bank-statement": 255,
       "tax": 375,
-      "tax-form": 392,
+      "tax-form": 423,
       "check": 375,
       "contract": 375,
-      "policy": 258,
+      "policy": 375,
       "identity-document": 500,
-      "medical-estimate": 317,
-      "eligibility-notice": 4,
-      "payment-history": 103,
-      "spreadsheet": 114,
-      "manual": 190,
+      "medical-estimate": 375,
+      "eligibility-notice": 25,
+      "payment-history": 114,
+      "spreadsheet": 150,
+      "manual": 259,
       "legal": 625,
       "medical": 625,
       "technical": 500,
-      "letter": 285,
-      "presentation": 148,
+      "letter": 361,
+      "presentation": 205,
       "source-code": 250,
-      "school": 232,
+      "school": 262,
       "financial": 500,
       "ui-screenshot": 375,
       "return-summary": 500,
       "product-photo": 80,
-      "consumer-report": 220,
-      "utility-bill": 40,
-      "hotel-folio": 67,
+      "consumer-report": 254,
+      "utility-bill": 43,
+      "hotel-folio": 74,
       "insurance": 500,
       "form": 500,
-      "report": 495,
-      "statement": 203,
+      "report": 625,
+      "statement": 230,
       "work": 500
     },
     "sample_paths": {
       "appeal": [
-        "/icloud/untitled folder/sort/Daniel Dennett.docx",
-        "/icloud/untitled folder/Unsorted/Authorized-Representative-Request-Form.KM (1).pdf",
-        "/icloud/untitled folder/Unsorted/Authorized-Representative-Request-Form.KM.pdf",
-        "/icloud/untitled folder/Unsorted/Authorized-Representative-Request-Form.KM.unsigned.pdf",
-        "/icloud/untitled folder/Unsorted/Message Centers1.pdf"
+        "/google1/Authorized-Representative-Request-Form.KM.unsigned.docx",
+        "/google1/Authorized-Representative-Request-Form.KM.unsigned.pdf",
+        "/google1/Appeal/ACLU Complaint.docx",
+        "/google1/Appeal/Self-funded-preauthorization.docx",
+        "/google1/Faxes/643ef0b5c2452933d810badd.pdf"
       ],
       "appeal-template": [
-        "/icloud/untitled folder/sort/combined/2023.GAS.Appeal.Template.and.Instructions.Final(1).docx",
         "/google1/Appeal/_Aetna - Member Complaint and Appeal Form.docx",
         "/google1/Appeal/_Aetna - Member Complaint and Appeal Form.pdf",
-        "/icloud/untitled folder/sort/combined/Appeal/_Aetna - Member Complaint and Appeal Form.docx",
-        "/icloud/untitled folder/sort/combined/Appeal/_Aetna - Member Complaint and Appeal Form.pdf"
+        "/google1/Appeal/Appeal BA.pdf",
+        "/icloud/Scanned/Kay - Medical/11252024_aetnadenial.pdf",
+        "/icloud/untitled folder/sort/combined/2023.GAS.Appeal.Template.and.Instructions.Final(1).docx"
       ],
       "benefits": [
-        "/icloud/Vyepti/IMG_4374.jpg",
-        "/icloud/Vyepti/vyepti-copay-assistance-program-form.pdf",
-        "/icloud/Text Messages/Messages/+1 (800) 800-4800.pdf",
-        "/icloud/Text Messages/Messages/+8008004800.pdf",
-        "/icloud/untitled folder/Downloads/Standard Medical Necessity_ Admin Approval.pdf"
+        "/google1/2024.09.05 Draft Complaint - Clean(5300120.1).DOCX",
+        "/google1/Appeal.docx",
+        "/google1/Gmail - Follow-up.pdf",
+        "/google1/KM No Surprises Act.pdf",
+        "/google1/MAYERS, KAY (KAY)_ GCC DEDUCTIBLE WAIVER..docx"
       ],
       "explanation-of-benefits": [
+        "/google1/lightgbm-label-review-queue.xlsx",
         "/icloud/Desktop/vyeptieob.jpg",
-        "/icloud/untitled folder/EOBS2023/claims (1).csv",
-        "/icloud/untitled folder/EOBS2023/claims.csv",
-        "/icloud/untitled folder/EOBS2023/Screenshot 2023-07-13 at 11.28.05 PM (1).png",
-        "/icloud/untitled folder/EOBS2023/Screenshot 2023-07-13 at 11.28.05 PM.png"
+        "/icloud/Vyepti/IMG_4374.jpg",
+        "/icloud/Vyepti/vyepti-copay-assistance-program-form.pdf",
+        "/icloud/Scanned/Kay - Medical/04252025_connect_vyepti_welcome.pdf"
       ],
       "denial-letter": [
-        "/icloud/untitled folder/sort/Fraud_Claim_250918G1D68F_Indexed_Packet_with_Appendix (1).pdf",
-        "/icloud/untitled folder/sort/Fraud_Claim_250918G1D68F_Indexed_Packet_with_Appendix.pdf",
-        "/icloud/untitled folder/Unsorted/2024.06.21.TLDEF Retainer.KayMayers.pdf",
-        "/icloud/untitled folder/Unsorted/Aetna Life Insurance Company - APPEAL 1 FFS.docx",
-        "/icloud/untitled folder/Unsorted/statement dated 2023-09-22.pdf"
+        "/google1/2023.GAS.Appeal.Template.and.Instructions.Final.docx",
+        "/google1/2023.GAS.Appeal.Template.and.Instructions.Final.pdf",
+        "/google1/2024-08-27 Kay Myers Internal Appeal Draft.docx",
+        "/google1/Aetna Life Insurance Company - APPEAL 1 FFS.docx",
+        "/google1/Appeal/Communication (1).pdf"
       ],
       "claim": [
-        "/icloud/Scanned/botox.pdf",
-        "/icloud/untitled folder/Screenshots/IMG_1728.PNG",
-        "/icloud/untitled folder/Screenshots/IMG_1729.PNG",
-        "/icloud/untitled folder/Screenshots/IMG_1742.PNG",
-        "/icloud/untitled folder/sort/claims (1).csv"
+        "/google1/Screenshot 2023-07-13 at 11.28.05 PM.png",
+        "/google2/claims.csv",
+        "/google2/claims.xlsx",
+        "/google1/ADAA/ADAAA Request and Medical Form 001a 10-2021.pdf",
+        "/icloud/Scanned/botox.pdf"
       ],
       "claim-form": [
+        "/icloud/Scanned/Kay - Medical/01262025_i^aetnatravelapprove.pdf",
+        "/icloud/untitled folder/Screenshots/IMG_1728.PNG",
+        "/icloud/untitled folder/Screenshots/IMG_1729.PNG",
         "/icloud/untitled folder/Screenshots/IMG_1741.PNG"
       ],
       "invoice": [
         "/icloud/Billing & Payments - Alpenglow Pain and Wellness.pdf",
-        "/icloud/Downloads/To Whom It May Concern.docx",
-        "/icloud/Scanned/April Med Travel/Print - Your Confirmed Reservation.pdf",
-        "/icloud/Scanned/Kay - Medical/Bill_#29031339_04-18-2025.pdf",
-        "/icloud/untitled folder/Documents/Kay Mayers 2024-0429s.pdf"
+        "/google1/Appeal/ACFrOgDRCbBaFjU4Hb_mgvxERE31LjeBYQXMjlJo1aPktwKPiZDAMqkZSQ1AK7WpnFg6gRLA1M7Jxqz0pQbWKcJWUpLHsh8hGHDWwoaFRCU3MOfh9hCIyZKqr-f_yJ0=.pdf",
+        "/google1/FFS/Gunther -Fillable Patient Reg Form 2023.pdf",
+        "/google1/Misc/Anchorage School District.107475_PINV_2023.04.01_23050004.pdf",
+        "/google1/Name Change/statement_read_pdf.pdf"
       ],
       "receipt": [
+        "/google1/Receipt 212697.pdf",
         "/icloud/Scanned/Alpenglow Pain and Wellness.pdf",
         "/icloud/Scanned/Kay - Medical/Alpenglow Pain and Wellness - RECIEPT.pdf",
         "/icloud/Scanned/Kay - Medical/Alpenglow Pain and Wellness.pdf",
-        "/icloud/untitled folder/sort/combined/Receipt 212697.pdf",
-        "/icloud/Amazon/Amazon Photos Downloads/Pictures/Dads Iphone/2020-12-29_21-49-03_000.png"
+        "/icloud/untitled folder/sort/combined/Receipt 212697.pdf"
       ],
       "medical-receipt": [
         "/icloud/Scanned/Taxes/2023_SoFi_Form-1099-INT.pdf",
@@ -224,110 +227,138 @@
         "/icloud/Scanned/Kay - Medical/GCC Medical Intake Form 10142024_FINAL - Copy.pdf"
       ],
       "billing-statement": [
+        "/icloud/Scanned/Dental/07232024_KAYMULDOON.pdf",
+        "/icloud/Scanned/Sort/Bank of America _ Online Banking _ Accounts _ Account Details _ Account Activity.pdf",
         "/icloud/untitled folder/Screenshots/IMG_1410.PNG",
         "/icloud/untitled folder/Unsorted/eStmt_2023-06-21.pdf",
-        "/google1/MAYERS, KAY (KAY)_ GCC DEDUCTIBLE WAIVER..docx"
+        "/icloud/untitled folder/Unsorted/statement dated 2022-06-07.pdf"
+      ],
+      "bank-statement": [
+        "/icloud/Scanned/Kay - Credit/01262025_QYou've accepted our balance transfer.pdf",
+        "/icloud/Scanned/Kay - Credit/03172025_Retail Card Services.pdf"
       ],
       "tax": [
+        "/google1/Conflict of Interest.docx",
+        "/google2/Name Change.docx",
+        "/google2/Self Assesment.docx",
         "/icloud/uber_f1099k_2025 2.pdf",
-        "/icloud/uber_f1099k_2025.pdf",
-        "/icloud/uber_f1099nec_2025.pdf",
-        "/icloud/2025taxes/uber_f1099nec_2025.pdf",
-        "/icloud/2025taxes/tichuml/docker-compose.yml"
+        "/icloud/uber_f1099k_2025.pdf"
       ],
       "tax-form": [
-        "/icloud/Scanned/Taxes/uber_f1099nec_2024.pdf",
-        "/icloud/untitled folder/Documents/invite 2.ics",
-        "/icloud/untitled folder/Documents/invite.ics",
-        "/icloud/untitled folder/Unsorted/2023 Tax form 1099-INT.pdf",
-        "/icloud/Amazon/Amazon Photos Downloads/Pictures/Dads Iphone/2021-12-22_13-34-06_000.png"
+        "/icloud/Scanned/Ell - Medical/09192024_AETNA_DENIAL.pdf",
+        "/icloud/Scanned/Taxes/02162025_ASD_W2.pdf",
+        "/icloud/Scanned/Taxes/09142024_I^I.pdf",
+        "/icloud/Scanned/Taxes/CK1099INT.pdf",
+        "/icloud/Scanned/Taxes/PFD-MISC_1099-2024-045-5078.pdf"
+      ],
+      "check": [
+        "/icloud/Scanned/Checks/06252025MISCHECKSRD.pdf"
       ],
       "contract": [
-        "/icloud/Downloads/ACE_ASD_Agreement_2024_2027.pdf",
-        "/icloud/Scanned/Memories/10.pdf",
-        "/icloud/Scanned/Memories/8.pdf",
-        "/icloud/untitled folder/Desktop/highland agreement 2.docx",
-        "/icloud/untitled folder/Screenshots/IMG_1288.PNG"
+        "/google1/2024-07-15 Aetna Retainer Agreement  (final)(5257539.1).docx",
+        "/google1/ACLUComplaint.png",
+        "/google1/Appeal/Provider Appeal - 1.docx",
+        "/google1/Lawsuit/ACLUComplaint.png",
+        "/google1/Misc/ansd-spd-choice ppo hsa-aetna-070122-1 (1).PDF"
       ],
       "policy": [
-        "/icloud/Scanned/Kay - Medical/CVS Pharmacy - My Prescriptions.pdf",
-        "/icloud/Scanned/Memories/1.pdf",
-        "/icloud/Scanned/Memories/2.pdf",
-        "/icloud/Scanned/Memories/3.pdf",
-        "/icloud/Scanned/Memories/4.pdf"
+        "/google1/Appeal/CPB.pdf",
+        "/google1/Appeal/Self-funded-exclusion BA.docx",
+        "/google1/Appeal/Self-funded-exclusion.docx",
+        "/google1/FFS/AETNA Request For FFS CPB Re-Evaluation.docx",
+        "/google1/JULIE ISSUES/eval22-23.pdf"
       ],
       "identity-document": [
-        "/icloud/Scanned/Kay - Credit/LexisNexis_Report_Request_Form.pdf"
+        "/google1/Name Change/2023-03-22_11-47-07.png",
+        "/google1/Name Change/427.pdf",
+        "/icloud/Scanned/credit/dispute-form.pdf",
+        "/icloud/Scanned/credit/Equifax Dispute.pdf",
+        "/icloud/Scanned/Ell - Legal/02262018_THIS NOTICE DOES NOT GRANT ANY IMMIGRATION STATUS OR  B.pdf"
       ],
       "medical-estimate": [
-        "/icloud/Scanned/Kay - Medical/Kay - Autism Letter.pdf",
-        "/icloud/Text Messages/Messages/+1 (907) 268-8989.pdf",
-        "/icloud/untitled folder/Documents/Image 11-18-25 at 11.55 AM.PNG",
-        "/icloud/untitled folder/Documents/Weekly Schedule Planner completed.docx",
-        "/icloud/untitled folder/Documents/Weekly Schedule Planner Elizabeth Abramowicz.pdf"
+        "/google1/PSYCH/Complete_with_DocuSign_Adult_General_Consent (1).pdf",
+        "/google1/PSYCH/Complete_with_DocuSign_Adult_General_Consent.pdf",
+        "/google1/PSYCH/Complete_with_DocuSign_PCPPractitioner_ROI.pdf",
+        "/icloud/Scanned/Kay - Medical/02082025_deNTALa.pdf",
+        "/icloud/Scanned/Kay - Medical/05191972_Treatment Plan.pdf"
+      ],
+      "eligibility-notice": [
+        "/icloud/Scanned/ID Cards/03172025steviekidcare.pdf",
+        "/icloud/Scanned/Stevie - legal;/StevieMedicare.pdf",
+        "/icloud/untitled folder/Unsorted/EligibilityResultsNotice.pdf"
       ],
       "payment-history": [
+        "/google1/2025-02-17T00_03_13.172Z-transactions.xlsx",
         "/icloud/Scanned/Kay - Credit/Online Credit Report _ Innovis.pdf",
+        "/icloud/Scanned/Retirement/01262025_RE_ Personal Identification Number (PIN).pdf",
         "/icloud/Scanned/Taxes/2025-02-17T00_03_13.172Z-transactions.csv",
-        "/icloud/untitled folder/Desktop/Coinbase-5f02ba548af71808abaf1bbf-TransactionsHistoryReport-2022-02-21-20_29_55.csv",
-        "/icloud/untitled folder/Screenshots/IMG_1434.PNG",
-        "/icloud/untitled folder/Unsorted/Amazon.com - Order 111-8019065-5942623.pdf"
+        "/icloud/untitled folder/Desktop/Coinbase-5f02ba548af71808abaf1bbf-TransactionsHistoryReport-2022-02-21-20_29_55.csv"
       ],
       "spreadsheet": [
-        "/icloud/Scanned/Taxes/Gains_and_losses_statement_2024_1646305432728713012_1 (1).csv",
-        "/icloud/untitled folder/Desktop/capital_gains_turbo_tax_online_2021_HIFO_Universal.csv",
-        "/icloud/untitled folder/Documents/PLANNER.xlsx",
-        "/icloud/untitled folder/Downloads/csvdnld.csv",
-        "/icloud/untitled folder/UAA/PLANNER.xlsx"
+        "/google1/capital_gains_2024.xlsx",
+        "/google1/MDM Enrollment DNS and Ports.xlsx",
+        "/google2/Gemini Export March 21, 2026 at 10:31:34 AM AKDT.xlsx",
+        "/google2/Google Finance Investment Tracker.xlsx",
+        "/google2/Greek Order.xlsx"
+      ],
+      "manual": [
+        "/icloud/Scanned/Manuals/01262025_MOUSEMOVER.pdf",
+        "/icloud/Scanned/Manuals/03152025tempurpedic_001.pdf",
+        "/icloud/Scanned/Manuals/03192025FORGELUGGAGEKEYS.pdf",
+        "/icloud/Scanned/Manuals/03192025PURPLELUGGAGE.pdf",
+        "/icloud/Scanned/Manuals/03252025carryonluggage.pdf"
       ],
       "legal": [
-        "/icloud/Scanned/credit/Equifax Dispute.pdf",
-        "/icloud/Scanned/Kay - Credit/experiandispute.pdf",
-        "/icloud/Scanned/Kay - Legal/AbsenteeBallot.pdf",
-        "/icloud/Scanned/Kay - Legal/Kay - Aclu Letter.pdf",
-        "/icloud/Scanned/Kay - Legal/Kay - Aclu Letter_001.pdf"
+        "/google1/Aktazdevil_99862231.pdf",
+        "/google1/Copy of Aktazdevil_99862231.pdf",
+        "/google1/Experian Dis.docx",
+        "/google1/Kay FFS Identity AK.pdf",
+        "/google1/KM Auth.pdf"
       ],
       "medical": [
-        "/icloud/Kay_Appointments_AKST_2026-02-24_to_2026-03-25_v3_with_buffers 2.ics",
-        "/icloud/Kay_Appointments_AKST_2026-02-24_to_2026-03-25_v3_with_buffers.ics",
-        "/icloud/Kay_Appointments_AKST_2026-02-24_to_2026-03-25_v5_corrected_from_portal.ics",
-        "/icloud/project kay medications 2026-03-17.pdf",
-        "/icloud/project kay memory.pdf"
+        "/google1/a27def7b683a4df8973a18a1cdae305e.pdf",
+        "/google1/cf2a3907b8f44dd2ad2f19bd80f42327.pdf",
+        "/google1/doc02565420250804131434.docx",
+        "/google1/Influencing_Health_Behaviors.docx",
+        "/google1/Kay  Vaginoplasty GRS Letter.docx"
       ],
       "technical": [
-        "/icloud/2025taxes/tichuml/package.json",
-        "/icloud/2025taxes/tichuml/README.md",
-        "/icloud/Desktop/Desktop - Mac/Screenshot 2026-04-14 at 3.30.59 PM.png",
-        "/icloud/Text Messages/Messages/227-898.pdf",
-        "/icloud/Text Messages/Messages/466-379.pdf"
+        "/google1/21-22eval.pdf",
+        "/google1/Ketamine Answers.docx",
+        "/google1/Solutions Architect Check In Tra_02be463383ec4dac9404ee12746d3fcb-090626-0908-138.pdf",
+        "/google2/Identity board_application.docx",
+        "/google2/lies.docx"
       ],
       "letter": [
-        "/icloud/untitled folder/Documents/Kay Mayers l Procedure Letter.pdf",
-        "/icloud/untitled folder/Unsorted/Aetna Health Action.pdf",
-        "/icloud/untitled folder/Unsorted/Drivingletter.pdf",
-        "/icloud/untitled folder/Unsorted/FFS-PCPLETTER.pdf",
-        "/icloud/untitled folder/Unsorted/Kay 12.14.2023 FFS GRS Letter-3 - Copy.pdf"
+        "/google1/FFS/Letter PCP.pdf",
+        "/google1/FFS/MAYERS PPC FFS LETTER - Generic.docx",
+        "/google1/JULIE ISSUES/EvalResponse.docx",
+        "/google1/Misc/Anchorage School District 2022-2023 Open Enrollment Benefits Summary (1).pdf",
+        "/google1/Misc/Sample-Letter-for-Surgery (1).docx"
       ],
       "source-code": [
         "/icloud/2025taxes/tichuml/package-lock.json",
-        "/icloud/untitled folder/sort/tichuml/package-lock.json",
-        "/icloud/untitled folder/sort/tichuml/tsconfig.base.json",
-        "/icloud/untitled folder/Tichu/TichuBackend/package-lock.json",
-        "/icloud/untitled folder/Tichu/TichuBackend/package.json"
+        "/icloud/Documents/tichuml/vitest.config.ts",
+        "/icloud/Scanned/Employement/kay_mayers_evaluations_complete_collected_2021_2022_through_2025_2026 (1).json",
+        "/icloud/Scanned/Employement/kay_mayers_evaluations_complete_collected_2021_2022_through_2025_2026.json",
+        "/icloud/untitled folder/Downloads/simdash_server_patched.js"
       ],
       "school": [
         "/icloud/untitled folder/Documents/Student Schedule Example.pdf",
         "/icloud/untitled folder/Downloads/Syllabus_Lifespan Development _Fall 2025.docx",
+        "/icloud/untitled folder/Screenshots/2022-07-17_16-18-05_000.PNG",
         "/icloud/untitled folder/Screenshots/IMG_1431.PNG",
-        "/icloud/untitled folder/Screenshots/IMG_2229.PNG",
-        "/icloud/untitled folder/UAA/Recruitment Pitch Assignment Guide_online.pdf"
+        "/icloud/untitled folder/Screenshots/IMG_2229.PNG"
       ],
       "financial": [
-        "/icloud/Scanned/Backup Codes/Screenshot 2025-10-01 at 10.26.40 AM.png",
-        "/icloud/Scanned/Backup Codes/Screenshot 2025-10-06 at 10.53.10 AM.png",
-        "/icloud/Scanned/credit/dispute-form.pdf",
-        "/icloud/Scanned/Kay - Credit/Annual Credit Report - Experian.pdf",
-        "/icloud/Scanned/Memories/12.pdf"
+        "/google1/km payment.pdf",
+        "/google2/Middle Adulthood Quiz Questions.docx",
+        "/google1/Misc/ASD 2022-2023 Aetna Open Choice PPO Summary of Benefits (1).pdf",
+        "/google1/Misc/ASD 2022-2023 Aetna Open Choice PPO Summary of Benefits (2).pdf",
+        "/google1/OCR Complaint/U.S. Department of Health & Human Services - Office for Civil Rights.pdf"
+      ],
+      "ui-screenshot": [
+        "/icloud/untitled folder/Screenshots/2021-04-27_14-10-04_000.PNG"
       ],
       "return-summary": [
         "/icloud/untitled folder/Documents/213859991809.JPEG",
@@ -343,45 +374,69 @@
       "utility-bill": [
         "/icloud/Amazon/Amazon Photos Downloads/Pictures/Dads Iphone/2020-12-18_06-10-22_000.png"
       ],
+      "hotel-folio": [
+        "/icloud/untitled folder/Unsorted/es_folio4195971019.pdf",
+        "/icloud/untitled folder/Unsorted/HOTEL.pdf"
+      ],
       "insurance": [
-        "/icloud/Scanned/ID Cards/aetna-bacl.png",
-        "/icloud/untitled folder/Documents/Identity_Integration_and_Embodiment_Summary.pdf",
-        "/icloud/untitled folder/Screenshots/IMG_1335.jpg",
-        "/icloud/untitled folder/Screenshots/IMG_1730.PNG",
-        "/icloud/untitled folder/Screenshots/IMG_1967.PNG"
+        "/google1/2023-03-06_11-35-40.png",
+        "/google1/FFS/KM No Surprises Act.pdf",
+        "/google1/Lawsuit/Benefits _ Benefits Contacts, Plans, and Rates.pdf",
+        "/google1/Med Fam Verfify/Spousal Affidavit Form Dependent Verification.pdf",
+        "/google1/Misc/ASD Annual Summary of Changes.pdf"
       ],
       "form": [
         "/icloud/maze_editable.png",
         "/icloud/Downloads/cart.html",
         "/icloud/Downloads/maze_editable.png",
-        "/icloud/untitled folder/Downloads/e06e230e-3994-4da3-8b30-75926dd45020.docx",
-        "/icloud/untitled folder/Screenshots/IMG_2292.PNG"
+        "/icloud/Downloads/New Patient Cognitive Questionnaire.pdf",
+        "/icloud/Scanned/Ell - Legal/04302025_CERTIFIED COPY_BIRTH.pdf"
       ],
       "report": [
-        "/icloud/Scanned/Kay - Medical/z9tDFTRX463tHwx06M7wWxCno7HHgC1wVI4Csj8msWAONPU0LjU45E3SjogvvIf2P5lZzf1J6dTL1Ucd9-iPGg.pdf",
-        "/icloud/Text Messages/Messages/653-13.pdf",
-        "/icloud/untitled folder/Documents/Empower_PT_Schedule_Clean_Redo.ics",
-        "/icloud/untitled folder/Documents/Health Records - Kay Mayers - 2026-01-10 at 10.27.50.pdf",
-        "/icloud/untitled folder/Documents/Health Records - Kay Mayers - 2026-01-17 at 18.39.46.pdf"
+        "/google1/JULIE ISSUES/evalresponsedraft.txt",
+        "/google1/PSYCH/Complete_with_DocuSign_General_Testing_Conse.pdf",
+        "/icloud/Downloads/Quest.pdf",
+        "/icloud/untitled folder/medical_appointments_2026_v1.0.0.ics",
+        "/icloud/Scanned/DVR/03152025_Sammy MacL Ph.D. Licensed Clinical Psychologist Alaska .pdf"
       ],
       "statement": [
+        "/icloud/Scanned/Taxes/01282025_IDP I.pdf",
+        "/icloud/untitled folder/Screenshots/IMG_1413.PNG",
         "/icloud/untitled folder/Screenshots/IMG_1441.PNG",
-        "/icloud/untitled folder/Screenshots/IMG_2035.PNG",
-        "/icloud/untitled folder/Screenshots/IMG_2240.PNG",
-        "/icloud/untitled folder/Unsorted/Bill Of Sale - Motorvehicle - Google Docs.pdf",
-        "/icloud/untitled folder/Unsorted/Bill Of Sale.pdf"
+        "/icloud/untitled folder/Screenshots/IMG_1749.PNG",
+        "/icloud/untitled folder/Screenshots/IMG_2035.PNG"
       ],
       "work": [
-        "/icloud/Desktop/Desktop - Mac/Screenshot 2026-04-14 at 3.36.30 PM.png",
-        "/icloud/Scanned/Backup Codes/Screenshot 2025-12-01 at 11.11.39 AM.png",
-        "/icloud/Text Messages/Messages/+1 (907) 952-1083.pdf",
-        "/icloud/Text Messages/Messages/287-77.pdf",
-        "/icloud/Text Messages/Messages/Angelina Fleckenstein.pdf"
+        "/google1/MicrosoftTeams-image (11).png",
+        "/google1/FFS/MCG and Gender-Affirming Surgery_ An Introduction - MCG Health.pdf",
+        "/google1/JULIE ISSUES/Julie Log.docx",
+        "/icloud/Scanned/Backup Codes/Screenshot 2025-12-01 at 11.11.08 AM.png",
+        "/icloud/Scanned/Backup Codes/Screenshot 2025-12-01 at 11.11.39 AM.png"
       ]
     }
   },
   "sanity_samples": {
     "receipt": [
+      {
+        "source_path": "/google1/Receipt 212697.pdf",
+        "teacher_primary": "receipt",
+        "confidence": 0.625,
+        "matched_terms": {
+          "required": [
+            "payment receipt",
+            "sale - approved"
+          ],
+          "query": [
+            "payment receipt",
+            "sale - approved"
+          ],
+          "path": [],
+          "teacher": [
+            "receipt"
+          ]
+        },
+        "summary_preview": "Borealis LIFE Borealis LIFE 2501 E 42 Ave Anchorage , AK 99508 (907) 206-4689 Payment Receipt SALE - APPROVED Patient Name Mayers, Kay Date 05/13/2024 Time 10:44:07 AKDT Card ************0463 Card Typ"
+      },
       {
         "source_path": "/icloud/Scanned/Alpenglow Pain and Wellness.pdf",
         "teacher_primary": "financial",
@@ -401,7 +456,7 @@
             "mime:pdf"
           ]
         },
-        "summary_preview": "Payment Info\nMar 12, 2025 at 1:24 PM\nAKDT\nKay Mayers's  ending in\nXXXXXXXXXXXX6996\n$765.00\nThis payment appeared on\nyour credit card statement as\nGIVING HOPE LLC.\nPaid to:\nGIVING HOPE LLC\n2000 ABBOTT "
+        "summary_preview": "Payment Info Mar 12, 2025 at 1:24 PM AKDT Kay Mayers's ending in XXXXXXXXXXXX6996 $765.00 This payment appeared on your credit card statement as GIVING HOPE LLC. Paid to: GIVING HOPE LLC 2000 ABBOTT R"
       },
       {
         "source_path": "/icloud/Scanned/Kay - Medical/Alpenglow Pain and Wellness - RECIEPT.pdf",
@@ -422,131 +477,140 @@
             "mime:pdf"
           ]
         },
-        "summary_preview": "Payment Info\nMar 12, 2025 at 1:24 PM\nAKDT\nKay Mayers's  ending in\nXXXXXXXXXXXX6996\n$765.00\nThis payment appeared on\nyour credit card statement as\nGIVING HOPE LLC.\nPaid to:\nGIVING HOPE LLC\n2000 ABBOTT "
-      },
-      {
-        "source_path": "/icloud/Scanned/Kay - Medical/Alpenglow Pain and Wellness.pdf",
-        "teacher_primary": "financial",
-        "confidence": 0.5833,
-        "matched_terms": {
-          "required": [
-            "transaction details"
-          ],
-          "query": [
-            "transaction details"
-          ],
-          "path": [],
-          "teacher": [
-            "statement",
-            "transaction",
-            "payment",
-            "mime:pdf"
-          ]
-        },
-        "summary_preview": "Payment Info\nMar 12, 2025 at 1:24 PM\nAKDT\nKay Mayers's  ending in\nXXXXXXXXXXXX6996\n$765.00\nThis payment appeared on\nyour credit card statement as\nGIVING HOPE LLC.\nPaid to:\nGIVING HOPE LLC\n2000 ABBOTT "
+        "summary_preview": "Payment Info Mar 12, 2025 at 1:24 PM AKDT Kay Mayers's ending in XXXXXXXXXXXX6996 $765.00 This payment appeared on your credit card statement as GIVING HOPE LLC. Paid to: GIVING HOPE LLC 2000 ABBOTT R"
       }
     ],
     "claim": [
       {
-        "source_path": "/icloud/Scanned/botox.pdf",
-        "teacher_primary": "insurance",
-        "confidence": 0.7143,
+        "source_path": "/google1/Screenshot 2023-07-13 at 11.28.05 PM.png",
+        "teacher_primary": "screenshot",
+        "confidence": 0.6,
         "matched_terms": {
           "required": [
-            "claim id"
+            "claim id",
+            "plan paid"
           ],
           "query": [
-            "claim id"
+            "claim id",
+            "plan paid",
+            "you may owe"
           ],
           "path": [],
           "teacher": [
-            "insurance",
-            "deductible",
-            "mime:pdf"
+            "screenshot",
+            "image:png"
           ]
         },
-        "summary_preview": "Claim for Kay (self)\nProvider: Nichelle C Renk(In-Network)\nClaim ID: EDPDK70ZX00\nReceived on 1/29/25\nAmount\nbilled\nMember\nrate\nPending or\nnot payable\n(Remarks)\nApplied to\ndeductible\nYour\ncopay\nAmount\n"
+        "summary_preview": "11:28 om : LTE GS <€ Claims Medical Claim Sven Gunther e Processed Visited on Jun 14, 2023 For Kay (Self) Claim ID: PGBAC3CGY4 Network Status: ! Out Of Network COST BREAKDOWN Amount billed $68,092.00 "
       },
       {
-        "source_path": "/icloud/untitled folder/Screenshots/IMG_1728.PNG",
+        "source_path": "/google2/claims.csv",
+        "teacher_primary": "spreadsheet",
+        "confidence": 0.5556,
+        "matched_terms": {
+          "required": [
+            "provider billed",
+            "plan paid"
+          ],
+          "query": [
+            "provider billed",
+            "plan paid",
+            "you may owe"
+          ],
+          "path": [],
+          "teacher": [
+            "csv",
+            "extension:csv"
+          ]
+        },
+        "summary_preview": "\"Type\",\"Service date\",\"Member\",\"Provider or facility name\",\"Prescription name\",\"Provider billed\",\"Rx cost\",\"Plan paid\",\"You May Owe/ Your Cost\"\r\n\"Medical\",\"2023-05-31\",\"Stevie (Child)\",\"No Associated "
+      },
+      {
+        "source_path": "/google2/claims.xlsx",
         "teacher_primary": "claim",
         "confidence": 0.5,
         "matched_terms": {
           "required": [
-            "claim number"
+            "provider billed",
+            "plan paid"
           ],
           "query": [
-            "claim number"
+            "provider billed",
+            "plan paid",
+            "you may owe"
           ],
           "path": [],
           "teacher": [
             "claim",
-            "claim number",
-            "claim form"
+            "claims"
           ]
         },
-        "summary_preview": "Your Claim Form has been\nsubmitted successfully.\n\nTHIS IS A COPY OF YOUR\nCLAIM FORM\n\nPlease print this page for your\nrecords.\n\nClaim Number: LVA100119130700\n\nIf you have any questions regarding your\nC"
-      },
-      {
-        "source_path": "/icloud/untitled folder/Screenshots/IMG_1729.PNG",
-        "teacher_primary": "claim",
-        "confidence": 0.5,
-        "matched_terms": {
-          "required": [
-            "claim number"
-          ],
-          "query": [
-            "claim number"
-          ],
-          "path": [],
-          "teacher": [
-            "claim",
-            "claim number",
-            "claim form"
-          ]
-        },
-        "summary_preview": "5:414 Tom 100)\n\nUnited States District Court, Northern\nDistrict of California\n\nYour Claim Form has been\nsubmitted successfully.\n\nTHIS IS A COPY OF YOUR\nCLAIM FORM\n\nPlease print this page for your\nreco"
+        "summary_preview": "Type\nService date\nMember\nProvider or facility name\nPrescription name\nProvider billed\nRx cost\nPlan paid\nYou May Owe/ Your Cost\nMedical\n2022-06-30 00:00:00\nStevie (Child)\nBrooke McDaniel\n425.0\n183.63\n45"
       }
     ],
-    "ui-screenshot": [],
+    "ui-screenshot": [
+      {
+        "source_path": "/icloud/untitled folder/Screenshots/2021-04-27_14-10-04_000.PNG",
+        "teacher_primary": "screenshot",
+        "confidence": 0.6667,
+        "matched_terms": {
+          "required": [
+            "search amazon"
+          ],
+          "query": [
+            "search amazon"
+          ],
+          "path": [
+            "screenshots"
+          ],
+          "teacher": [
+            "screenshot",
+            "image:png"
+          ]
+        },
+        "summary_preview": "2:10 hs oo! <= | Q Search Amazon Oo QO View order details Order date Dec 30, 2019 Order # 111-5593320-0145804 Order total $73.43 (1 item) Shipment details Standard Shipping Shipped Jan 6, 2020 q Logit"
+      }
+    ],
     "return-summary": [
       {
         "source_path": "/icloud/untitled folder/Documents/213859991809.JPEG",
-        "teacher_primary": "return-summary",
-        "confidence": 0.7273,
+        "teacher_primary": "product-photo",
+        "confidence": 0.5294,
         "matched_terms": {
           "required": [
             "return summary card",
-            "the ups store",
+            "no box no label",
             "rma id"
           ],
           "query": [
             "return summary card",
-            "the ups store",
+            "no box no label",
             "rma id",
             "send by return ship method"
           ],
           "path": [],
           "teacher": [
-            "return summary card",
-            "rma id",
-            "the ups store",
-            "send by return ship method"
+            "package",
+            "box",
+            "label",
+            "image:jpeg"
           ]
         },
-        "summary_preview": "amazon Return Summary Card\nae)\n\nSend By Return Ship Method\nDec 01, 2024 Package Less ups dropOff\nItem Description Quantity\n\nBrother Wireless Compact Desktop Scanner, ADS-1700W,\n\nFast Scan Speeds, Easy"
+        "summary_preview": "amazon Return Summary Card ee) Send By Return Ship Method Dec 01, 2024 Package Less ups dropOff Item Description Quantity Brother Wireless Compact Desktop Scanner, ADS-1700W, 1 Fast Scan Speeds, Easy-"
       },
       {
         "source_path": "/icloud/untitled folder/Screenshots/IMG_2064.jpg",
-        "teacher_primary": "return-summary",
-        "confidence": 0.5,
+        "teacher_primary": "product-photo",
+        "confidence": 0.5294,
         "matched_terms": {
           "required": [
             "the ups store",
+            "no box no label",
             "rma id"
           ],
           "query": [
             "the ups store",
+            "no box no label",
             "rma id",
             "send by return ship method"
           ],
@@ -554,12 +618,13 @@
             "screenshots"
           ],
           "teacher": [
-            "rma id",
-            "the ups store",
-            "send by return ship method"
+            "package",
+            "box",
+            "label",
+            "image:jpg"
           ]
         },
-        "summary_preview": "Send By Return Ship Method\nAug 09, 2025 Package Less ups dropOff\n\nItem Description Quantity\n\nTellegloww 1000g Rechargeable Silica Gel Desiccant\n\nPack of 1, Moisture Absorbers Bag, Discoloration De... "
+        "summary_preview": "Send By Return Ship Method Aug 09, 2025 Package Less ups dropOff Item Description Quantity Tellegloww 1000g Rechargeable Silica Gel Desiccant 1 Pack of 1, Moisture Absorbers Bag, Discoloration De... T"
       },
       {
         "source_path": "/icloud/untitled folder/Screenshots/IMG_2065.jpg",
@@ -587,14 +652,14 @@
             "send by return ship method"
           ]
         },
-        "summary_preview": "amazon Return Summary Card\n\\ewcatl\n\nSend By Return Ship Method\nAug 09, 2025 LabelLess_UPSDropOff\nItem Description Quantity\n\nAir Health Skye 5 Stage Air Purifier, Features\n\nUltraviolet Light (UVC), H13"
+        "summary_preview": "amazon Return Summary Card ~~? Send By Return Ship Method Aug 09, 2025 LabelLess_UPSDropOff Item Description Quantity Air Health Skye 5 Stage Air Purifier, Features 1 Ultraviolet Light (UVC), H13 True"
       }
     ],
     "consumer-report": [
       {
         "source_path": "/icloud/Scanned/Kay - Credit/CD307_Accurint_Person_Report_Info_Form.pdf",
-        "teacher_primary": "identity-document",
-        "confidence": 0.5714,
+        "teacher_primary": "letter",
+        "confidence": 0.5556,
         "matched_terms": {
           "required": [
             "lexisnexis"
@@ -607,11 +672,11 @@
             "credit"
           ],
           "teacher": [
-            "identity",
-            "social security"
+            "letter",
+            "email"
           ]
         },
-        "summary_preview": "Page 1  CD307-08-16e \n \nSIGNATURE:       DATE:       \n \n \nBefore mailing, check to ensure you are providing all of the following documents: \n This request form, fully completed and signed \n Proof of"
+        "summary_preview": "Page 1 CD307-08-16e SIGNATURE: DATE: Before mailing, check to ensure you are providing all of the following documents:  This request form, fully completed and signed  Proof of Identity (see letter m"
       },
       {
         "source_path": "/icloud/Scanned/Kay - Credit/criminal_1743961211.pdf",
@@ -635,7 +700,7 @@
             "mime:pdf"
           ]
         },
-        "summary_preview": "Report completed on Apr 6, 2025 5:40 PM UTC\nConsumer Report for\nKay Mayers\nkaymayers9@gmail.com\nRequestor Company\nCheckr Personal Checks\nStatus\nClear\nCalifornia Candidates/Employees Only: The report d"
+        "summary_preview": "Report completed on Apr 6, 2025 5:40 PM UTC Consumer Report for Kay Mayers kaymayers9@gmail.com Requestor Company Checkr Personal Checks Status Clear California Candidates/Employees Only: The report d"
       }
     ],
     "utility-bill": [
@@ -665,10 +730,62 @@
             "electric"
           ]
         },
-        "summary_preview": "6:10 4\n\n< Mail\n\n@) & myaccount.chugachelectric.co... ©\n\n~~ ZX\n\nCHUGAC:\n\nService Address\n\n1941 EAST VIEW DR\n\nKEIF MAYERS\n1941 EAST VIEW DR\nANCHORAGE ALASKA 99504-2959\n\nMember Number Account Number\n\n000"
+        "summary_preview": "6:10 7 08 < Mail C myaccount.chugachelectric.co... © KEIF MAYERS: 1941 EAST VIEW DR ANCHORAGE ALASKA 99504-2959, CHUGACH POWERING ALASKA'S FUTURE Member Number Account Number 0001123827 00077104 Servi"
       }
     ],
-    "hotel-folio": []
+    "hotel-folio": [
+      {
+        "source_path": "/icloud/untitled folder/Unsorted/es_folio4195971019.pdf",
+        "teacher_primary": "invoice",
+        "confidence": 0.5294,
+        "matched_terms": {
+          "required": [
+            "folio no",
+            "room no"
+          ],
+          "query": [
+            "folio no",
+            "room no",
+            "arrival",
+            "departure"
+          ],
+          "path": [],
+          "teacher": [
+            "invoice",
+            "charge",
+            "charges"
+          ]
+        },
+        "summary_preview": "Sonesta ES Suites San Francisco - Airport Kay Mayers Stephanie racine dust 1941 Eastview drive Anchorage AK 99504 United States Room No. : 0133 Arrival : 06-11-23 Departure : 06-23-23 Folio No. : 1364"
+      },
+      {
+        "source_path": "/icloud/untitled folder/Unsorted/HOTEL.pdf",
+        "teacher_primary": "hotel-folio",
+        "confidence": 0.5263,
+        "matched_terms": {
+          "required": [
+            "folio no",
+            "room no"
+          ],
+          "query": [
+            "folio no",
+            "room no",
+            "arrival",
+            "departure",
+            "hotel"
+          ],
+          "path": [],
+          "teacher": [
+            "folio no",
+            "room no",
+            "arrival",
+            "departure",
+            "hotel"
+          ]
+        },
+        "summary_preview": "Sonesta ES Suites San Francisco - Airport Kay Mayers & Stephanie racine dush 1941 Eastview drive Anchorage AK 99504 United States Room No. : 0133 Arrival : 06-11-23 Departure : 06-23-23 Folio No. : 13"
+      }
+    ]
   },
   "examples_path": "C:\\Code\\iCloudPlugin\\config\\examples.jsonl"
 }
