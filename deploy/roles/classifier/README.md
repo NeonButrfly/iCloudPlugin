@@ -34,6 +34,10 @@ Primary services in `docker-compose.yml`:
 - `run_codex_arbiter_smoke.sh` for a one-file authenticated smoke request that
   can force-enable the Codex arbiter per request without changing the service's
   default-off runtime mode
+- `run_learning_maintenance.sh` for a bounded one-shot learning refresh that
+  syncs Obsidian/manual feedback, processes queued Qwen shadow-teacher work,
+  checks whether LightGBM should retrain from approved feedback, and rewrites
+  the classifier readiness report
 
 Operational defaults:
 
@@ -62,3 +66,29 @@ Operational defaults:
   `/source`); the shadow worker now translates canonical mirror paths from
   generated notes back into that mounted source root during manual-feedback
   export
+
+Learning maintenance:
+
+- run a one-shot feedback/training pass on `tichuml1` with:
+
+  ```bash
+  cd /opt/iCloudPlugin
+  deploy/roles/classifier/run_learning_maintenance.sh
+  ```
+
+- the helper writes a JSON summary under
+  `deploy/roles/classifier/logs/learning-maintenance/`
+- this is the recommended systemd timer or cron target for keeping the hybrid
+  classifier current because each invocation exits after one bounded pass
+- the pass keeps Codex disabled unless the classifier env explicitly enables
+  it; Qwen remains the local teacher path through `CLASSIFY_MODEL` and
+  `VISION_MODEL`
+- by default LightGBM retrains only from approved feedback rows when the gating
+  thresholds indicate enough new signal; set
+  `LEARNING_MAINTENANCE_TRAIN_FROM_INDEX=1` only for an intentional index-wide
+  retrain window
+- optional tuning env vars:
+  - `LEARNING_MAINTENANCE_MIN_ROWS`
+  - `LEARNING_MAINTENANCE_MIN_NEW_ROWS`
+  - `LEARNING_MAINTENANCE_DATABASE_URL`
+- tracked by GitHub issue #72

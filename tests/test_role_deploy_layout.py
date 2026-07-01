@@ -28,6 +28,13 @@ def test_classifier_role_codex_smoke_helper_exists():
     assert helper.exists()
 
 
+def test_classifier_role_learning_maintenance_helper_exists():
+    repo_root = Path(__file__).resolve().parents[1]
+    helper = repo_root / "deploy" / "roles" / "classifier" / "run_learning_maintenance.sh"
+
+    assert helper.exists()
+
+
 def test_cloudsync_role_sync_assets_exist():
     repo_root = Path(__file__).resolve().parents[1]
     expected = [
@@ -428,6 +435,20 @@ def test_classifier_role_docs_reference_codex_arbiter_smoke_helper():
 
     assert "run_codex_arbiter_smoke.sh" in role_readme.read_text(encoding="utf-8")
     assert "run_codex_arbiter_smoke.sh" in operations_doc.read_text(encoding="utf-8")
+
+
+def test_classifier_role_docs_reference_learning_maintenance_helper():
+    repo_root = Path(__file__).resolve().parents[1]
+    role_readme = repo_root / "deploy" / "roles" / "classifier" / "README.md"
+    helper = repo_root / "deploy" / "roles" / "classifier" / "run_learning_maintenance.sh"
+    helper_text = helper.read_text(encoding="utf-8")
+    role_text = role_readme.read_text(encoding="utf-8")
+
+    assert "run_learning_maintenance.sh" in role_text
+    assert "learning-maintenance" in role_text
+    assert "apps.classifier.learning_maintenance" in helper_text
+    assert "--summary-json" in helper_text
+    assert "LEARNING_MAINTENANCE_TRAIN_FROM_INDEX" in helper_text
 
 
 def test_combined_role_compose_includes_sync_and_classifier_services():
