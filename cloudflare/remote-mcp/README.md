@@ -75,6 +75,10 @@ bearer token:
 - `ORIGIN_BASE_URL`
 - `ORIGIN_API_TOKEN`
 
+For this repo's live split-host deployment, the intended origin is:
+
+- `ORIGIN_BASE_URL=https://clouddrive.neonbutterfly.net`
+
 The Worker can also enforce its own bearer token for client-to-Worker access:
 
 - `WORKER_API_TOKEN`
@@ -103,6 +107,16 @@ Recommended long-term deployment shape:
 - use `WORKER_API_TOKEN` for private bootstrap / operator testing
 - move to Cloudflare Access OAuth or another OAuth front door before calling
   the external MCP path production-complete
+
+Recommended easy path for ChatGPT Developer mode right now:
+
+- keep `ORIGIN_BASE_URL=https://clouddrive.neonbutterfly.net`
+- keep `ORIGIN_API_TOKEN` configured on the Worker
+- leave `WORKER_API_TOKEN` unset so the Worker runs in `origin-only` mode
+- point ChatGPT at the public Worker `/mcp` URL
+
+That keeps the Pi/API token private on the Worker-to-origin hop while avoiding
+an extra custom bearer token requirement on the ChatGPT-facing hop.
 
 Cloudflare's current guidance for remote MCP is:
 
@@ -173,6 +187,12 @@ Plan the deploy and derived URLs without deploying:
 
 ```bash
 npm run deploy:plan
+```
+
+Print the ChatGPT developer-mode plan for the currently configured Worker:
+
+```bash
+npm run chatgpt:plan
 ```
 
 Plan a deploy using secret values from a local `.env`-style file such as

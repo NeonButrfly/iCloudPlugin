@@ -18,6 +18,8 @@ export const DEFAULT_EXPECTED_TOOLS = [
   "get_icloud_source_reference",
   "get_icloud_file_bundle",
   "refresh_icloud_index",
+  "pause_icloud_index",
+  "resume_icloud_index",
 ];
 export const DEFAULT_ACCESS_HEADER_MAP = {
   "CF-Access-Client-Id": "CF_ACCESS_CLIENT_ID",
