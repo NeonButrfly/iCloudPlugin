@@ -169,3 +169,22 @@
     authoritative packaging inputs
   - preserve the repo-local bootstrap fallback in `.mcp.json`
 - Tracking issue: [#73](https://github.com/NeonButrfly/iCloudPlugin/issues/73)
+
+## 2026-07-01 - Make ChatGPT setup use Secure MCP Tunnel first
+
+- Source prompt: "make this easy for me" after verifying the hosted Worker was
+  up but blocked by `worker-api-token` auth on `/mcp`.
+- Interpreted requirement: make private ChatGPT connectivity for
+  `iCloudPlugin` easy by preferring Secure MCP Tunnel over the current
+  Cloudflare Worker token gate for first-time setup.
+- Product requirements:
+  - provide one repo-owned command for the local MCP bridge
+  - provide one repo-owned helper that prints the Secure MCP Tunnel setup plan
+  - point operators at the official OpenAI ChatGPT/tunnel docs instead of
+    expecting them to infer the flow
+- Architectural constraints:
+  - reuse the checked-in `apps.mcp.server` / `icloud_plugin_mcp.server`
+  - keep the private/local MCP path as the recommended easy option
+  - do not claim the current `WORKER_API_TOKEN` gate is the preferred ChatGPT
+    connector auth model
+- Tracking issue: [#74](https://github.com/NeonButrfly/iCloudPlugin/issues/74)

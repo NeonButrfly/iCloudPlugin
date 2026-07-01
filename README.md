@@ -153,11 +153,19 @@ Both scripts:
 - plugin path: `plugins/icloud-drive`
 - install helper: `python scripts/install_codex_plugin.py`
 - repo marketplace: `.agents/plugins/marketplace.json`
+- ChatGPT tunnel helper: `python scripts/secure_mcp_tunnel_plan.py`
+- ChatGPT local MCP command: `python scripts/run_chatgpt_mcp_server.py`
 
 The install helper validates the checked-in plugin and prints the exact Codex
 marketplace/install commands for this checkout. Run those commands from a
 Codex-capable terminal, then start a new thread so the plugin tools are
 available in the next session.
+
+For ChatGPT, the easiest private setup path is Secure MCP Tunnel rather than
+the current Cloudflare Worker bearer-token gate. Run
+`python scripts/secure_mcp_tunnel_plan.py` to print the recommended connector
+name, description, local MCP command, and the official OpenAI tunnel/connect
+docs for this repo checkout.
 
 ## Role layout
 

@@ -1072,6 +1072,12 @@ python -m apps.classifier.classify_to_obsidian --process-shadow-queue
 6. Run the emitted `codex plugin marketplace add ...` and
    `codex plugin add ...` commands from a Codex-capable terminal, then start a
    new Codex thread so the plugin tools are reloaded.
+7. For ChatGPT, prefer the private Secure MCP Tunnel path:
+   - run `python scripts/secure_mcp_tunnel_plan.py`
+   - start the local MCP bridge with
+     `python scripts/run_chatgpt_mcp_server.py`
+   - follow the official Secure MCP Tunnel / Connect from ChatGPT docs linked
+     by the helper when creating the connector
 
 The local MCP bridge now exposes:
 
