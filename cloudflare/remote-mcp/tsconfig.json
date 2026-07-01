@@ -7,11 +7,12 @@
     "resolveJsonModule": true,
     "types": ["@cloudflare/workers-types", "vitest/globals"],
     "noEmit": true,
+    "allowJs": true,
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.d.ts", "scripts/**/*.mjs"]
 }
