@@ -151,6 +151,13 @@ Both scripts:
 ## Local plugin
 
 - plugin path: `plugins/icloud-drive`
+- install helper: `python scripts/install_codex_plugin.py`
+- repo marketplace: `.agents/plugins/marketplace.json`
+
+The install helper validates the checked-in plugin and prints the exact Codex
+marketplace/install commands for this checkout. Run those commands from a
+Codex-capable terminal, then start a new thread so the plugin tools are
+available in the next session.
 
 ## Role layout
 

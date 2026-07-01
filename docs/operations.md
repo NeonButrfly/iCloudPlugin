@@ -1066,6 +1066,12 @@ python -m apps.classifier.classify_to_obsidian --process-shadow-queue
 3. If `PLUGIN_API_TOKEN` is set on the service, set the same value locally as
    `ICLOUD_INDEX_API_TOKEN`.
 4. Use the repo-local plugin in `plugins/icloud-drive`.
+5. Run `python scripts/install_codex_plugin.py` to validate the checked-in
+   plugin and print the exact Codex marketplace/install commands for this repo
+   checkout.
+6. Run the emitted `codex plugin marketplace add ...` and
+   `codex plugin add ...` commands from a Codex-capable terminal, then start a
+   new Codex thread so the plugin tools are reloaded.
 
 The local MCP bridge now exposes:
 

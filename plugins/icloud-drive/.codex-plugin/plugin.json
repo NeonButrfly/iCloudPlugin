@@ -1,14 +1,21 @@
 {
   "name": "icloud-drive",
-  "version": "0.1.0",
+  "version": "0.1.0+codex.20260701162512",
   "description": "Search and retrieve iCloud Drive content through a private on-prem index service.",
   "author": {
     "name": "Keifm",
     "email": "keifm@local.invalid",
     "url": "https://github.com/NeonButrfly/iCloudPlugin"
   },
+  "homepage": "https://github.com/NeonButrfly/iCloudPlugin",
   "repository": "https://github.com/NeonButrfly/iCloudPlugin",
   "license": "MIT",
+  "keywords": [
+    "icloud",
+    "mcp",
+    "obsidian",
+    "search"
+  ],
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "iCloud Drive",
@@ -16,6 +23,12 @@
     "longDescription": "Query a private on-prem iCloud indexing service for relevant files and excerpts.",
     "developerName": "Keifm",
     "category": "Productivity",
+    "websiteURL": "https://github.com/NeonButrfly/iCloudPlugin",
+    "defaultPrompt": [
+      "Search my indexed iCloud Drive for an appeal packet.",
+      "Show me iCloud system status and readiness.",
+      "Open the note and source bundle for a matching file."
+    ],
     "capabilities": [
       "Interactive"
     ]

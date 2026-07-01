@@ -9,6 +9,28 @@ This local plugin starts the thin `icloud_plugin_mcp` proxy and forwards MCP too
 3. Set `ICLOUD_INDEX_SERVICE_URL` if the service is not on `http://127.0.0.1:8080`.
 4. Set `ICLOUD_INDEX_API_TOKEN` if your local service expects bearer auth.
 
+## Install In Codex
+
+Use the checked-in repo marketplace instead of hand-editing local plugin files:
+
+```bash
+python scripts/install_codex_plugin.py
+```
+
+That helper validates the checked-in plugin and prints the exact marketplace and
+install commands for this repo checkout.
+
+If you want the same plan in machine-readable form:
+
+```bash
+python scripts/install_codex_plugin.py --json
+```
+
+Then run the emitted `codex plugin marketplace add ...` and
+`codex plugin add ...` commands from a Codex-capable terminal or the Codex app.
+After install or reinstall, start a new Codex thread so the updated plugin
+tools are loaded.
+
 The plugin launcher in `.mcp.json` bootstraps the repo-local `src/` tree automatically, so it does not depend on the package already being importable just to find `icloud_plugin_mcp.server`.
 
 ## Run
@@ -29,6 +51,8 @@ The plugin exposes:
 - `get_icloud_source_reference`
 - `get_icloud_file_bundle`
 - `refresh_icloud_index`
+- `pause_icloud_index`
+- `resume_icloud_index`
 
 Those MCP tools now also declare explicit tool annotations:
 

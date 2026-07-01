@@ -150,3 +150,22 @@
     - review-facing positive and negative test cases
   - add a generator/verification path so that artifact can be re-derived from
     structured source data instead of drifting as a one-off hand edit
+
+## 2026-07-01 - Make the checked-in iCloud Drive plugin installable through Codex
+
+- Source prompt: "help me create a plugin to connect to my icloudplugin".
+- Interpreted requirement: keep the existing `plugins/icloud-drive` MCP bridge
+  as the source of truth, but add a first-class install path so Codex can add
+  the plugin from the checked-in repo marketplace without manual local file
+  edits.
+- Product requirements:
+  - validate the checked-in plugin metadata and marketplace entry
+  - emit the exact `codex plugin marketplace add` and `codex plugin add`
+    commands for the active repo checkout
+  - document the install/reinstall flow where operators already look
+- Architectural constraints:
+  - do not fork the plugin into a second source of truth outside the repo
+  - keep `plugins/icloud-drive` and `.agents/plugins/marketplace.json` as the
+    authoritative packaging inputs
+  - preserve the repo-local bootstrap fallback in `.mcp.json`
+- Tracking issue: [#73](https://github.com/NeonButrfly/iCloudPlugin/issues/73)
