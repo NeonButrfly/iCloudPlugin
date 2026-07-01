@@ -21,6 +21,11 @@ function jsonToolResult(payload: JsonObject) {
   };
 }
 
+function isMissingReadinessRoute(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("Origin request failed (404)");
+}
+
 const genericJsonObjectSchema = z.object({}).passthrough();
 const readOnlyPrivateAnnotations = {
   readOnlyHint: true,
@@ -271,8 +276,28 @@ export function createServer(env: Env, request: Request): McpServer {
       annotations: readOnlyPrivateAnnotations,
     },
     async () => {
-      const payload = await fetchOriginJson(env, "/status/readiness");
-      return jsonToolResult(payload);
+      try {
+        const payload = await fetchOriginJson(env, "/status/readiness");
+        return jsonToolResult(payload);
+      } catch (error) {
+        if (!isMissingReadinessRoute(error)) {
+          throw error;
+        }
+
+        const summaryPayload = await fetchOriginJson(env, "/status/summary");
+        return jsonToolResult({
+          fallback_mode: "status-summary",
+          fallback_reason: "origin_missing_status_readiness",
+          status_summary: summaryPayload,
+          product_readiness: {
+            overall: {
+              status: "unknown",
+              detail:
+                "The origin service does not currently expose /status/readiness, so this hosted MCP response is falling back to /status/summary.",
+            },
+          },
+        });
+      }
     },
   );
 

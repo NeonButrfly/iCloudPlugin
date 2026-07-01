@@ -67,6 +67,10 @@ The product-readiness tool now comes from the origin service's
 - repo-surface MCP/deploy/helper facts
 - explicit end-to-end criteria marked `met`, `blocked`, or `unknown`
 
+If the current origin deployment is missing `/status/readiness`, the Worker now
+falls back to `/status/summary` and returns explicit fallback metadata instead
+of failing the MCP tool call outright.
+
 ## Required origin configuration
 
 The Worker expects the on-prem service to expose the plugin-facing API with a

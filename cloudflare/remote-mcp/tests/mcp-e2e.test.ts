@@ -226,6 +226,79 @@ describe("remote MCP worker end-to-end", () => {
     expect(readinessRequest?.headers.get("Authorization")).toBe("Bearer origin-secret");
   });
 
+  it("falls back to status summary when the origin is missing /status/readiness", async () => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = toRequest(input, init);
+      const url = new URL(request.url);
+
+      if (url.host === "worker.example.test") {
+        return worker.fetch(request, baseEnv, createExecutionContext());
+      }
+
+      if (url.host === "origin.example.test") {
+        originRequests.push(request);
+
+        if (url.pathname === "/status/summary") {
+          return new Response(
+            JSON.stringify({
+              service_health: { status: "ok" },
+              refresh_status: { status: "running", items_seen: 42, frontier_length: 7 },
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        if (url.pathname === "/status/readiness") {
+          return new Response(JSON.stringify({ detail: "Not Found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        throw new Error(`Unexpected origin request in test: ${request.url}`);
+      }
+
+      throw new Error(`Unexpected host in test fetch: ${request.url}`);
+    }) as typeof fetch;
+
+    client = new Client({
+      name: "remote-mcp-e2e-test",
+      version: "0.1.0",
+    });
+    transport = new StreamableHTTPClientTransport(new URL(`${workerBaseUrl}/mcp`), {
+      requestInit: {
+        headers: {
+          Authorization: "Bearer worker-secret",
+        },
+      },
+      fetch: globalThis.fetch,
+    });
+    await client.connect(transport);
+
+    const result = await client.callTool({
+      name: "get_icloud_product_readiness",
+      arguments: {},
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      fallback_mode: "status-summary",
+      fallback_reason: "origin_missing_status_readiness",
+      product_readiness: {
+        overall: {
+          status: "unknown",
+        },
+      },
+      status_summary: {
+        service_health: { status: "ok" },
+        refresh_status: { status: "running", items_seen: 42, frontier_length: 7 },
+      },
+    });
+  });
+
   it("rewrites worker download URLs in bundled search results", async () => {
     const connectedClient = await connectClient();
 
