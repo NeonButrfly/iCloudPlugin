@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 
 from icloud_index_service.models.classification_job import ClassificationJob
 from icloud_index_service.models.classification_state import ClassificationState
+from icloud_index_service.models.change_set import ChangeSet
+from icloud_index_service.models.document_vault_note import DocumentVaultNote
 from icloud_index_service.models.file import FileRecord
 from icloud_index_service.services.job_runner import get_refresh_status_snapshot
 from icloud_index_service.services.vault_reconciliation import _iter_generated_notes
@@ -283,6 +285,31 @@ def collect_provider_counts(session: Session) -> dict[str, int]:
     return _count_values(providers)
 
 
+def collect_change_set_counts(session: Session) -> dict[str, int]:
+    statuses = session.scalars(select(ChangeSet.status)).all()
+    return _count_values([status for status in statuses if isinstance(status, str)])
+
+
+def collect_document_vault_note_counts(session: Session) -> dict[str, int]:
+    rows = session.execute(
+        select(DocumentVaultNote.note_type, DocumentVaultNote.is_deleted)
+    ).all()
+    summary = {
+        "total": 0,
+        "deleted": 0,
+    }
+    note_types: list[str] = []
+    for note_type, is_deleted in rows:
+        summary["total"] += 1
+        if is_deleted:
+            summary["deleted"] += 1
+        if isinstance(note_type, str) and note_type.strip():
+            note_types.append(note_type)
+    for key, value in _count_values(note_types).items():
+        summary[f"type:{key}"] = value
+    return summary
+
+
 def fetch_classifier_health() -> dict[str, Any]:
     token = (os.getenv("CLASSIFIER_API_TOKEN") or "").strip()
     if not token:
@@ -341,6 +368,8 @@ def build_status_summary(
         "classification_job_counts": collect_classification_job_counts(session),
         "classification_state_counts": collect_classification_state_counts(session),
         "provider_counts": collect_provider_counts(session),
+        "change_set_counts": collect_change_set_counts(session),
+        "document_vault_note_counts": collect_document_vault_note_counts(session),
         "vault_counts": collect_vault_counts(),
         "generated_note_context_gaps": collect_generated_note_context_gaps(session),
         "cloud_vault_sync": collect_cloud_vault_sync_status(),

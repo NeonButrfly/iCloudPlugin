@@ -15,6 +15,9 @@ from icloud_index_service.models.extracted_content import ExtractedContent
 from icloud_index_service.models.file import FileRecord
 from icloud_index_service.models.job import Job
 from icloud_index_service.models.base import Base
+from icloud_index_service.models.change_set import ChangeSet
+from icloud_index_service.models.change_set_item import ChangeSetItem
+from icloud_index_service.models.document_vault_note import DocumentVaultNote
 from icloud_index_service.models.sync_run import SyncRun
 
 
@@ -134,6 +137,23 @@ def test_job_schema_enforces_single_active_metadata_refresh(tmp_path):
             session.commit()
 
 
+def test_change_set_models_capture_reversible_history_relationships():
+    assert ChangeSet.__table__.c.change_set_id.unique is True
+    assert ChangeSet.__table__.c.status.nullable is False
+    assert len(ChangeSetItem.__table__.c.change_set_id.foreign_keys) == 1
+    assert (
+        next(iter(ChangeSetItem.__table__.c.change_set_id.foreign_keys)).target_fullname
+        == "change_sets.id"
+    )
+
+
+def test_document_vault_note_model_tracks_unique_relative_paths_and_source_links():
+    relative_path_column = DocumentVaultNote.__table__.c.relative_path
+    assert relative_path_column.unique is True
+    assert DocumentVaultNote.__table__.c.visible_title.nullable is False
+    assert len(DocumentVaultNote.__table__.c.source_file_record_id.foreign_keys) == 1
+
+
 def test_initial_migration_captures_authoritative_schema_rules():
     repo_root = Path(__file__).resolve().parents[1]
     result = subprocess.run(
@@ -164,6 +184,10 @@ def test_initial_migration_captures_authoritative_schema_rules():
     assert "ALTER TABLE classification_states ADD COLUMN entity_summary TEXT;" in result.stdout
     assert "ROW_NUMBER() OVER" in result.stdout
     assert "Marked failed during 0002_active_refresh_unique_index migration" in result.stdout
+    assert "Running upgrade 0005_classification_retrieval_metadata -> 0006_vault_mutation_index_tables" in result.stdout
+    assert "CREATE TABLE change_sets" in result.stdout
+    assert "CREATE TABLE change_set_items" in result.stdout
+    assert "CREATE TABLE document_vault_notes" in result.stdout
 
 
 def test_retrieval_metadata_migration_hardens_alembic_version_column_for_long_revision_ids():

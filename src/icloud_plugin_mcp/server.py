@@ -149,6 +149,13 @@ def get_icloud_product_readiness() -> dict[str, Any]:
         return client.get_product_readiness()
 
 
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
+def get_icloud_change_set(change_set_id: ChangeSetId) -> dict[str, Any]:
+    """Return indexed metadata and item history for a reversible change set."""
+    with build_service_client_from_env() as client:
+        return client.get_change_set(change_set_id=change_set_id)
+
+
 @mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
 def refresh_icloud_index() -> dict[str, Any]:
     """Queue an iCloud Drive metadata refresh on the backing service."""

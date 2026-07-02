@@ -21,6 +21,7 @@ def test_plugin_server_tools_expose_annotations_and_output_schemas():
         "search_icloud_notes_and_files",
         "get_icloud_system_status",
         "get_icloud_product_readiness",
+        "get_icloud_change_set",
     }
 
     for tool_name in expected_read_only:

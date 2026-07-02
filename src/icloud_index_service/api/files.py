@@ -20,6 +20,7 @@ from icloud_index_service.services.file_mutation_service import (
     FileNamespace,
     create_document_vault_note,
     delete_file_by_path,
+    get_change_set_record,
     restore_change_set,
 )
 from icloud_index_service.services.search_service import (
@@ -181,12 +182,16 @@ def download_file_source(
     "/ops/delete",
     dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
 )
-def delete_file_route(payload: DeleteFileRequest) -> dict[str, object]:
+def delete_file_route(
+    payload: DeleteFileRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
     try:
         return delete_file_by_path(
             namespace=payload.namespace,
             relative_path=payload.relative_path,
             actor="plugin-api",
+            session=session,
         )
     except FileMutationPolicyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -196,11 +201,15 @@ def delete_file_route(payload: DeleteFileRequest) -> dict[str, object]:
     "/ops/restore",
     dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
 )
-def restore_change_set_route(payload: RestoreChangeSetRequest) -> dict[str, object]:
+def restore_change_set_route(
+    payload: RestoreChangeSetRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
     try:
         return restore_change_set(
             change_set_id=payload.change_set_id,
             actor="plugin-api",
+            session=session,
         )
     except FileMutationPolicyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -212,6 +221,7 @@ def restore_change_set_route(payload: RestoreChangeSetRequest) -> dict[str, obje
 )
 def create_document_vault_note_route(
     payload: CreateDocumentVaultNoteRequest,
+    session: Session = Depends(_get_files_session),
 ) -> dict[str, object]:
     try:
         return create_document_vault_note(
@@ -220,6 +230,22 @@ def create_document_vault_note_route(
             summary=payload.summary,
             canonical_source_path=payload.canonical_source_path,
             attach_originals=payload.attach_originals,
+            actor="plugin-api",
+            session=session,
         )
     except FileMutationPolicyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get(
+    "/ops/change-sets/{change_set_id}",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def get_change_set_route(
+    change_set_id: str,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    payload = get_change_set_record(session, change_set_id=change_set_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Change set not found")
+    return payload

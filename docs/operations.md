@@ -1190,11 +1190,19 @@ first production-shaped external MCP slice in
   hosted tool surface.
 - The Worker now also exposes the first reversible mutation tools for issue
   #84:
+  - `get_icloud_change_set`
   - `create_document_vault_note`
   - `delete_icloud_file`
   - `restore_icloud_change_set`
   - those tools share the same origin-backed `_CHANGES_BACKUP` / structured
     note contract as the repo-local FastMCP bridge
+  - the origin service now also persists:
+    - `change_sets`
+    - `change_set_items`
+    - `document_vault_notes`
+    so reversible operations and structured note writes are queryable through
+    the database-backed status/readiness surface instead of filesystem logs
+    alone
 - both the repo-local FastMCP bridge and the Cloudflare Worker now declare
   explicit MCP tool annotations:
   - read tools set `readOnlyHint=true`, `openWorldHint=false`,
@@ -1321,6 +1329,7 @@ Recommended deployment shape:
   - positive and negative review test cases
 - that submission-facing tool list now also includes
   `get_icloud_product_readiness`,
+  `get_icloud_change_set`,
   `create_document_vault_note`,
   `delete_icloud_file`, and
   `restore_icloud_change_set`

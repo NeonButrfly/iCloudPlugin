@@ -106,6 +106,20 @@ describe("remote MCP worker end-to-end", () => {
           );
         }
 
+        if (url.pathname === "/files/ops/change-sets/abc123") {
+          return new Response(
+            JSON.stringify({
+              change_set_id: "abc123",
+              status: "deleted",
+              items: [{ item_type: "source_file", namespace: "google1" }],
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
         if (url.pathname === "/search/bundles") {
           return new Response(
             JSON.stringify({
@@ -205,6 +219,7 @@ describe("remote MCP worker end-to-end", () => {
     const toolNames = toolList.tools.map((tool) => tool.name);
     expect(toolNames).toContain("get_icloud_system_status");
     expect(toolNames).toContain("get_icloud_product_readiness");
+    expect(toolNames).toContain("get_icloud_change_set");
     expect(toolNames).toContain("search_icloud_notes_and_files");
     expect(toolNames).toContain("create_document_vault_note");
     expect(toolNames).toContain("delete_icloud_file");
@@ -411,6 +426,24 @@ describe("remote MCP worker end-to-end", () => {
     expect(restoreResult.structuredContent).toMatchObject({
       status: "restored",
       change_set_id: "abc123",
+    });
+  });
+
+  it("reads indexed change-set history through the Worker", async () => {
+    const connectedClient = await connectClient();
+
+    const result = await connectedClient.callTool({
+      name: "get_icloud_change_set",
+      arguments: {
+        change_set_id: "abc123",
+      },
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      change_set_id: "abc123",
+      status: "deleted",
+      items: [{ item_type: "source_file", namespace: "google1" }],
     });
   });
 

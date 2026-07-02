@@ -22,6 +22,7 @@ REQUIRED_REMOTE_MCP_TOOLS = (
     "resume_icloud_index",
     "create_document_vault_note",
     "delete_icloud_file",
+    "get_icloud_change_set",
     "restore_icloud_change_set",
 )
 

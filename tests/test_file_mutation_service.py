@@ -1,17 +1,29 @@
 from pathlib import Path
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
+from icloud_index_service.models.base import Base
+from icloud_index_service.models.file import FileRecord
 from icloud_index_service.services.file_mutation_service import (
     FileMutationPolicyError,
     FileNamespace,
     delete_file_by_path,
+    get_change_set_record,
     import_duplicate_quarantine_to_changes_backup,
     is_hidden_internal_path,
     restore_change_set,
     resolve_live_path,
     resolve_namespace_root,
 )
+
+
+def _build_session_factory(tmp_path: Path) -> sessionmaker[Session]:
+    database_path = tmp_path / "file-mutation.sqlite3"
+    engine = create_engine(f"sqlite+pysqlite:///{database_path}")
+    Base.metadata.create_all(engine)
+    return sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
 def test_resolve_namespace_root_maps_document_vault_to_runtime_mount(monkeypatch, tmp_path: Path):
@@ -112,3 +124,36 @@ def test_import_duplicate_quarantine_creates_legacy_change_sets(monkeypatch, tmp
     assert result["imported_files"] == 1
     assert result["change_sets_created"] == 1
     assert not quarantine_file.exists()
+
+
+def test_delete_persists_change_set_record_and_item(monkeypatch, tmp_path: Path):
+    mirror_root = tmp_path / "cloud-vault" / "mirrors"
+    file_path = mirror_root / "google1" / "Cases" / "Appeal.txt"
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_text("appeal", encoding="utf-8")
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    session_factory = _build_session_factory(tmp_path)
+
+    with session_factory() as session:
+        session.add(
+            FileRecord(
+                external_id="file-1",
+                name="Appeal.txt",
+                path="/google1/Cases/Appeal.txt",
+                mime_type="text/plain",
+            )
+        )
+        session.commit()
+
+        result = delete_file_by_path(
+            namespace=FileNamespace.GOOGLE1,
+            relative_path="Cases/Appeal.txt",
+            actor="pytest",
+            session=session,
+        )
+        payload = get_change_set_record(session, change_set_id=result["change_set_id"])
+
+    assert payload is not None
+    assert payload["operation_type"] == "delete"
+    assert payload["status"] == "deleted"
+    assert payload["items"][0]["item_type"] == "source_file"

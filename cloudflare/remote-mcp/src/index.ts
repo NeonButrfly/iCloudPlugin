@@ -302,6 +302,22 @@ export function createServer(env: Env, request: Request): McpServer {
   );
 
   server.registerTool(
+    "get_icloud_change_set",
+    {
+      description: "Get indexed metadata and item history for a reversible change set.",
+      inputSchema: {
+        change_set_id: z.string().min(1),
+      },
+      outputSchema: genericJsonObjectSchema,
+      annotations: readOnlyPrivateAnnotations,
+    },
+    async ({ change_set_id }) => {
+      const payload = await fetchOriginJson(env, `/files/ops/change-sets/${change_set_id}`);
+      return jsonToolResult(payload);
+    },
+  );
+
+  server.registerTool(
     "refresh_icloud_index",
     {
       description: "Queue a metadata refresh on the backing cloud-vault index service.",

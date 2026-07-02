@@ -416,6 +416,33 @@ def test_get_product_readiness_uses_status_readiness_endpoint():
     assert str(captured_request.url) == "http://service.test/status/readiness"
 
 
+def test_get_change_set_uses_change_set_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(
+            200,
+            json={"change_set_id": "abc123", "status": "deleted", "items": []},
+        )
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.get_change_set(change_set_id="abc123")
+    finally:
+        client.close()
+
+    assert payload["change_set_id"] == "abc123"
+    assert captured_request is not None
+    assert captured_request.method == "GET"
+    assert str(captured_request.url) == "http://service.test/files/ops/change-sets/abc123"
+
+
 def test_create_document_vault_note_posts_to_origin_endpoint():
     captured_request: httpx.Request | None = None
 

@@ -110,6 +110,9 @@ class ICloudIndexServiceClient:
     def get_product_readiness(self) -> dict[str, Any]:
         return self._request("GET", "/status/readiness")
 
+    def get_change_set(self, *, change_set_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/files/ops/change-sets/{change_set_id}")
+
     def refresh_index(self) -> dict[str, Any]:
         return self._request("POST", "/refresh")
 

@@ -56,6 +56,18 @@
         "destructive_justification": "Does not delete, overwrite, or perform irreversible actions."
       }
     },
+    "get_icloud_change_set": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves indexed metadata and item history for a previously recorded reversible change set.",
+        "open_world_justification": "Does not publish or mutate public internet state or third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, or perform irreversible actions."
+      }
+    },
     "get_icloud_file": {
       "annotations": {
         "readOnlyHint": true,
@@ -260,6 +272,14 @@
       "file_attachment_urls": null,
       "tools_triggered": "get_icloud_file_bundle",
       "expected_output": "Returns the indexed file payload, generated note payload, and source-reference payload together for the requested file id.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Inspect one reversible change set and its indexed items.",
+      "user_prompt": "Show me the indexed history for change set abc123.",
+      "file_attachment_urls": null,
+      "tools_triggered": "get_icloud_change_set",
+      "expected_output": "Returns the change-set metadata and indexed item rows for the requested reversible operation.",
       "expected_output_url": null
     },
     {

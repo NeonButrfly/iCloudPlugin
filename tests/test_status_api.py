@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 import icloud_index_service.main as main_module
 import icloud_index_service.services.status_service as status_service_module
 from icloud_index_service.db import get_session
+from icloud_index_service.models.base import Base
 from icloud_index_service.models.classification_job import ClassificationJob
 from icloud_index_service.models.classification_state import ClassificationState
 from icloud_index_service.models.file import FileRecord
@@ -20,11 +21,7 @@ from icloud_index_service.models.sync_run import SyncRun
 def _build_session_factory(tmp_path: Path) -> sessionmaker[Session]:
     database_path = tmp_path / "status.sqlite3"
     engine = create_engine(f"sqlite+pysqlite:///{database_path}")
-    SyncRun.__table__.create(engine)
-    Job.__table__.create(engine)
-    FileRecord.__table__.create(engine)
-    ClassificationJob.__table__.create(engine)
-    ClassificationState.__table__.create(engine)
+    Base.metadata.create_all(engine)
     return sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 
@@ -396,6 +393,8 @@ def test_status_readiness_returns_live_summary_plus_readiness_report(tmp_path, m
     payload = response.json()
     assert payload["status_summary"]["service_health"] == {"status": "ok", "database": "ok"}
     assert payload["status_summary"]["auth_status"] == {"status": "configured", "database": "ok"}
+    assert payload["status_summary"]["change_set_counts"] == {}
+    assert payload["status_summary"]["document_vault_note_counts"] == {"total": 0, "deleted": 0}
     assert payload["product_readiness"]["success_criteria"][
         "cloudflare_remote_mcp_exists_and_is_the_intended_external_path"
     ]["status"] == "met"

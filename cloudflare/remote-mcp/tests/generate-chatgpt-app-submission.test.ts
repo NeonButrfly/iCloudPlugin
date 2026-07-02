@@ -74,6 +74,7 @@ describe("generate-chatgpt-app-submission", () => {
       "search_icloud_notes_and_files",
       "get_icloud_system_status",
       "get_icloud_product_readiness",
+      "get_icloud_change_set",
       "get_icloud_file",
       "get_icloud_file_excerpt",
       "get_icloud_note",
@@ -98,6 +99,7 @@ describe("generate-chatgpt-app-submission", () => {
     expect(formatted).toContain('"refresh_icloud_index"');
     expect(formatted).toContain('"pause_icloud_index"');
     expect(formatted).toContain('"create_document_vault_note"');
+    expect(formatted).toContain('"get_icloud_change_set"');
   });
 
   it("keeps the submission tool metadata aligned with the actual Worker tool surface", async () => {
