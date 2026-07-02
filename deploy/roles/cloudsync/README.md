@@ -93,6 +93,11 @@ The script is intentionally resilient:
   so an empty local mirror cannot become the initial source of truth
 - dangling Google Drive shortcuts are skipped because rclone cannot read them
   as source objects
+- quarantine content still syncs normally; only quarantine-scoped bisync
+  access test files are excluded:
+  - `/_DUPLICATE_QUARANTINE/**/RCLONE_TEST`
+  - this prevents quarantined `RCLONE_TEST` copies from breaking bisync
+    access-health validation without removing quarantine folders from sync
 - storage-host sync can force IPv4 for all `rclone` reachability checks and
   bisync runs with:
   - `RCLONE_FORCE_IPV4=true`

@@ -35,6 +35,7 @@ RCLONE_COMMON_ARGS=(
   --compare size,modtime
   --conflict-resolve newer
   --drive-skip-dangling-shortcuts
+  --exclude "/_DUPLICATE_QUARANTINE/**/RCLONE_TEST"
   --resilient
   --recover
 )
