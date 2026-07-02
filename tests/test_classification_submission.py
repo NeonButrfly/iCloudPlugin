@@ -257,6 +257,49 @@ def test_enqueue_classification_backfill_scans_past_completed_prefix_to_find_new
     assert created_jobs[0].file_id == pending_file.id
 
 
+def test_enqueue_classification_backfill_skips_hidden_and_underscore_prefixed_folders(
+    tmp_path: Path,
+):
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+
+    try:
+        visible_file = _add_file(
+            session,
+            external_id="visible-1",
+            name="Budget.pdf",
+            path="/Finance/Budget.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=10,
+        )
+        _add_file(
+            session,
+            external_id="hidden-1",
+            name="Quarantine.pdf",
+            path="/_DUPLICATE_QUARANTINE/Quarantine.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=10,
+        )
+        _add_file(
+            session,
+            external_id="hidden-2",
+            name="Secret.pdf",
+            path="/Finance/.private/Secret.pdf",
+            mime_type="application/pdf",
+            extension="pdf",
+            size_bytes=10,
+        )
+        session.commit()
+
+        created_jobs = enqueue_classification_backfill(session, limit=10)
+    finally:
+        session.close()
+
+    assert [job.file_id for job in created_jobs] == [visible_file.id]
+
+
 def test_run_next_classification_job_submits_file_and_persists_completed_state(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

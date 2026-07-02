@@ -88,6 +88,19 @@ class PermanentClassifierSubmissionError(RuntimeError):
     pass
 
 
+def _is_ignored_source_folder_name(name: str) -> bool:
+    cleaned = str(name or "").strip()
+    return cleaned.startswith("_") or cleaned.startswith(".")
+
+
+def _source_path_contains_ignored_folder(path_value: str) -> bool:
+    normalized_path = str(path_value or "").replace("\\", "/").strip("/")
+    if not normalized_path:
+        return False
+    parts = normalized_path.split("/")
+    return any(_is_ignored_source_folder_name(part) for part in parts[:-1])
+
+
 def _is_retryable_classifier_rejection(*, status_code: int, response_text: str) -> bool:
     normalized_text = response_text.lower()
     return status_code == 409 and (
@@ -373,6 +386,8 @@ def enqueue_classification_backfill(
             offset += len(candidates)
 
             for file_record, extracted_content, state in candidates:
+                if _source_path_contains_ignored_folder(file_record.path):
+                    continue
                 source_fingerprint = compute_source_fingerprint(
                     file_record=file_record,
                     extracted_content=extracted_content,
@@ -718,6 +733,10 @@ def resolve_classification_source_relative_path(file_record: FileRecord) -> str:
     if not relative_path or any(part in {"", ".", ".."} for part in relative_path.split("/")):
         raise PermanentClassifierSubmissionError(
             "Resolved file path is not representable as a safe mirror-relative source path."
+        )
+    if _source_path_contains_ignored_folder(relative_path):
+        raise PermanentClassifierSubmissionError(
+            "Resolved file path is inside an ignored hidden or underscore-prefixed folder."
         )
     return relative_path
 

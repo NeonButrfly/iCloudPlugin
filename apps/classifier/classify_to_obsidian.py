@@ -620,15 +620,41 @@ def build_reason_fallback(
         )
     return f"No additional classifier reasoning was provided for {primary_label}."
 
+
+def _is_ignored_input_folder_name(name: str) -> bool:
+    cleaned = str(name or "").strip()
+    return cleaned.startswith("_") or cleaned.startswith(".")
+
+
+def _path_has_ignored_input_folder(path: Path, *, root: Path | None = None) -> bool:
+    try:
+        parts = path.relative_to(root).parts if root is not None else path.parts
+    except Exception:
+        parts = path.parts
+    directory_parts = parts[:-1] if path.suffix else parts
+    return any(_is_ignored_input_folder_name(part) for part in directory_parts)
+
+
 def iter_input_files(path: Path) -> Iterable[Path]:
     if path.is_file():
-        if path.suffix.lower() in SUPPORTED_EXTENSIONS:
+        if path.suffix.lower() in SUPPORTED_EXTENSIONS and not _path_has_ignored_input_folder(path):
             yield path
         return
 
-    for p in path.rglob("*"):
-        if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS:
-            yield p
+    for current_root, dir_names, file_names in os.walk(path):
+        dir_names[:] = [
+            dir_name
+            for dir_name in dir_names
+            if not _is_ignored_input_folder_name(dir_name)
+        ]
+        current_root_path = Path(current_root)
+        for file_name in file_names:
+            candidate = current_root_path / file_name
+            if candidate.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                continue
+            if _path_has_ignored_input_folder(candidate, root=path):
+                continue
+            yield candidate
 
 def ensure_vault(vault: Path) -> None:
     dirs = [

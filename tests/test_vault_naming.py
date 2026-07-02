@@ -6,7 +6,12 @@ from packages.vault.naming import (
     build_extracted_markdown_filename,
     build_note_filename,
 )
-from apps.classifier.classify_to_obsidian import ensure_vault, write_index, write_obsidian_note
+from apps.classifier.classify_to_obsidian import (
+    ensure_vault,
+    iter_input_files,
+    write_index,
+    write_obsidian_note,
+)
 
 
 def test_default_note_name_omits_visible_hash():
@@ -37,6 +42,23 @@ def test_attachment_name_stays_human_readable():
     attachment_name = build_attachment_filename(source_name="Budget Draft.pdf")
 
     assert attachment_name == "Budget Draft.pdf"
+
+
+def test_iter_input_files_skips_hidden_and_underscore_prefixed_folders():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        visible = root / "Inbox" / "keep.pdf"
+        hidden = root / "_DUPLICATE_QUARANTINE" / "drop.pdf"
+        dot_hidden = root / ".staging" / "drop-too.pdf"
+        nested_hidden = root / "Inbox" / "_private" / "nested-drop.pdf"
+
+        for path in (visible, hidden, dot_hidden, nested_hidden):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"pdf")
+
+        discovered = sorted(path.relative_to(root).as_posix() for path in iter_input_files(root))
+
+    assert discovered == ["Inbox/keep.pdf"]
 
 
 def test_write_obsidian_note_uses_clean_visible_note_name():
@@ -114,11 +136,11 @@ def test_write_obsidian_note_prefers_canonical_filename_over_staged_upload_name(
         assert note_path.name == "Aetna Life Insurance Company - APPEAL 1 FFS - medical - appeals.md"
         assert "326d39e1bebd4d9aaac79a91206320ec" not in note_path.name
         assert "326d39e1bebd4d9aaac79a91206320ec" not in note_text
-        assert 'attachment_mode: "canonical-source-link"' in note_text
+        assert 'attachment_mode: "copied-compatibility"' in note_text
         assert "entity_summary:" in note_text
         assert "retrieval_terms:" in note_text
-        assert r"\\192.168.50.86\cloud-vault\mirrors\google1\Aetna Life Insurance Company - APPEAL 1 FFS.docx" in note_text
-        assert not attachment.exists()
+        assert "[[90 Attachments/medical/appeals/Aetna Life Insurance Company - APPEAL 1 FFS.docx]]" in note_text
+        assert attachment.exists()
         assert extracted.exists()
 
 
