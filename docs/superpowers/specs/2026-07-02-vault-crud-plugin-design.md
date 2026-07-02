@@ -25,6 +25,9 @@ This design covers:
   `_CHANGES_BACKUP`
 - operator-facing command patterns for classification, dedupe, folder
   reorganization, and undo
+- an expanded indexed data model that treats source files, notes, reversible
+  mutations, dedupe actions, and reorganization plans as first-class queryable
+  records
 
 ## Runtime Mapping
 
@@ -84,6 +87,354 @@ These are workflow-level capabilities built from multiple lower-level tools. The
 design should not assume one opaque "do everything" endpoint; it should make the
 workflow decomposition clear enough that ChatGPT can execute it safely.
 
+## Indexed Data Model
+
+The current framework already has a real source-file index. This design extends
+that idea so higher-level vault workflows are also queryable, auditable, and
+reversible.
+
+### Current Indexed Surface
+
+The repo already indexes the mirrored source corpus through:
+
+- `files`
+  - external id
+  - file name
+  - canonical mirrored path
+  - MIME type
+  - extension
+  - deleted flag
+  - size
+  - modified timestamp
+- `extracted_contents`
+  - extracted source text
+  - extraction hash
+  - extraction timestamp
+- `classification_states`
+  - submission and completion state
+  - source fingerprint
+  - generated note reference
+  - primary label
+  - summary
+  - confidence
+  - reasoning
+  - entity/topic summaries
+  - retrieval terms and retrieval text
+  - stored response payload / manifest details
+
+This current surface is enough for:
+
+- search
+- excerpt retrieval
+- source-reference retrieval
+- note hydration tied to indexed files
+- classifier training/export based on indexed source files
+
+### Gaps In The Current Index
+
+The current index is not yet sufficient for the full reversible workflow
+surface the user wants. The main gaps are:
+
+- no first-class change-set index for `_CHANGES_BACKUP`
+- no first-class restore history
+- no first-class dedupe candidate/group index
+- no first-class folder-reorganization plan index
+- no first-class `document_vault` note inventory separate from
+  `classifier_note_path`
+- no first-class manual feedback event log
+- no unified namespace inventory that can distinguish:
+  - live discoverable files
+  - hidden internal backup content
+  - imported legacy quarantine content
+
+### Required New Indexed Entities
+
+Add the following indexed entities so reversible ChatGPT-driven workflows are
+not built on hidden state or ad hoc filesystem scans.
+
+#### 1. `change_sets`
+
+One row per reversible operation or related batch.
+
+Required fields:
+
+- `change_set_id`
+- `operation_type`
+  - create
+  - update
+  - move
+  - delete
+  - dedupe
+  - reorganization
+  - restore
+  - legacy-import
+- `namespace`
+- `actor`
+- `created_at`
+- `applied_at`
+- `completed_at`
+- `status`
+  - proposed
+  - applied
+  - partially_restored
+  - restored
+  - failed
+- `notes`
+- `parent_change_set_id` for restore chains when applicable
+
+Purpose:
+
+- powers undo
+- powers audit/history views
+- groups multi-file operations into one traceable unit
+
+#### 2. `change_set_items`
+
+One row per file or note affected inside a change set.
+
+Required fields:
+
+- `change_set_id`
+- `item_type`
+  - source_file
+  - document_vault_note
+  - attachment
+  - extracted_markdown
+- `namespace`
+- `file_record_id` when tied to an indexed source file
+- `document_note_record_id` when tied to a first-class note record
+- `original_path`
+- `result_path`
+- `backup_path`
+- `content_hash_before`
+- `content_hash_after`
+- `restore_status`
+- `restore_error`
+
+Purpose:
+
+- lets restore target either a full change set or selected items
+- keeps note-side and source-side changes linked together
+
+#### 3. `document_vault_notes`
+
+Make `document_vault` notes first-class indexed records rather than only a path
+string hanging off `classification_states`.
+
+Required fields:
+
+- `note_id`
+- `relative_path`
+- `visible_title`
+- `note_type`
+- `frontmatter_json`
+- `canonical_source_path`
+- `source_file_record_id` when applicable
+- `attachment_mode`
+- `source_link`
+- `primary_label`
+- `secondary_labels_json`
+- `last_synced_at`
+- `last_observed_at`
+- `is_generated`
+- `is_deleted`
+
+Purpose:
+
+- lets ChatGPT search and reason over notes as notes
+- supports source-note synchronization on delete/restore/move
+- supports manual-note indexing outside generated note flows
+
+#### 4. `manual_feedback_events`
+
+Record meaningful human changes in `document_vault` as explicit indexed events.
+
+Required fields:
+
+- `event_id`
+- `note_id`
+- `source_file_record_id` when known
+- `event_type`
+  - note_move
+  - folder_relabel
+  - frontmatter_edit
+  - attachment_change
+  - manual_override
+- `old_value_json`
+- `new_value_json`
+- `observed_at`
+- `ingested_at`
+- `feedback_strength`
+  - weak-folder-signal
+  - strong-generated-note-correction
+
+Purpose:
+
+- makes the “re-read the vault and learn from manual organization” path
+  queryable and replayable
+- reduces reliance on implicit filesystem diffing alone
+
+#### 5. `dedupe_groups`
+
+Represent candidate and approved duplicate groups explicitly.
+
+Required fields:
+
+- `dedupe_group_id`
+- `group_fingerprint`
+- `status`
+  - candidate
+  - approved
+  - applied
+  - restored
+  - rejected
+- `canonical_item_path`
+- `canonical_file_record_id`
+- `duplicate_count`
+- `evidence_json`
+- `decision_notes`
+- `created_at`
+- `updated_at`
+- linked `change_set_id` once applied
+
+Purpose:
+
+- makes dedupe explainable
+- allows dry-run review before mutation
+- allows post-hoc restore of dedupe actions
+
+#### 6. `dedupe_group_items`
+
+One row per file participating in a duplicate group.
+
+Required fields:
+
+- `dedupe_group_id`
+- `file_record_id`
+- `path_at_analysis_time`
+- `content_hash`
+- `size_bytes`
+- `similarity_score`
+- `decision_role`
+  - canonical
+  - duplicate
+  - uncertain
+
+Purpose:
+
+- keeps file-level duplicate evidence available for later review
+
+#### 7. `reorg_plans`
+
+Represent folder-structure analysis and approved restructuring as first-class
+plans before or alongside execution.
+
+Required fields:
+
+- `reorg_plan_id`
+- `scope`
+- `status`
+  - draft
+  - proposed
+  - approved
+  - applied
+  - partially_restored
+  - restored
+  - rejected
+- `proposal_summary`
+- `rationale`
+- `created_at`
+- `approved_at`
+- linked `change_set_id` once applied
+
+Purpose:
+
+- gives ChatGPT a real object for “analyze then apply”
+- prevents reorganization from becoming an untracked series of moves
+
+#### 8. `reorg_plan_items`
+
+One row per proposed or applied move inside a reorganization plan.
+
+Required fields:
+
+- `reorg_plan_id`
+- `item_type`
+- `file_record_id` or `note_id`
+- `old_path`
+- `proposed_path`
+- `applied_path`
+- `decision_reason`
+- `applied`
+- `restored`
+
+Purpose:
+
+- keeps per-item movement explainable and reversible
+
+#### 9. `namespace_inventory`
+
+Optional but recommended logical inventory table or materialized view spanning
+all public namespaces plus internal reserved content.
+
+Required fields:
+
+- `namespace`
+- `relative_path`
+- `entry_type`
+  - source_file
+  - note
+  - attachment
+  - backup_payload
+  - backup_log
+  - quarantine_legacy
+- `discoverability`
+  - public
+  - internal_only
+- `backing_record_type`
+- `backing_record_id`
+- `exists_now`
+- `last_seen_at`
+
+Purpose:
+
+- supports operator views of “all files” without exposing `_` content through
+  normal search/list tools
+- makes hidden/internal policy explicit rather than accidental
+
+### Index Behavior Rules
+
+The expanded index should follow these rules:
+
+- ordinary search/list/read surfaces use only publicly discoverable inventory
+- `_`-prefixed directories remain hidden from ordinary discovery
+- restore/undo tooling may query internal-only indexed content in targeted ways
+- `document_vault` notes must be queryable both:
+  - as note records
+  - in relation to source file records
+- dedupe and reorganization should support dry-run/proposed states before
+  mutating anything
+- every applied batch mutation must link back to a `change_set_id`
+
+### Why This Matters
+
+Without these indexed entities, ChatGPT can still perform ad hoc filesystem
+work, but it cannot do so with strong guarantees around:
+
+- undo
+- provenance
+- partial restore
+- dedupe explainability
+- folder-reorganization traceability
+- note/source consistency
+
+With them, the framework becomes capable of supporting direct commands like:
+
+- read, categorize, and write Obsidian notes
+- re-read note organization as feedback
+- dedupe with review and undo
+- restructure folders with review and undo
+
 ### Hidden Directories Rule
 
 Any directory whose basename starts with `_` is hidden from ordinary plugin
@@ -114,6 +465,7 @@ Add a dedicated backend file-operations service responsible for:
 - restore execution
 - `_DUPLICATE_QUARANTINE` import
 - `document_vault` structured note writes
+- writing the new reversible index entities described above
 
 This service becomes the only place where file mutations are implemented.
 
@@ -135,6 +487,7 @@ Add authenticated origin routes for:
   source files
 - run or stage dedupe/reorganization analysis in a way that produces reversible
   change sets when approved
+- inspect indexed change-set, dedupe, reorganization, and note-inventory state
 
 The route layer should stay thin and delegate to the file-operations service.
 
@@ -262,6 +615,10 @@ Each change set stores:
 
 Use append-only machine-readable logs, plus a human-readable summary file per
 change set.
+
+The filesystem logs are not the only source of truth. They should be mirrored by
+the indexed `change_sets` / `change_set_items` state so the plugin can inspect
+and restore history without depending on directory scraping alone.
 
 ## `document_vault` Structured Note Creation
 
@@ -402,6 +759,10 @@ Import behavior:
 This import is not log-only. It physically merges the legacy quarantine state
 into the new `_CHANGES_BACKUP` layout.
 
+Imported legacy artifacts should also create indexed `change_sets`,
+`change_set_items`, and where relevant `dedupe_groups` with explicit provenance
+marking them as migrated legacy operations.
+
 ## Commandability
 
 The framework should make it realistic for an operator to give ChatGPT direct
@@ -452,6 +813,15 @@ Minimum coverage:
 - note updates after source delete/restore
 - `_DUPLICATE_QUARANTINE` and `/home/kay` dedupe import
 - categorizer ignore rules for all `_` directories
+- indexed persistence tests for:
+  - `change_sets`
+  - `change_set_items`
+  - `document_vault_notes`
+  - `manual_feedback_events`
+  - `dedupe_groups`
+  - `dedupe_group_items`
+  - `reorg_plans`
+  - `reorg_plan_items`
 - explicit workflow tests for:
   - categorize plus structured note write
   - feedback re-read from manual Obsidian moves/folders

@@ -203,6 +203,12 @@
   - automatically feed relevant Obsidian note changes back through the existing feedback sync path
   - keep source files and related Obsidian notes in sync on delete/restore
   - merge `_DUPLICATE_QUARANTINE` and earlier `/home/kay` dedupe artifacts into the `_CHANGES_BACKUP` structure
+  - extend the indexed data model beyond source files so ChatGPT can inspect:
+    - first-class `document_vault` note records
+    - reversible change sets and per-item mutation history
+    - dedupe groups and their member files
+    - folder-reorganization plans and per-item moves
+    - manual-feedback events derived from vault organization
 - Architectural constraints:
   - operate on `tichuml1` against the mounted shared NFS paths, not by per-operation SSH hops to the Pi
   - keep `kayraspi2` as storage truth and `tichuml1` as runtime execution host
