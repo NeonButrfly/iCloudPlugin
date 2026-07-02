@@ -22,6 +22,7 @@ def test_plugin_server_tools_expose_annotations_and_output_schemas():
         "get_icloud_system_status",
         "get_icloud_product_readiness",
         "get_icloud_change_set",
+        "get_icloud_dedupe_group",
     }
 
     for tool_name in expected_read_only:
@@ -44,6 +45,8 @@ def test_plugin_server_tools_expose_annotations_and_output_schemas():
         "create_document_vault_note",
         "delete_icloud_file",
         "restore_icloud_change_set",
+        "sync_icloud_manual_feedback_events",
+        "analyze_icloud_duplicates",
     }:
         tool = tools_by_name[tool_name]
         assert tool.outputSchema is not None

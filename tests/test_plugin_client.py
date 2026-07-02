@@ -521,3 +521,78 @@ def test_restore_change_set_posts_to_restore_endpoint():
     assert captured_request.method == "POST"
     assert str(captured_request.url) == "http://service.test/files/ops/restore"
     assert captured_request.read().decode("utf-8").find('"change_set_id":"abc123"') != -1
+
+
+def test_sync_manual_feedback_events_posts_to_sync_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"created": 2, "scanned": 2})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.sync_manual_feedback_events(limit=10)
+    finally:
+        client.close()
+
+    assert payload["created"] == 2
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    assert str(captured_request.url) == "http://service.test/files/ops/manual-feedback/sync"
+
+
+def test_analyze_duplicate_groups_posts_to_dedupe_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"created_groups": ["dup123"], "groups": []})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.analyze_duplicate_groups(
+            namespaces=["google1", "google2", "icloud"],
+            limit=10,
+        )
+    finally:
+        client.close()
+
+    assert payload["created_groups"] == ["dup123"]
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    assert str(captured_request.url) == "http://service.test/files/ops/dedupe/analyze"
+
+
+def test_get_dedupe_group_uses_group_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"dedupe_group_id": "dup123", "items": []})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.get_dedupe_group(dedupe_group_id="dup123")
+    finally:
+        client.close()
+
+    assert payload["dedupe_group_id"] == "dup123"
+    assert captured_request is not None
+    assert captured_request.method == "GET"
+    assert str(captured_request.url) == "http://service.test/files/ops/dedupe/groups/dup123"

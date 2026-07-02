@@ -318,6 +318,22 @@ export function createServer(env: Env, request: Request): McpServer {
   );
 
   server.registerTool(
+    "get_icloud_dedupe_group",
+    {
+      description: "Get indexed metadata and member items for a duplicate-group proposal.",
+      inputSchema: {
+        dedupe_group_id: z.string().min(1),
+      },
+      outputSchema: genericJsonObjectSchema,
+      annotations: readOnlyPrivateAnnotations,
+    },
+    async ({ dedupe_group_id }) => {
+      const payload = await fetchOriginJson(env, `/files/ops/dedupe/groups/${dedupe_group_id}`);
+      return jsonToolResult(payload);
+    },
+  );
+
+  server.registerTool(
     "refresh_icloud_index",
     {
       description: "Queue a metadata refresh on the backing cloud-vault index service.",
@@ -432,6 +448,51 @@ export function createServer(env: Env, request: Request): McpServer {
       const payload = await fetchOriginJson(env, "/files/ops/restore", {
         method: "POST",
         body: JSON.stringify({ change_set_id }),
+        headers: { "content-type": "application/json" },
+      });
+      return jsonToolResult(payload);
+    },
+  );
+
+  server.registerTool(
+    "sync_icloud_manual_feedback_events",
+    {
+      description: "Re-read manual Obsidian feedback signals and persist them as indexed feedback events.",
+      inputSchema: {
+        limit: z.number().int().min(1).max(200).optional(),
+      },
+      outputSchema: genericJsonObjectSchema,
+      annotations: internalWriteAnnotations,
+    },
+    async ({ limit }) => {
+      const payload = await fetchOriginJson(env, "/files/ops/manual-feedback/sync", {
+        method: "POST",
+        body: JSON.stringify({ limit: typeof limit === "number" ? limit : 25 }),
+        headers: { "content-type": "application/json" },
+      });
+      return jsonToolResult(payload);
+    },
+  );
+
+  server.registerTool(
+    "analyze_icloud_duplicates",
+    {
+      description:
+        "Analyze live mirrored files for duplicate candidates and persist indexed duplicate-group proposals.",
+      inputSchema: {
+        namespaces: z.array(z.enum(["google1", "google2", "icloud"])).min(1),
+        limit: z.number().int().min(1).max(200).optional(),
+      },
+      outputSchema: genericJsonObjectSchema,
+      annotations: internalWriteAnnotations,
+    },
+    async ({ namespaces, limit }) => {
+      const payload = await fetchOriginJson(env, "/files/ops/dedupe/analyze", {
+        method: "POST",
+        body: JSON.stringify({
+          namespaces,
+          limit: typeof limit === "number" ? limit : 25,
+        }),
         headers: { "content-type": "application/json" },
       });
       return jsonToolResult(payload);

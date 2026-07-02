@@ -68,6 +68,18 @@
         "destructive_justification": "Does not delete, overwrite, or perform irreversible actions."
       }
     },
+    "get_icloud_dedupe_group": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves indexed metadata and member items for a duplicate-group proposal.",
+        "open_world_justification": "Does not publish or mutate public internet state or third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, or perform irreversible actions."
+      }
+    },
     "get_icloud_file": {
       "annotations": {
         "readOnlyHint": true,
@@ -199,6 +211,30 @@
         "open_world_justification": "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
         "destructive_justification": "Restores previously backed-up files rather than hard deleting data or performing irreversible actions."
       }
+    },
+    "sync_icloud_manual_feedback_events": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Persists indexed manual-feedback event records from private document_vault notes, so it changes internal backend state.",
+        "open_world_justification": "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
+        "destructive_justification": "Does not delete or overwrite source files; it records reversible metadata about manual feedback signals."
+      }
+    },
+    "analyze_icloud_duplicates": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Analyzes live mirrored files and persists indexed duplicate-group proposals, so it changes internal backend state.",
+        "open_world_justification": "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
+        "destructive_justification": "Does not delete or overwrite files; it creates candidate duplicate-group metadata for later review."
+      }
     }
   },
   "test_cases": [
@@ -283,6 +319,14 @@
       "expected_output_url": null
     },
     {
+      "description": "Inspect one duplicate-group proposal and its members.",
+      "user_prompt": "Show me the indexed duplicate-group proposal dup123.",
+      "file_attachment_urls": null,
+      "tools_triggered": "get_icloud_dedupe_group",
+      "expected_output": "Returns the duplicate-group metadata and member rows for the requested proposal.",
+      "expected_output_url": null
+    },
+    {
       "description": "Create a structured Obsidian note in the synced document vault.",
       "user_prompt": "Create a structured document_vault note for this appeal file using the standard categorizer-compatible format.",
       "file_attachment_urls": null,
@@ -304,6 +348,22 @@
       "file_attachment_urls": null,
       "tools_triggered": "restore_icloud_change_set",
       "expected_output": "Returns restore metadata showing that the previously backed-up file change set was restored.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Persist manual-feedback events from the live document vault.",
+      "user_prompt": "Re-read the Obsidian vault and persist the latest manual feedback events.",
+      "file_attachment_urls": null,
+      "tools_triggered": "sync_icloud_manual_feedback_events",
+      "expected_output": "Returns a count of scanned and newly created indexed manual-feedback events.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Analyze live mirrored files for duplicate candidates.",
+      "user_prompt": "Analyze google1, google2, and icloud for duplicates and persist candidate groups.",
+      "file_attachment_urls": null,
+      "tools_triggered": "analyze_icloud_duplicates",
+      "expected_output": "Returns created duplicate-group ids and candidate member sets without deleting or moving files.",
       "expected_output_url": null
     }
   ],

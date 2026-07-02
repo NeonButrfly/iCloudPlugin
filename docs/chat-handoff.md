@@ -260,9 +260,16 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     - `search_icloud_notes_and_files`
     - `get_icloud_system_status`
     - `get_icloud_product_readiness`
+    - `get_icloud_change_set`
+    - `get_icloud_dedupe_group`
     - `get_icloud_note`
     - `get_icloud_source_reference`
     - `get_icloud_file_bundle`
+    - `create_document_vault_note`
+    - `delete_icloud_file`
+    - `restore_icloud_change_set`
+    - `sync_icloud_manual_feedback_events`
+    - `analyze_icloud_duplicates`
   - the combined search tool now searches once and hydrates the top matches
     into bundled file/note/source payloads so external ChatGPT callers do not
     need to stitch multiple follow-up calls together for common analysis flows
@@ -420,13 +427,18 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
         against the local FastMCP bridge, so the shared tool contract is
         enforced on both MCP surfaces
       - the shared submission/runtime surface now includes the first reversible
-        issue #84 mutation and history tools:
-        `get_icloud_change_set`, `create_document_vault_note`,
-        `delete_icloud_file`, and
-        `restore_icloud_change_set`
-      - the origin service now persists `change_sets`, `change_set_items`, and
-        `document_vault_notes`, and `/status/summary` now reports counts for
+        issue #84 mutation, history, feedback, and dedupe tools:
+        `get_icloud_change_set`, `get_icloud_dedupe_group`,
+        `create_document_vault_note`, `delete_icloud_file`,
+        `restore_icloud_change_set`, `sync_icloud_manual_feedback_events`, and
+        `analyze_icloud_duplicates`
+      - the origin service now persists `change_sets`, `change_set_items`,
+        `document_vault_notes`, `manual_feedback_events`, `dedupe_groups`, and
+        `dedupe_group_items`, and `/status/summary` now reports counts for
         those indexed reversible-history surfaces
+      - duplicate analysis ignores reads from directories whose names start
+        with `_`, including `_CHANGES_BACKUP`, while reversible operations can
+        still write backup artifacts there
       - direct `GET /mcp` now returns `405 Allow: POST, DELETE` so
         streamable-http clients do not hang on a standalone SSE path
     - `print-access-bootstrap.mjs` emits ready-to-run Cloudflare Access

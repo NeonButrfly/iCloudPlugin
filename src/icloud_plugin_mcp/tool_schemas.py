@@ -113,3 +113,21 @@ CanonicalSourcePath = Annotated[
         description="Canonical source file path associated with the structured Obsidian note.",
     ),
 ]
+
+WorkflowLimit = Annotated[
+    int,
+    Field(ge=1, le=200, description="Maximum number of records or proposals to process."),
+]
+
+NamespaceList = Annotated[
+    list[str],
+    Field(
+        min_length=1,
+        description="Namespace list restricted to google1, google2, and icloud for dedupe analysis.",
+    ),
+]
+
+DedupeGroupId = Annotated[
+    str,
+    Field(min_length=1, description="Indexed duplicate-group identifier."),
+]

@@ -23,6 +23,11 @@ from icloud_index_service.services.file_mutation_service import (
     get_change_set_record,
     restore_change_set,
 )
+from icloud_index_service.services.workflow_index_service import (
+    analyze_duplicate_groups,
+    get_dedupe_group,
+    sync_manual_feedback_events,
+)
 from icloud_index_service.services.search_service import (
     build_database_unavailable_detail,
     get_file_details,
@@ -46,6 +51,15 @@ class CreateDocumentVaultNoteRequest(BaseModel):
     summary: str
     canonical_source_path: str
     attach_originals: bool = True
+
+
+class SyncManualFeedbackEventsRequest(BaseModel):
+    limit: int = 25
+
+
+class AnalyzeDuplicateGroupsRequest(BaseModel):
+    namespaces: list[str]
+    limit: int = 25
 
 
 def _ensure_files_database_available(request: Request) -> None:
@@ -248,4 +262,44 @@ def get_change_set_route(
     payload = get_change_set_record(session, change_set_id=change_set_id)
     if payload is None:
         raise HTTPException(status_code=404, detail="Change set not found")
+    return payload
+
+
+@router.post(
+    "/ops/manual-feedback/sync",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def sync_manual_feedback_events_route(
+    payload: SyncManualFeedbackEventsRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return sync_manual_feedback_events(session, limit=payload.limit)
+
+
+@router.post(
+    "/ops/dedupe/analyze",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def analyze_duplicate_groups_route(
+    payload: AnalyzeDuplicateGroupsRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return analyze_duplicate_groups(
+        session,
+        namespaces=payload.namespaces,
+        limit=payload.limit,
+    )
+
+
+@router.get(
+    "/ops/dedupe/groups/{dedupe_group_id}",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def get_dedupe_group_route(
+    dedupe_group_id: str,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    payload = get_dedupe_group(session, dedupe_group_id=dedupe_group_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Dedupe group not found")
     return payload

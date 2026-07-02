@@ -120,6 +120,20 @@ describe("remote MCP worker end-to-end", () => {
           );
         }
 
+        if (url.pathname === "/files/ops/dedupe/groups/dup123") {
+          return new Response(
+            JSON.stringify({
+              dedupe_group_id: "dup123",
+              status: "candidate",
+              items: [{ path_at_analysis_time: "/google1/A.txt", decision_role: "canonical" }],
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
         if (url.pathname === "/search/bundles") {
           return new Response(
             JSON.stringify({
@@ -187,6 +201,41 @@ describe("remote MCP worker end-to-end", () => {
           );
         }
 
+        if (url.pathname === "/files/ops/manual-feedback/sync") {
+          return new Response(
+            JSON.stringify({
+              scanned: 2,
+              created: 2,
+              unchanged: 0,
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        if (url.pathname === "/files/ops/dedupe/analyze") {
+          return new Response(
+            JSON.stringify({
+              created_groups: ["dup123"],
+              groups: [
+                {
+                  dedupe_group_id: "dup123",
+                  status: "candidate",
+                  canonical_item_path: "/google1/A.txt",
+                  duplicate_count: 1,
+                  members: ["/google1/A.txt", "/google2/A.txt"],
+                },
+              ],
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
         throw new Error(`Unexpected origin request in test: ${request.url}`);
       }
 
@@ -220,10 +269,13 @@ describe("remote MCP worker end-to-end", () => {
     expect(toolNames).toContain("get_icloud_system_status");
     expect(toolNames).toContain("get_icloud_product_readiness");
     expect(toolNames).toContain("get_icloud_change_set");
+    expect(toolNames).toContain("get_icloud_dedupe_group");
     expect(toolNames).toContain("search_icloud_notes_and_files");
     expect(toolNames).toContain("create_document_vault_note");
     expect(toolNames).toContain("delete_icloud_file");
     expect(toolNames).toContain("restore_icloud_change_set");
+    expect(toolNames).toContain("sync_icloud_manual_feedback_events");
+    expect(toolNames).toContain("analyze_icloud_duplicates");
 
     const readOnlyTool = toolList.tools.find((tool) => tool.name === "get_icloud_system_status");
     expect(readOnlyTool?.outputSchema).toBeDefined();
@@ -444,6 +496,46 @@ describe("remote MCP worker end-to-end", () => {
       change_set_id: "abc123",
       status: "deleted",
       items: [{ item_type: "source_file", namespace: "google1" }],
+    });
+  });
+
+  it("reads dedupe proposals and runs feedback/dedupe analysis through the Worker", async () => {
+    const connectedClient = await connectClient();
+
+    const dedupeRead = await connectedClient.callTool({
+      name: "get_icloud_dedupe_group",
+      arguments: {
+        dedupe_group_id: "dup123",
+      },
+    });
+    expect(dedupeRead.isError).not.toBe(true);
+    expect(dedupeRead.structuredContent).toMatchObject({
+      dedupe_group_id: "dup123",
+      status: "candidate",
+    });
+
+    const feedbackSync = await connectedClient.callTool({
+      name: "sync_icloud_manual_feedback_events",
+      arguments: {
+        limit: 10,
+      },
+    });
+    expect(feedbackSync.isError).not.toBe(true);
+    expect(feedbackSync.structuredContent).toMatchObject({
+      scanned: 2,
+      created: 2,
+    });
+
+    const dedupeAnalyze = await connectedClient.callTool({
+      name: "analyze_icloud_duplicates",
+      arguments: {
+        namespaces: ["google1", "google2", "icloud"],
+        limit: 10,
+      },
+    });
+    expect(dedupeAnalyze.isError).not.toBe(true);
+    expect(dedupeAnalyze.structuredContent).toMatchObject({
+      created_groups: ["dup123"],
     });
   });
 

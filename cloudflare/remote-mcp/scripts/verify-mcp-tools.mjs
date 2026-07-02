@@ -13,6 +13,7 @@ export const DEFAULT_EXPECTED_TOOLS = [
   "get_icloud_system_status",
   "get_icloud_product_readiness",
   "get_icloud_change_set",
+  "get_icloud_dedupe_group",
   "get_icloud_file",
   "get_icloud_file_excerpt",
   "get_icloud_note",
@@ -24,6 +25,8 @@ export const DEFAULT_EXPECTED_TOOLS = [
   "create_document_vault_note",
   "delete_icloud_file",
   "restore_icloud_change_set",
+  "sync_icloud_manual_feedback_events",
+  "analyze_icloud_duplicates",
 ];
 export const DEFAULT_ACCESS_HEADER_MAP = {
   "CF-Access-Client-Id": "CF_ACCESS_CLIENT_ID",

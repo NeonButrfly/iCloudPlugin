@@ -17,6 +17,7 @@ def test_remote_mcp_submission_artifact_exposes_expected_tool_surface():
         "get_icloud_system_status",
         "get_icloud_product_readiness",
         "get_icloud_change_set",
+        "get_icloud_dedupe_group",
         "get_icloud_file",
         "get_icloud_file_excerpt",
         "get_icloud_note",
@@ -28,6 +29,8 @@ def test_remote_mcp_submission_artifact_exposes_expected_tool_surface():
         "create_document_vault_note",
         "delete_icloud_file",
         "restore_icloud_change_set",
+        "sync_icloud_manual_feedback_events",
+        "analyze_icloud_duplicates",
     }
 
 
@@ -77,6 +80,7 @@ def _build_minimal_repo_root(
     "get_icloud_system_status": {},
     "get_icloud_product_readiness": {},
     "get_icloud_change_set": {},
+    "get_icloud_dedupe_group": {},
     "get_icloud_file": {},
     "get_icloud_file_excerpt": {},
     "get_icloud_note": {},
@@ -87,7 +91,9 @@ def _build_minimal_repo_root(
     "resume_icloud_index": {},
     "create_document_vault_note": {},
     "delete_icloud_file": {},
-    "restore_icloud_change_set": {}
+    "restore_icloud_change_set": {},
+    "sync_icloud_manual_feedback_events": {},
+    "analyze_icloud_duplicates": {}
   }
 }
 """,

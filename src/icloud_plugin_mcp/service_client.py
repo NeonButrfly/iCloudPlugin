@@ -113,6 +113,28 @@ class ICloudIndexServiceClient:
     def get_change_set(self, *, change_set_id: str) -> dict[str, Any]:
         return self._request("GET", f"/files/ops/change-sets/{change_set_id}")
 
+    def sync_manual_feedback_events(self, *, limit: int = 25) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/files/ops/manual-feedback/sync",
+            json_body={"limit": limit},
+        )
+
+    def analyze_duplicate_groups(
+        self,
+        *,
+        namespaces: list[str],
+        limit: int = 25,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/files/ops/dedupe/analyze",
+            json_body={"namespaces": namespaces, "limit": limit},
+        )
+
+    def get_dedupe_group(self, *, dedupe_group_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/files/ops/dedupe/groups/{dedupe_group_id}")
+
     def refresh_index(self) -> dict[str, Any]:
         return self._request("POST", "/refresh")
 

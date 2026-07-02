@@ -28,6 +28,7 @@ def test_remote_mcp_chatgpt_app_submission_matches_current_tool_surface():
         "get_icloud_system_status",
         "get_icloud_product_readiness",
         "get_icloud_change_set",
+        "get_icloud_dedupe_group",
         "get_icloud_file",
         "get_icloud_file_excerpt",
         "get_icloud_note",
@@ -39,6 +40,8 @@ def test_remote_mcp_chatgpt_app_submission_matches_current_tool_surface():
         "create_document_vault_note",
         "delete_icloud_file",
         "restore_icloud_change_set",
+        "sync_icloud_manual_feedback_events",
+        "analyze_icloud_duplicates",
     }
 
     tools = payload["tools"]
@@ -51,6 +54,8 @@ def test_remote_mcp_chatgpt_app_submission_matches_current_tool_surface():
         "create_document_vault_note",
         "delete_icloud_file",
         "restore_icloud_change_set",
+        "sync_icloud_manual_feedback_events",
+        "analyze_icloud_duplicates",
     }:
         annotations = tools[tool_name]["annotations"]
         assert annotations == {
@@ -66,6 +71,8 @@ def test_remote_mcp_chatgpt_app_submission_matches_current_tool_surface():
         "create_document_vault_note",
         "delete_icloud_file",
         "restore_icloud_change_set",
+        "sync_icloud_manual_feedback_events",
+        "analyze_icloud_duplicates",
     }:
         assert tools[tool_name]["annotations"] == {
             "readOnlyHint": False,

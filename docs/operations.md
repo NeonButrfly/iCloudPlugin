@@ -1085,6 +1085,8 @@ The local MCP bridge now exposes:
 - `search_icloud_notes_and_files`
 - `get_icloud_system_status`
 - `get_icloud_product_readiness`
+- `get_icloud_change_set`
+- `get_icloud_dedupe_group`
 - `get_icloud_file`
 - `get_icloud_file_excerpt`
 - `get_icloud_note`
@@ -1093,6 +1095,11 @@ The local MCP bridge now exposes:
 - `refresh_icloud_index`
 - `pause_icloud_index`
 - `resume_icloud_index`
+- `create_document_vault_note`
+- `delete_icloud_file`
+- `restore_icloud_change_set`
+- `sync_icloud_manual_feedback_events`
+- `analyze_icloud_duplicates`
 
 The backing service now exposes plugin-facing note/source routes:
 
@@ -1191,18 +1198,27 @@ first production-shaped external MCP slice in
 - The Worker now also exposes the first reversible mutation tools for issue
   #84:
   - `get_icloud_change_set`
+  - `get_icloud_dedupe_group`
   - `create_document_vault_note`
   - `delete_icloud_file`
   - `restore_icloud_change_set`
+  - `sync_icloud_manual_feedback_events`
+  - `analyze_icloud_duplicates`
   - those tools share the same origin-backed `_CHANGES_BACKUP` / structured
     note contract as the repo-local FastMCP bridge
   - the origin service now also persists:
     - `change_sets`
     - `change_set_items`
     - `document_vault_notes`
+    - `manual_feedback_events`
+    - `dedupe_groups`
+    - `dedupe_group_items`
     so reversible operations and structured note writes are queryable through
     the database-backed status/readiness surface instead of filesystem logs
     alone
+  - duplicate analysis skips reading from any directory whose name starts with
+    `_`, including `_CHANGES_BACKUP`, while reversible operations are still
+    allowed to write backup artifacts into those ignored directories
 - both the repo-local FastMCP bridge and the Cloudflare Worker now declare
   explicit MCP tool annotations:
   - read tools set `readOnlyHint=true`, `openWorldHint=false`,
@@ -1330,9 +1346,12 @@ Recommended deployment shape:
 - that submission-facing tool list now also includes
   `get_icloud_product_readiness`,
   `get_icloud_change_set`,
+  `get_icloud_dedupe_group`,
   `create_document_vault_note`,
   `delete_icloud_file`, and
-  `restore_icloud_change_set`
+  `restore_icloud_change_set`,
+  `sync_icloud_manual_feedback_events`, and
+  `analyze_icloud_duplicates`
 - `cloudflare/remote-mcp/scripts/generate-chatgpt-app-submission.mjs` now
   verifies or rewrites that artifact from structured source data:
   - `npm run submission:verify`

@@ -17,8 +17,10 @@ from .tool_schemas import (
     HydrateLimit,
     CanonicalSourcePath,
     ChangeSetId,
+    DedupeGroupId,
     NoteMaxChars,
     NamespaceName,
+    NamespaceList,
     PathScope,
     RelativeFolder,
     RelativePath,
@@ -26,6 +28,7 @@ from .tool_schemas import (
     SearchQuery,
     SummaryText,
     VisibleTitle,
+    WorkflowLimit,
 )
 
 mcp = FastMCP(
@@ -156,6 +159,13 @@ def get_icloud_change_set(change_set_id: ChangeSetId) -> dict[str, Any]:
         return client.get_change_set(change_set_id=change_set_id)
 
 
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
+def get_icloud_dedupe_group(dedupe_group_id: DedupeGroupId) -> dict[str, Any]:
+    """Return indexed metadata and member items for a duplicate-group proposal."""
+    with build_service_client_from_env() as client:
+        return client.get_dedupe_group(dedupe_group_id=dedupe_group_id)
+
+
 @mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
 def refresh_icloud_index() -> dict[str, Any]:
     """Queue an iCloud Drive metadata refresh on the backing service."""
@@ -211,6 +221,25 @@ def restore_icloud_change_set(change_set_id: ChangeSetId) -> dict[str, Any]:
     """Restore a previously backed-up change set from _CHANGES_BACKUP."""
     with build_service_client_from_env() as client:
         return client.restore_change_set(change_set_id=change_set_id)
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def sync_icloud_manual_feedback_events(
+    limit: WorkflowLimit = 25,
+) -> dict[str, Any]:
+    """Re-read manual Obsidian feedback signals and persist them as indexed feedback events."""
+    with build_service_client_from_env() as client:
+        return client.sync_manual_feedback_events(limit=limit)
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def analyze_icloud_duplicates(
+    namespaces: NamespaceList,
+    limit: WorkflowLimit = 25,
+) -> dict[str, Any]:
+    """Analyze live mirrored files for duplicate candidates and persist indexed duplicate-group proposals."""
+    with build_service_client_from_env() as client:
+        return client.analyze_duplicate_groups(namespaces=namespaces, limit=limit)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
