@@ -23,6 +23,8 @@ This design covers:
 - automatic Obsidian feedback sync after relevant vault note changes
 - retroactive import of `_DUPLICATE_QUARANTINE` and prior dedupe artifacts into
   `_CHANGES_BACKUP`
+- operator-facing command patterns for classification, dedupe, folder
+  reorganization, and undo
 
 ## Runtime Mapping
 
@@ -64,6 +66,23 @@ Support both:
 
 File-id-based operations apply to the three mirror namespaces. `document_vault`
 operations are path-based and structured-note-based.
+
+### Supported Operator Workflows
+
+The public tool surface should be expressive enough for ChatGPT to reliably
+carry out these higher-level workflows from explicit user commands:
+
+- read files from `google1`, `google2`, and `icloud`
+- categorize files and create structured notes in `document_vault`
+- re-read `document_vault` and use manual note moves/folder placement as
+  feedback signals
+- analyze duplicates across mirror namespaces
+- rearrange folder structures through reversible moves
+- undo a prior change set or selected backed-up files
+
+These are workflow-level capabilities built from multiple lower-level tools. The
+design should not assume one opaque "do everything" endpoint; it should make the
+workflow decomposition clear enough that ChatGPT can execute it safely.
 
 ### Hidden Directories Rule
 
@@ -112,6 +131,10 @@ Add authenticated origin routes for:
 - restore a specific backed-up file
 - inspect change-set history
 - import legacy quarantine/dedupe history into `_CHANGES_BACKUP`
+- trigger or reuse categorization and structured note-writing flows for selected
+  source files
+- run or stage dedupe/reorganization analysis in a way that produces reversible
+  change sets when approved
 
 The route layer should stay thin and delegate to the file-operations service.
 
@@ -129,6 +152,25 @@ Tool metadata must make the split clear:
 - read/list/search tools are private but non-destructive
 - file CRUD and restore tools are mutating
 - `document_vault` note creation is structured, not raw freeform file writes
+- higher-level dedupe/reorganization tools either support dry-run mode or return
+  an explicit proposed action set before mutation
+
+### Operator Prompt Surface
+
+Check in a repo-owned prompt reference document so the command language used by
+humans and the plugin capability design evolve together.
+
+Required document:
+
+- `docs/prompts/chatgpt-vault-operations.md`
+
+That document should provide prompt patterns for:
+
+- categorize plus write structured Obsidian notes
+- feedback re-read from manual Obsidian organization
+- reversible dedupe
+- reversible folder-structure analysis and reorganization
+- targeted undo / restore
 
 ## Mutation Model
 
@@ -141,6 +183,8 @@ Mirror namespaces (`google1`, `google2`, `icloud`) support:
 - overwrite file
 - move/rename file
 - delete file
+- batch analyze for dedupe/reorganization planning
+- approved batch mutation execution through reversible change sets
 
 All mutating operations produce a `change_set_id`.
 
@@ -176,6 +220,20 @@ Supported restore modes:
 
 Restore tools are the only user-facing paths allowed to read from
 `_CHANGES_BACKUP`, and only in targeted, structured form.
+
+### Batch Workflow Semantics
+
+Dedupe and folder-reorganization operations should be modeled as explicit batch
+workflows rather than untracked ad hoc loops.
+
+Minimum batch behavior:
+
+1. collect candidate actions
+2. support dry-run or proposal output
+3. apply approved moves/deletes/overwrites through normal reversible mutation
+   helpers
+4. group related actions under one or more traceable `change_set_id` values
+5. leave enough metadata to undo all or part of the batch later
 
 ## `_CHANGES_BACKUP` Design
 
@@ -283,6 +341,10 @@ Automatic feedback sync should:
 - avoid direct model training in the ChatGPT tool itself
 - reuse the existing vault reconciliation / manual feedback ingestion path
 
+The same feedback pathway should be callable as an intentional re-read command
+so ChatGPT can refresh its categorization context after a human reorganizes the
+Obsidian vault.
+
 ## Source File And Note Sync
 
 When the plugin deletes or restores a source file that has a matching generated
@@ -340,6 +402,23 @@ Import behavior:
 This import is not log-only. It physically merges the legacy quarantine state
 into the new `_CHANGES_BACKUP` layout.
 
+## Commandability
+
+The framework should make it realistic for an operator to give ChatGPT direct
+commands such as:
+
+- "Read uncategorized files from google1, google2, and icloud, categorize them,
+  and create structured Obsidian notes in document_vault."
+- "Run a dedupe across google1, google2, and icloud and route all reversible
+  changes through _CHANGES_BACKUP."
+- "Analyze the current folder layout and reorganize it using reversible moves
+  only."
+- "Restore change set `<id>` and repair related document_vault references."
+
+This means the tool surface should expose both low-level primitives and enough
+workflow-oriented entry points that ChatGPT does not need to invent hidden
+state, raw note formats, or unlogged mutation behavior.
+
 ## Error Handling
 
 - reject any mutation whose resolved path escapes the configured namespace root
@@ -373,6 +452,12 @@ Minimum coverage:
 - note updates after source delete/restore
 - `_DUPLICATE_QUARANTINE` and `/home/kay` dedupe import
 - categorizer ignore rules for all `_` directories
+- explicit workflow tests for:
+  - categorize plus structured note write
+  - feedback re-read from manual Obsidian moves/folders
+  - dedupe dry-run and approved execution
+  - reversible folder reorganization
+  - targeted undo from a returned `change_set_id`
 - MCP tool annotations and output schemas for new tools
 - ChatGPT app submission metadata updates reflecting CRUD and restore behavior
 

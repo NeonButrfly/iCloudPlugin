@@ -210,3 +210,12 @@
   - prefer vault-local attachment links for cross-platform file accessibility in structured `document_vault` notes
   - keep `_`-prefixed directories ignored by categorization
 - Tracking issue: [#84](https://github.com/NeonButrfly/iCloudPlugin/issues/84)
+- Operator prompt surface:
+  - add a repo-owned prompt document for recurring ChatGPT vault operations at
+    [chatgpt-vault-operations.md](./chatgpt-vault-operations.md)
+  - support prompt patterns for:
+    - read plus categorize plus structured Obsidian note creation
+    - vault feedback re-read from manual note moves/folders
+    - reversible dedupe
+    - reversible folder-structure analysis and reorganization
+    - change-set restore / undo
