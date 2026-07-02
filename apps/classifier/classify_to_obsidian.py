@@ -462,6 +462,24 @@ def build_canonical_source_link(canonical_source_path: str | None, display_name:
     return f"[{label}](<{target}>)"
 
 
+def _build_vault_attachment_link(
+    *,
+    vault: Path,
+    category_path: Path,
+    visible_source_name: str,
+    source_path: Path,
+) -> tuple[str, str]:
+    attachment_dir = vault / "90 Attachments" / category_path
+    attachment_dir.mkdir(parents=True, exist_ok=True)
+    copied = attachment_dir / build_attachment_filename(
+        source_name=visible_source_name,
+        existing_names={path.name for path in attachment_dir.iterdir() if path.is_file()},
+    )
+    if not copied.exists():
+        shutil.copy2(source_path, copied)
+    return f"[[{copied.relative_to(vault).as_posix()}]]", "copied-compatibility"
+
+
 def _parse_note_frontmatter(text: str) -> dict[str, str]:
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
@@ -1829,17 +1847,15 @@ def write_obsidian_note(
     attachment_link = source_link
     attachment_mode = "canonical-source-link" if source_link else "none"
 
-    if attach_originals and not source_link:
-        attachment_dir = vault / "90 Attachments" / category_path
-        attachment_dir.mkdir(parents=True, exist_ok=True)
-        copied = attachment_dir / build_attachment_filename(
-            source_name=visible_source_name,
-            existing_names={path.name for path in attachment_dir.iterdir() if path.is_file()},
+    # Prefer vault-local links when we are already attaching the original file.
+    if attach_originals:
+        attachment_link, attachment_mode = _build_vault_attachment_link(
+            vault=vault,
+            category_path=category_path,
+            visible_source_name=visible_source_name,
+            source_path=source_path,
         )
-        if not copied.exists():
-            shutil.copy2(source_path, copied)
-        attachment_link = f"[[{copied.relative_to(vault).as_posix()}]]"
-        attachment_mode = "copied-compatibility"
+        source_link = attachment_link
     note_contract = build_note_contract_metadata(
         source_path=source_path,
         file_hash=file_hash,
@@ -2363,13 +2379,14 @@ def main() -> int:
                 )
                 record_attachment_link = record_source_link
                 record_attachment_mode = "canonical-source-link" if record_source_link else "none"
-                if args.attach_originals and not record_source_link:
+                if args.attach_originals:
                     record_attachment_link = (
                         f"[[90 Attachments/"
                         f"{record_category_path}/"
                         f"{visible_source_name}]]"
                     )
                     record_attachment_mode = "copied-compatibility"
+                    record_source_link = record_attachment_link
 
                 record = {
                     "ok": True,
