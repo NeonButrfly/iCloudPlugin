@@ -188,3 +188,25 @@
   - do not claim the current `WORKER_API_TOKEN` gate is the preferred ChatGPT
     connector auth model
 - Tracking issue: [#74](https://github.com/NeonButrfly/iCloudPlugin/issues/74)
+
+## 2026-07-02 - Add full vault CRUD and reversible backups to the ChatGPT plugin
+
+- Source prompt: "change icloud plugin so chatgpt has access to read/write/delete/create all files from all vaults (google1, google2, and iCloud) also make sure that the plugin can read/write/delete/create to/from obsidian document-vault and make sure chatgpt knows from the plug in that it can seperately work with the obsidian vault as part of this plugin", followed by refinements requiring `_`-directory hiding, `_CHANGES_BACKUP`, retroactive `_DUPLICATE_QUARANTINE` import, structured Obsidian note creation, direct accessible file links, automatic feedback sync, source-note sync, and first-class undo.
+- Interpreted requirement: extend the origin service and ChatGPT-facing plugin/MCP surfaces so ChatGPT can perform full reversible CRUD across `google1`, `google2`, `icloud`, and `document_vault`, while hiding `_`-prefixed directories from normal discovery, routing all destructive changes through `_CHANGES_BACKUP`, and reusing the local categorizer's structured Obsidian note-writing and feedback conventions.
+- Product requirements:
+  - support path-based and file-id-based mirror operations
+  - treat `document_vault` as a separate first-class namespace
+  - keep normal read/list/search tools from exposing `_`-prefixed directories
+  - allow internal backup/restore logic to write to and read from `_` areas as needed
+  - make delete mean move into `_CHANGES_BACKUP` plus logged reversible change sets
+  - expose first-class restore/undo
+  - automatically feed relevant Obsidian note changes back through the existing feedback sync path
+  - keep source files and related Obsidian notes in sync on delete/restore
+  - merge `_DUPLICATE_QUARANTINE` and earlier `/home/kay` dedupe artifacts into the `_CHANGES_BACKUP` structure
+- Architectural constraints:
+  - operate on `tichuml1` against the mounted shared NFS paths, not by per-operation SSH hops to the Pi
+  - keep `kayraspi2` as storage truth and `tichuml1` as runtime execution host
+  - reuse the existing categorizer note contract instead of inventing a second Obsidian format
+  - prefer vault-local attachment links for cross-platform file accessibility in structured `document_vault` notes
+  - keep `_`-prefixed directories ignored by categorization
+- Tracking issue: [#84](https://github.com/NeonButrfly/iCloudPlugin/issues/84)
