@@ -419,6 +419,10 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
       - repo-side Python tests now also compare the same submission artifact
         against the local FastMCP bridge, so the shared tool contract is
         enforced on both MCP surfaces
+      - the shared submission/runtime surface now includes the first reversible
+        issue #84 mutation tools:
+        `create_document_vault_note`, `delete_icloud_file`, and
+        `restore_icloud_change_set`
       - direct `GET /mcp` now returns `405 Allow: POST, DELETE` so
         streamable-http clients do not hang on a standalone SSE path
     - `print-access-bootstrap.mjs` emits ready-to-run Cloudflare Access

@@ -66,3 +66,50 @@ NoteMaxChars = Annotated[
         description="Maximum number of note characters to keep in the returned note payload.",
     ),
 ]
+
+NamespaceName = Annotated[
+    str,
+    Field(
+        pattern="^(google1|google2|icloud|document_vault)$",
+        description="Writable vault namespace.",
+    ),
+]
+
+RelativePath = Annotated[
+    str,
+    Field(
+        min_length=1,
+        description="Path relative to the chosen namespace root. Underscore-prefixed paths stay internal-only.",
+    ),
+]
+
+ChangeSetId = Annotated[
+    str,
+    Field(min_length=1, description="Opaque reversible change-set identifier."),
+]
+
+RelativeFolder = Annotated[
+    str,
+    Field(
+        min_length=1,
+        description="Target folder inside document_vault for structured note creation.",
+    ),
+]
+
+VisibleTitle = Annotated[
+    str,
+    Field(min_length=1, description="Human-visible note title or source display name."),
+]
+
+SummaryText = Annotated[
+    str,
+    Field(min_length=1, description="Short note summary used in the structured Obsidian note."),
+]
+
+CanonicalSourcePath = Annotated[
+    str,
+    Field(
+        min_length=1,
+        description="Canonical source file path associated with the structured Obsidian note.",
+    ),
+]

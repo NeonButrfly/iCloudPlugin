@@ -734,6 +734,57 @@ def test_search_endpoint_uses_entity_and_topic_metadata_to_find_misfiled_documen
     assert "entities" in payload["results"][0]["match_reasons"]
 
 
+def test_search_endpoint_hides_underscore_prefixed_paths_from_normal_discovery(
+    tmp_path,
+    monkeypatch,
+):
+    session_factory = _build_session_factory(tmp_path)
+    _seed_indexed_file(
+        session_factory,
+        external_id="hidden-file",
+        name="Appeal.txt",
+        path="/google1/_CHANGES_BACKUP/Appeal.txt",
+        content_text="Hidden appeal notes",
+    )
+    visible_file_id = _seed_indexed_file(
+        session_factory,
+        external_id="visible-file",
+        name="Appeal.txt",
+        path="/google1/Inbox/Appeal.txt",
+        content_text="Visible appeal notes",
+    )
+
+    def override_get_session():
+        session = session_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = override_get_session
+
+    try:
+        with TestClient(main_module.app) as client:
+            response = client.get("/search", params={"query": "Appeal", "limit": 10})
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["results"] == [
+        _base_search_result(
+            file_id=visible_file_id,
+            external_id="visible-file",
+            name="Appeal.txt",
+            path="/google1/Inbox/Appeal.txt",
+            mime_type="text/plain",
+            excerpt="Visible appeal notes",
+            match_reasons=["name", "path", "content"],
+        )
+    ]
+
+
 def test_search_endpoint_reports_controlled_degraded_response_when_database_is_unavailable(
     monkeypatch,
 ):

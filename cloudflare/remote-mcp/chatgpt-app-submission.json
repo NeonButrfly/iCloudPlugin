@@ -151,6 +151,42 @@
         "open_world_justification": "Only updates the private cloud-vault backend control state and does not publish or send changes to public internet systems.",
         "destructive_justification": "Does not delete data or perform irreversible actions; it only resumes internal refresh work."
       }
+    },
+    "create_document_vault_note": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Creates a new structured Obsidian note in the private document_vault, so it changes internal vault state.",
+        "open_world_justification": "Only writes to the private synced vault backend and does not publish or transmit changes to public internet systems.",
+        "destructive_justification": "Does not delete or overwrite existing source data; it creates a structured reversible note-side artifact."
+      }
+    },
+    "delete_icloud_file": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Moves a live private vault file into _CHANGES_BACKUP and records a reversible change set, so it changes internal backend state.",
+        "open_world_justification": "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
+        "destructive_justification": "Does not hard delete the file; it routes the change through reversible backup storage for later undo."
+      }
+    },
+    "restore_icloud_change_set": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Restores a previously backed-up private vault change set, so it changes internal backend state.",
+        "open_world_justification": "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
+        "destructive_justification": "Restores previously backed-up files rather than hard deleting data or performing irreversible actions."
+      }
     }
   },
   "test_cases": [
@@ -225,6 +261,30 @@
       "tools_triggered": "get_icloud_file_bundle",
       "expected_output": "Returns the indexed file payload, generated note payload, and source-reference payload together for the requested file id.",
       "expected_output_url": null
+    },
+    {
+      "description": "Create a structured Obsidian note in the synced document vault.",
+      "user_prompt": "Create a structured document_vault note for this appeal file using the standard categorizer-compatible format.",
+      "file_attachment_urls": null,
+      "tools_triggered": "create_document_vault_note",
+      "expected_output": "Returns the created note path after writing a structured categorizer-compatible Obsidian note.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Safely delete a mirrored file by routing it into reversible backup storage.",
+      "user_prompt": "Delete Cases/Appeal.txt from google1, but make sure it goes through _CHANGES_BACKUP so I can undo it later.",
+      "file_attachment_urls": null,
+      "tools_triggered": "delete_icloud_file",
+      "expected_output": "Returns a reversible change_set_id and backup metadata after moving the live file into _CHANGES_BACKUP.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Restore a prior reversible file change set.",
+      "user_prompt": "Restore the change set abc123 from _CHANGES_BACKUP.",
+      "file_attachment_urls": null,
+      "tools_triggered": "restore_icloud_change_set",
+      "expected_output": "Returns restore metadata showing that the previously backed-up file change set was restored.",
+      "expected_output_url": null
     }
   ],
   "negative_test_cases": [
@@ -249,7 +309,7 @@
       "user_prompt": "Rewrite the contents of my Obsidian note to make it shorter.",
       "file_attachment_urls": null,
       "tools_triggered": null,
-      "expected_output": "The app should not be invoked because it retrieves note content but does not edit or overwrite vault notes.",
+      "expected_output": "The app should not be invoked because it only creates structured notes and reversible file mutations, not arbitrary freeform note rewrites.",
       "expected_output_url": null
     }
   ]

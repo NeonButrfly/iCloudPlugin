@@ -4,6 +4,7 @@ from collections.abc import Generator
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -14,12 +15,36 @@ from icloud_index_service.services.file_access_service import (
     get_file_source_details,
     resolve_file_source_path,
 )
+from icloud_index_service.services.file_mutation_service import (
+    FileMutationPolicyError,
+    FileNamespace,
+    create_document_vault_note,
+    delete_file_by_path,
+    restore_change_set,
+)
 from icloud_index_service.services.search_service import (
     build_database_unavailable_detail,
     get_file_details,
 )
 
 router = APIRouter(prefix="/files", tags=["files"])
+
+
+class DeleteFileRequest(BaseModel):
+    namespace: FileNamespace
+    relative_path: str
+
+
+class RestoreChangeSetRequest(BaseModel):
+    change_set_id: str
+
+
+class CreateDocumentVaultNoteRequest(BaseModel):
+    relative_folder: str
+    visible_title: str
+    summary: str
+    canonical_source_path: str
+    attach_originals: bool = True
 
 
 def _ensure_files_database_available(request: Request) -> None:
@@ -150,3 +175,51 @@ def download_file_source(
         media_type="application/octet-stream",
         headers={"Cache-Control": "private, no-store"},
     )
+
+
+@router.post(
+    "/ops/delete",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def delete_file_route(payload: DeleteFileRequest) -> dict[str, object]:
+    try:
+        return delete_file_by_path(
+            namespace=payload.namespace,
+            relative_path=payload.relative_path,
+            actor="plugin-api",
+        )
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/ops/restore",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def restore_change_set_route(payload: RestoreChangeSetRequest) -> dict[str, object]:
+    try:
+        return restore_change_set(
+            change_set_id=payload.change_set_id,
+            actor="plugin-api",
+        )
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/ops/document-vault/note",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def create_document_vault_note_route(
+    payload: CreateDocumentVaultNoteRequest,
+) -> dict[str, object]:
+    try:
+        return create_document_vault_note(
+            relative_folder=payload.relative_folder,
+            visible_title=payload.visible_title,
+            summary=payload.summary,
+            canonical_source_path=payload.canonical_source_path,
+            attach_originals=payload.attach_originals,
+        )
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

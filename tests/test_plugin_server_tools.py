@@ -38,3 +38,15 @@ def test_plugin_server_tools_expose_annotations_and_output_schemas():
         assert tool.annotations.readOnlyHint is False
         assert tool.annotations.openWorldHint is False
         assert tool.annotations.destructiveHint is False
+
+    for tool_name in {
+        "create_document_vault_note",
+        "delete_icloud_file",
+        "restore_icloud_change_set",
+    }:
+        tool = tools_by_name[tool_name]
+        assert tool.outputSchema is not None
+        assert tool.annotations is not None
+        assert tool.annotations.readOnlyHint is False
+        assert tool.annotations.openWorldHint is False
+        assert tool.annotations.destructiveHint is False

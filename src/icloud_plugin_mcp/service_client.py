@@ -119,14 +119,53 @@ class ICloudIndexServiceClient:
     def resume_index(self) -> dict[str, Any]:
         return self._request("POST", "/refresh/resume")
 
+    def create_document_vault_note(
+        self,
+        *,
+        relative_folder: str,
+        visible_title: str,
+        summary: str,
+        canonical_source_path: str,
+        attach_originals: bool = True,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/files/ops/document-vault/note",
+            json_body={
+                "relative_folder": relative_folder,
+                "visible_title": visible_title,
+                "summary": summary,
+                "canonical_source_path": canonical_source_path,
+                "attach_originals": attach_originals,
+            },
+        )
+
+    def delete_file(self, *, namespace: str, relative_path: str) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/files/ops/delete",
+            json_body={
+                "namespace": namespace,
+                "relative_path": relative_path,
+            },
+        )
+
+    def restore_change_set(self, *, change_set_id: str) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/files/ops/restore",
+            json_body={"change_set_id": change_set_id},
+        )
+
     def _request(
         self,
         method: str,
         path: str,
         *,
         params: dict[str, Any] | None = None,
+        json_body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        response = self._client.request(method, path, params=params)
+        response = self._client.request(method, path, params=params, json=json_body)
         response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, dict):

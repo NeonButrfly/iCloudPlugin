@@ -1188,6 +1188,13 @@ first production-shaped external MCP slice in
 - The Worker now also exposes `get_icloud_product_readiness` so external MCP
   clients can inspect the current end-to-end completion state through the real
   hosted tool surface.
+- The Worker now also exposes the first reversible mutation tools for issue
+  #84:
+  - `create_document_vault_note`
+  - `delete_icloud_file`
+  - `restore_icloud_change_set`
+  - those tools share the same origin-backed `_CHANGES_BACKUP` / structured
+    note contract as the repo-local FastMCP bridge
 - both the repo-local FastMCP bridge and the Cloudflare Worker now declare
   explicit MCP tool annotations:
   - read tools set `readOnlyHint=true`, `openWorldHint=false`,
@@ -1313,7 +1320,10 @@ Recommended deployment shape:
   - explicit tool-annotation expectations
   - positive and negative review test cases
 - that submission-facing tool list now also includes
-  `get_icloud_product_readiness`
+  `get_icloud_product_readiness`,
+  `create_document_vault_note`,
+  `delete_icloud_file`, and
+  `restore_icloud_change_set`
 - `cloudflare/remote-mcp/scripts/generate-chatgpt-app-submission.mjs` now
   verifies or rewrites that artifact from structured source data:
   - `npm run submission:verify`

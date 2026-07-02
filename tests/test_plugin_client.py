@@ -414,3 +414,83 @@ def test_get_product_readiness_uses_status_readiness_endpoint():
     assert captured_request is not None
     assert captured_request.method == "GET"
     assert str(captured_request.url) == "http://service.test/status/readiness"
+
+
+def test_create_document_vault_note_posts_to_origin_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"note_path": "/vault/01 Classified/Appeal.md"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.create_document_vault_note(
+            relative_folder="01 Classified/appeal",
+            visible_title="Appeal",
+            summary="Appeal summary.",
+            canonical_source_path="/mnt/cloud-vault/mirrors/google1/Appeal.docx",
+        )
+    finally:
+        client.close()
+
+    assert payload["note_path"] == "/vault/01 Classified/Appeal.md"
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    assert str(captured_request.url) == "http://service.test/files/ops/document-vault/note"
+    assert captured_request.read().decode("utf-8").find('"visible_title":"Appeal"') != -1
+
+
+def test_delete_file_posts_to_delete_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"status": "deleted", "change_set_id": "abc123"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.delete_file(namespace="google1", relative_path="Cases/Appeal.txt")
+    finally:
+        client.close()
+
+    assert payload["change_set_id"] == "abc123"
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    assert str(captured_request.url) == "http://service.test/files/ops/delete"
+    assert captured_request.read().decode("utf-8").find('"namespace":"google1"') != -1
+
+
+def test_restore_change_set_posts_to_restore_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"status": "restored", "change_set_id": "abc123"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.restore_change_set(change_set_id="abc123")
+    finally:
+        client.close()
+
+    assert payload["status"] == "restored"
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    assert str(captured_request.url) == "http://service.test/files/ops/restore"
+    assert captured_request.read().decode("utf-8").find('"change_set_id":"abc123"') != -1

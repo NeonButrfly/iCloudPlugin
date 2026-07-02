@@ -135,6 +135,44 @@ describe("remote MCP worker end-to-end", () => {
           );
         }
 
+        if (url.pathname === "/files/ops/document-vault/note") {
+          return new Response(
+            JSON.stringify({
+              note_path: "/vault/01 Classified/Appeal.md",
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        if (url.pathname === "/files/ops/delete") {
+          return new Response(
+            JSON.stringify({
+              status: "deleted",
+              change_set_id: "abc123",
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        if (url.pathname === "/files/ops/restore") {
+          return new Response(
+            JSON.stringify({
+              status: "restored",
+              change_set_id: "abc123",
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
         throw new Error(`Unexpected origin request in test: ${request.url}`);
       }
 
@@ -168,6 +206,9 @@ describe("remote MCP worker end-to-end", () => {
     expect(toolNames).toContain("get_icloud_system_status");
     expect(toolNames).toContain("get_icloud_product_readiness");
     expect(toolNames).toContain("search_icloud_notes_and_files");
+    expect(toolNames).toContain("create_document_vault_note");
+    expect(toolNames).toContain("delete_icloud_file");
+    expect(toolNames).toContain("restore_icloud_change_set");
 
     const readOnlyTool = toolList.tools.find((tool) => tool.name === "get_icloud_system_status");
     expect(readOnlyTool?.outputSchema).toBeDefined();
@@ -328,6 +369,49 @@ describe("remote MCP worker end-to-end", () => {
     );
     expect(bundleRequest).toBeDefined();
     expect(bundleRequest?.headers.get("Authorization")).toBe("Bearer origin-secret");
+  });
+
+  it("routes structured note creation and restore/delete mutations through the Worker", async () => {
+    const connectedClient = await connectClient();
+
+    const createResult = await connectedClient.callTool({
+      name: "create_document_vault_note",
+      arguments: {
+        relative_folder: "01 Classified/appeal",
+        visible_title: "Appeal",
+        summary: "Appeal summary.",
+        canonical_source_path: "/mnt/cloud-vault/mirrors/google1/Appeal.docx",
+      },
+    });
+    expect(createResult.isError).not.toBe(true);
+    expect(createResult.structuredContent).toMatchObject({
+      note_path: "/vault/01 Classified/Appeal.md",
+    });
+
+    const deleteResult = await connectedClient.callTool({
+      name: "delete_icloud_file",
+      arguments: {
+        namespace: "google1",
+        relative_path: "Cases/Appeal.txt",
+      },
+    });
+    expect(deleteResult.isError).not.toBe(true);
+    expect(deleteResult.structuredContent).toMatchObject({
+      status: "deleted",
+      change_set_id: "abc123",
+    });
+
+    const restoreResult = await connectedClient.callTool({
+      name: "restore_icloud_change_set",
+      arguments: {
+        change_set_id: "abc123",
+      },
+    });
+    expect(restoreResult.isError).not.toBe(true);
+    expect(restoreResult.structuredContent).toMatchObject({
+      status: "restored",
+      change_set_id: "abc123",
+    });
   });
 
   it("returns 405 on direct GET /mcp so streamable-http clients can fall through cleanly", async () => {

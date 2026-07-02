@@ -35,6 +35,9 @@ def test_remote_mcp_chatgpt_app_submission_matches_current_tool_surface():
         "refresh_icloud_index",
         "pause_icloud_index",
         "resume_icloud_index",
+        "create_document_vault_note",
+        "delete_icloud_file",
+        "restore_icloud_change_set",
     }
 
     tools = payload["tools"]
@@ -44,6 +47,9 @@ def test_remote_mcp_chatgpt_app_submission_matches_current_tool_surface():
         "refresh_icloud_index",
         "pause_icloud_index",
         "resume_icloud_index",
+        "create_document_vault_note",
+        "delete_icloud_file",
+        "restore_icloud_change_set",
     }:
         annotations = tools[tool_name]["annotations"]
         assert annotations == {
@@ -52,7 +58,14 @@ def test_remote_mcp_chatgpt_app_submission_matches_current_tool_surface():
             "destructiveHint": False,
         }
 
-    for tool_name in {"refresh_icloud_index", "pause_icloud_index", "resume_icloud_index"}:
+    for tool_name in {
+        "refresh_icloud_index",
+        "pause_icloud_index",
+        "resume_icloud_index",
+        "create_document_vault_note",
+        "delete_icloud_file",
+        "restore_icloud_change_set",
+    }:
         assert tools[tool_name]["annotations"] == {
             "readOnlyHint": False,
             "openWorldHint": False,

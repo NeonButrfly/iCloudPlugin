@@ -15,10 +15,17 @@ from .tool_schemas import (
     ExcerptMaxChars,
     FileId,
     HydrateLimit,
+    CanonicalSourcePath,
+    ChangeSetId,
     NoteMaxChars,
+    NamespaceName,
     PathScope,
+    RelativeFolder,
+    RelativePath,
     SearchLimit,
     SearchQuery,
+    SummaryText,
+    VisibleTitle,
 )
 
 mcp = FastMCP(
@@ -161,6 +168,42 @@ def resume_icloud_index() -> dict[str, Any]:
     """Resume paused iCloud Drive metadata refresh work from the saved frontier."""
     with build_service_client_from_env() as client:
         return client.resume_index()
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def create_document_vault_note(
+    relative_folder: RelativeFolder,
+    visible_title: VisibleTitle,
+    summary: SummaryText,
+    canonical_source_path: CanonicalSourcePath,
+    attach_originals: bool = True,
+) -> dict[str, Any]:
+    """Create a structured Obsidian note in document_vault using the categorizer-compatible note contract."""
+    with build_service_client_from_env() as client:
+        return client.create_document_vault_note(
+            relative_folder=relative_folder,
+            visible_title=visible_title,
+            summary=summary,
+            canonical_source_path=canonical_source_path,
+            attach_originals=attach_originals,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def delete_icloud_file(
+    namespace: NamespaceName,
+    relative_path: RelativePath,
+) -> dict[str, Any]:
+    """Move a live file into the namespace-specific _CHANGES_BACKUP area and return a reversible change set."""
+    with build_service_client_from_env() as client:
+        return client.delete_file(namespace=namespace, relative_path=relative_path)
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def restore_icloud_change_set(change_set_id: ChangeSetId) -> dict[str, Any]:
+    """Restore a previously backed-up change set from _CHANGES_BACKUP."""
+    with build_service_client_from_env() as client:
+        return client.restore_change_set(change_set_id=change_set_id)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

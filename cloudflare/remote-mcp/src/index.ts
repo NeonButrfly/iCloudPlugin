@@ -349,6 +349,79 @@ export function createServer(env: Env, request: Request): McpServer {
     },
   );
 
+  server.registerTool(
+    "create_document_vault_note",
+    {
+      description:
+        "Create a structured Obsidian note in document_vault using the categorizer-compatible note contract.",
+      inputSchema: {
+        relative_folder: z.string().min(1),
+        visible_title: z.string().min(1),
+        summary: z.string().min(1),
+        canonical_source_path: z.string().min(1),
+        attach_originals: z.boolean().optional(),
+      },
+      outputSchema: genericJsonObjectSchema,
+      annotations: internalWriteAnnotations,
+    },
+    async ({ relative_folder, visible_title, summary, canonical_source_path, attach_originals }) => {
+      const payload = await fetchOriginJson(env, "/files/ops/document-vault/note", {
+        method: "POST",
+        body: JSON.stringify({
+          relative_folder,
+          visible_title,
+          summary,
+          canonical_source_path,
+          attach_originals: attach_originals ?? true,
+        }),
+        headers: { "content-type": "application/json" },
+      });
+      return jsonToolResult(payload);
+    },
+  );
+
+  server.registerTool(
+    "delete_icloud_file",
+    {
+      description:
+        "Move a live file into the namespace-specific _CHANGES_BACKUP area and return a reversible change set.",
+      inputSchema: {
+        namespace: z.enum(["google1", "google2", "icloud", "document_vault"]),
+        relative_path: z.string().min(1),
+      },
+      outputSchema: genericJsonObjectSchema,
+      annotations: internalWriteAnnotations,
+    },
+    async ({ namespace, relative_path }) => {
+      const payload = await fetchOriginJson(env, "/files/ops/delete", {
+        method: "POST",
+        body: JSON.stringify({ namespace, relative_path }),
+        headers: { "content-type": "application/json" },
+      });
+      return jsonToolResult(payload);
+    },
+  );
+
+  server.registerTool(
+    "restore_icloud_change_set",
+    {
+      description: "Restore a previously backed-up change set from _CHANGES_BACKUP.",
+      inputSchema: {
+        change_set_id: z.string().min(1),
+      },
+      outputSchema: genericJsonObjectSchema,
+      annotations: internalWriteAnnotations,
+    },
+    async ({ change_set_id }) => {
+      const payload = await fetchOriginJson(env, "/files/ops/restore", {
+        method: "POST",
+        body: JSON.stringify({ change_set_id }),
+        headers: { "content-type": "application/json" },
+      });
+      return jsonToolResult(payload);
+    },
+  );
+
   return server;
 }
 

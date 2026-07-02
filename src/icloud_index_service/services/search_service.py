@@ -17,6 +17,13 @@ MAX_FILE_CONTENT_CHARS = 10_000
 TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/#-]{1,63}")
 
 
+def _path_contains_hidden_internal_segment(path_value: str) -> bool:
+    normalized_path = str(path_value or "").replace("\\", "/").strip("/")
+    if not normalized_path:
+        return False
+    return any(part.startswith("_") for part in normalized_path.split("/"))
+
+
 def _load_retrieval_terms(raw_value: str | None) -> list[str]:
     if not raw_value:
         return []
@@ -227,6 +234,11 @@ def search_files(
     candidates = session.execute(
         statement.order_by(FileRecord.id.asc()).limit(max(limit * 8, 40))
     ).all()
+    candidates = [
+        row
+        for row in candidates
+        if not _path_contains_hidden_internal_segment(row[0].path)
+    ]
     ranked = sorted(
         candidates,
         key=lambda row: (
@@ -281,6 +293,8 @@ def get_file_details(session: Session, *, file_id: int) -> dict[str, Any] | None
         return None
 
     file_record, capped_content_text, extracted_content_length, state = row
+    if _path_contains_hidden_internal_segment(file_record.path):
+        return None
     content_text = capped_content_text or ""
     content_length_value = (
         int(extracted_content_length) if extracted_content_length is not None else 0

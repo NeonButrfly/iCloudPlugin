@@ -82,6 +82,9 @@ describe("generate-chatgpt-app-submission", () => {
       "refresh_icloud_index",
       "pause_icloud_index",
       "resume_icloud_index",
+      "create_document_vault_note",
+      "delete_icloud_file",
+      "restore_icloud_change_set",
     ]);
     expect(payload.test_cases.length).toBeGreaterThanOrEqual(5);
     expect(payload.negative_test_cases.length).toBeGreaterThanOrEqual(3);
@@ -94,6 +97,7 @@ describe("generate-chatgpt-app-submission", () => {
     expect(formatted).toContain('"display_name": "iCloudPlugin Remote MCP"');
     expect(formatted).toContain('"refresh_icloud_index"');
     expect(formatted).toContain('"pause_icloud_index"');
+    expect(formatted).toContain('"create_document_vault_note"');
   });
 
   it("keeps the submission tool metadata aligned with the actual Worker tool surface", async () => {

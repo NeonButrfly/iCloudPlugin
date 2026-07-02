@@ -20,6 +20,9 @@ REQUIRED_REMOTE_MCP_TOOLS = (
     "refresh_icloud_index",
     "pause_icloud_index",
     "resume_icloud_index",
+    "create_document_vault_note",
+    "delete_icloud_file",
+    "restore_icloud_change_set",
 )
 
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[3]
