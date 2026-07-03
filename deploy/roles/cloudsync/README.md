@@ -122,6 +122,20 @@ The script is intentionally resilient:
     systemd unit reflects the real mirror outage
   - optional remote failures stay degraded-only unless you set:
     - `FAIL_ON_OPTIONAL_REMOTE_FAILURE=true`
+  - after issue `#83`, remember that earlier cross-provider dedupe work may
+    intentionally move duplicate Google files into
+    `icloud/_DUPLICATE_QUARANTINE/...`; if that happens, preserve the
+    quarantine tree and repair the provider mirrors from the remote Drive side
+    instead of deleting the dedupe output
+  - July 2, 2026 repair proof on `kayraspi2`:
+    - `google1` and `google2` had collapsed locally after earlier dedupe moved
+      about `1995` and `1110` files respectively into the iCloud quarantine
+      tree
+    - remote-preferred repair succeeded with:
+      - `rclone bisync gdrive1: /srv/cloud-vault/mirrors/google1 --resync --resync-mode path1 ...`
+      - `rclone bisync gdrive2: /srv/cloud-vault/mirrors/google2 --resync --resync-mode path1 ...`
+    - the dedupe output remained in place under:
+      - `/srv/cloud-vault/mirrors/icloud/_DUPLICATE_QUARANTINE/20260701-162354`
 
 For bounded classifier backfill work on the sync host, use:
 

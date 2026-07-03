@@ -154,6 +154,25 @@ Behavior:
   - optional remote failures remain degraded-only by default; set
     `FAIL_ON_OPTIONAL_REMOTE_FAILURE=true` if the host should fail the service
     when Google mirrors do not sync cleanly
+  - after issue `#83`, do not treat a dedupe-driven Google mirror collapse as a
+    reason to delete the iCloud quarantine tree; earlier cross-provider dedupe
+    can intentionally move Google duplicates under
+    `/srv/cloud-vault/mirrors/icloud/_DUPLICATE_QUARANTINE/...`
+  - safe Google mirror repair, when the remote Drives are still healthy, is a
+    remote-preferred resync that rebuilds the local provider mirrors while
+    preserving the dedupe output:
+    - `rclone bisync gdrive1: /srv/cloud-vault/mirrors/google1 --resync --resync-mode path1 ...`
+    - `rclone bisync gdrive2: /srv/cloud-vault/mirrors/google2 --resync --resync-mode path1 ...`
+  - live repair proof on July 2, 2026 from `kayraspi2`:
+    - earlier dedupe had moved about `1995` files out of `google1` and about
+      `1110` files out of `google2` into
+      `/srv/cloud-vault/mirrors/icloud/_DUPLICATE_QUARANTINE/20260701-162354`
+    - after the two remote-preferred repair runs and one normal timer rerun,
+      `/srv/cloud-vault/logs/cloud-vault-sync-status.json` returned to:
+      - `overall_status=ok`
+      - `icloud.status=ok`
+      - `gdrive1.status=ok`
+      - `gdrive2.status=ok`
 
 Current Google Drive expectation:
 

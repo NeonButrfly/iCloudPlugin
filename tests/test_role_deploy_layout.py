@@ -229,12 +229,16 @@ def test_cloudsync_docs_reference_targeted_batch_helper():
     assert "RCLONE_FORCE_IPV4" in role_readme.read_text(encoding="utf-8")
     assert "FAIL_ON_OPTIONAL_REMOTE_FAILURE" in role_readme.read_text(encoding="utf-8")
     assert "#85" in role_readme.read_text(encoding="utf-8")
+    assert "#83" in role_readme.read_text(encoding="utf-8")
+    assert "--resync --resync-mode path1" in role_readme.read_text(encoding="utf-8")
     assert "POSTGRES_HOST=postgres" in role_readme.read_text(encoding="utf-8")
     assert "run_targeted_classification_batch.sh" in operations_doc.read_text(encoding="utf-8")
     assert "report_live_status.sh" in operations_doc.read_text(encoding="utf-8")
     assert "RCLONE_FORCE_IPV4" in operations_doc.read_text(encoding="utf-8")
     assert "FAIL_ON_OPTIONAL_REMOTE_FAILURE" in operations_doc.read_text(encoding="utf-8")
     assert "#85" in operations_doc.read_text(encoding="utf-8")
+    assert "#83" in operations_doc.read_text(encoding="utf-8")
+    assert "--resync --resync-mode path1" in operations_doc.read_text(encoding="utf-8")
     assert "POSTGRES_HOST=postgres" in operations_doc.read_text(encoding="utf-8")
 
 
