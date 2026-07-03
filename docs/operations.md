@@ -148,6 +148,12 @@ Behavior:
     - `gdrive2`: optional
   - the artifact records per-remote outcomes plus an overall status such as
     `ok` or `degraded`
+  - after issue `#85`, required remote failures still write this artifact but
+    now also make `cloud-vault-sync.sh` exit non-zero so
+    `cloud-vault-sync.service` reflects the real iCloud mirror failure
+  - optional remote failures remain degraded-only by default; set
+    `FAIL_ON_OPTIONAL_REMOTE_FAILURE=true` if the host should fail the service
+    when Google mirrors do not sync cleanly
 
 Current Google Drive expectation:
 

@@ -117,6 +117,11 @@ The script is intentionally resilient:
     - `REMOTE_ICLOUD_REQUIRED`
     - `REMOTE_GOOGLE_1_REQUIRED`
     - `REMOTE_GOOGLE_2_REQUIRED`
+  - after issue `#85`, required remote failures still finish the status
+    artifact but now also make `cloud-vault-sync.sh` exit non-zero so the
+    systemd unit reflects the real mirror outage
+  - optional remote failures stay degraded-only unless you set:
+    - `FAIL_ON_OPTIONAL_REMOTE_FAILURE=true`
 
 For bounded classifier backfill work on the sync host, use:
 

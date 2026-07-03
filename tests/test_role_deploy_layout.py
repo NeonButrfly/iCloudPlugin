@@ -92,6 +92,13 @@ def test_cloudsync_sync_script_writes_machine_readable_status_artifact():
     assert 'REMOTE_GOOGLE_1_REQUIRED="${REMOTE_GOOGLE_1_REQUIRED:-false}"' in script_text
     assert 'REMOTE_GOOGLE_2_REQUIRED="${REMOTE_GOOGLE_2_REQUIRED:-false}"' in script_text
     assert "record_sync_status()" in script_text
+    assert "record_remote_failure()" in script_text
+    assert 'FAIL_ON_OPTIONAL_REMOTE_FAILURE="${FAIL_ON_OPTIONAL_REMOTE_FAILURE:-false}"' in script_text
+    assert "compute_run_exit_code()" in script_text
+    assert 'if (( REQUIRED_REMOTE_FAILURE_COUNT > 0 )); then' in script_text
+    assert 'if is_truthy "${FAIL_ON_OPTIONAL_REMOTE_FAILURE}" && (( OPTIONAL_REMOTE_FAILURE_COUNT > 0 )); then' in script_text
+    assert 'write_sync_status_file "${final_exit_code}"' in script_text
+    assert 'exit "${final_exit_code}"' in script_text
     assert "write_sync_status_file()" in script_text
     assert '"overall_status": overall_status' in script_text
     assert '"required_failures_present": bool(required_failures)' in script_text
@@ -220,10 +227,14 @@ def test_cloudsync_docs_reference_targeted_batch_helper():
     assert "run_targeted_classification_batch.sh" in role_readme.read_text(encoding="utf-8")
     assert "report_live_status.sh" in role_readme.read_text(encoding="utf-8")
     assert "RCLONE_FORCE_IPV4" in role_readme.read_text(encoding="utf-8")
+    assert "FAIL_ON_OPTIONAL_REMOTE_FAILURE" in role_readme.read_text(encoding="utf-8")
+    assert "#85" in role_readme.read_text(encoding="utf-8")
     assert "POSTGRES_HOST=postgres" in role_readme.read_text(encoding="utf-8")
     assert "run_targeted_classification_batch.sh" in operations_doc.read_text(encoding="utf-8")
     assert "report_live_status.sh" in operations_doc.read_text(encoding="utf-8")
     assert "RCLONE_FORCE_IPV4" in operations_doc.read_text(encoding="utf-8")
+    assert "FAIL_ON_OPTIONAL_REMOTE_FAILURE" in operations_doc.read_text(encoding="utf-8")
+    assert "#85" in operations_doc.read_text(encoding="utf-8")
     assert "POSTGRES_HOST=postgres" in operations_doc.read_text(encoding="utf-8")
 
 

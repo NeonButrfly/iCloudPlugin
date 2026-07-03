@@ -20,6 +20,7 @@ REMOTE_ICLOUD_REQUIRED="${REMOTE_ICLOUD_REQUIRED:-true}"
 REMOTE_GOOGLE_1_REQUIRED="${REMOTE_GOOGLE_1_REQUIRED:-false}"
 REMOTE_GOOGLE_2_REQUIRED="${REMOTE_GOOGLE_2_REQUIRED:-false}"
 RCLONE_FORCE_IPV4="${RCLONE_FORCE_IPV4:-true}"
+FAIL_ON_OPTIONAL_REMOTE_FAILURE="${FAIL_ON_OPTIONAL_REMOTE_FAILURE:-false}"
 
 CHECK_FILENAME="${CHECK_FILENAME:-RCLONE_TEST}"
 RCLONE_NETWORK_ARGS=()
@@ -43,11 +44,33 @@ RCLONE_COMMON_ARGS=(
 mkdir -p "${LOG_DIR}" "${LOCK_DIR}" "${STATE_DIR}"
 SYNC_STATUS_ROWS_FILE="$(mktemp "${LOCK_DIR%/}/sync-status-XXXXXX.tsv")"
 RUN_STARTED_AT="$(date -Is)"
+REQUIRED_REMOTE_FAILURE_COUNT=0
+OPTIONAL_REMOTE_FAILURE_COUNT=0
 
 log_line() {
   local log_file="$1"
   shift
   printf '%s %s\n' "$(date -Is)" "$*" >> "${log_file}"
+}
+
+is_truthy() {
+  case "${1,,}" in
+    1|true|yes|on)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+record_remote_failure() {
+  local required_flag="$1"
+  if is_truthy "${required_flag}"; then
+    REQUIRED_REMOTE_FAILURE_COUNT=$((REQUIRED_REMOTE_FAILURE_COUNT + 1))
+    return 0
+  fi
+  OPTIONAL_REMOTE_FAILURE_COUNT=$((OPTIONAL_REMOTE_FAILURE_COUNT + 1))
 }
 
 record_sync_status() {
@@ -163,6 +186,7 @@ run_bisync() {
     local detail="Remote ${remote_name} is not configured. Skipping."
     log_line "${log_file}" "${detail}"
     record_sync_status "${remote_name}" "${required_flag}" "not-configured" "${log_file}" "${detail}"
+    record_remote_failure "${required_flag}"
     return 0
   fi
 
@@ -170,6 +194,7 @@ run_bisync() {
     local detail="Remote ${remote_name} is configured but not reachable. Skipping."
     log_line "${log_file}" "${detail}"
     record_sync_status "${remote_name}" "${required_flag}" "unreachable" "${log_file}" "${detail}"
+    record_remote_failure "${required_flag}"
     return 0
   fi
 
@@ -196,11 +221,26 @@ run_bisync() {
     --log-level INFO; then
     log_line "${log_file}" "===== ${remote_name} bisync failed ====="
     record_sync_status "${remote_name}" "${required_flag}" "failed" "${log_file}" "rclone bisync failed"
+    record_remote_failure "${required_flag}"
     return 0
   fi
 
   log_line "${log_file}" "===== ${remote_name} bisync finished ====="
   record_sync_status "${remote_name}" "${required_flag}" "ok" "${log_file}" "rclone bisync finished"
+}
+
+compute_run_exit_code() {
+  if (( REQUIRED_REMOTE_FAILURE_COUNT > 0 )); then
+    printf '10'
+    return 0
+  fi
+
+  if is_truthy "${FAIL_ON_OPTIONAL_REMOTE_FAILURE}" && (( OPTIONAL_REMOTE_FAILURE_COUNT > 0 )); then
+    printf '11'
+    return 0
+  fi
+
+  printf '0'
 }
 
 if ! mountpoint -q "${VAULT_MOUNT}"; then
@@ -217,6 +257,11 @@ fi
   run_bisync "${REMOTE_ICLOUD}" "${REMOTE_ICLOUD}:" "${VAULT_MOUNT}/mirrors/icloud" "${LOG_DIR}/icloud.log" "${REMOTE_ICLOUD_INITIAL_RESYNC_MODE}" "${REMOTE_ICLOUD_REQUIRED}"
   run_bisync "${REMOTE_GOOGLE_1}" "${REMOTE_GOOGLE_1}:" "${VAULT_MOUNT}/mirrors/google1" "${LOG_DIR}/google1.log" "${REMOTE_GOOGLE_1_INITIAL_RESYNC_MODE}" "${REMOTE_GOOGLE_1_REQUIRED}"
   run_bisync "${REMOTE_GOOGLE_2}" "${REMOTE_GOOGLE_2}:" "${VAULT_MOUNT}/mirrors/google2" "${LOG_DIR}/google2.log" "${REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE}" "${REMOTE_GOOGLE_2_REQUIRED}"
-  write_sync_status_file 0
+  final_exit_code="$(compute_run_exit_code)"
+  write_sync_status_file "${final_exit_code}"
+  if [[ "${final_exit_code}" != "0" ]]; then
+    echo "$(date -Is) cloud-vault-sync completed with remote failures (required=${REQUIRED_REMOTE_FAILURE_COUNT}, optional=${OPTIONAL_REMOTE_FAILURE_COUNT}, exit_code=${final_exit_code})." >&2
+  fi
+  exit "${final_exit_code}"
 
 ) 9>"${LOCK_FILE}"
