@@ -19,6 +19,9 @@ REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE="${REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE:-path
 REMOTE_ICLOUD_REQUIRED="${REMOTE_ICLOUD_REQUIRED:-true}"
 REMOTE_GOOGLE_1_REQUIRED="${REMOTE_GOOGLE_1_REQUIRED:-false}"
 REMOTE_GOOGLE_2_REQUIRED="${REMOTE_GOOGLE_2_REQUIRED:-false}"
+REMOTE_ICLOUD_ALLOW_MASS_DELETE="${REMOTE_ICLOUD_ALLOW_MASS_DELETE:-false}"
+REMOTE_GOOGLE_1_ALLOW_MASS_DELETE="${REMOTE_GOOGLE_1_ALLOW_MASS_DELETE:-true}"
+REMOTE_GOOGLE_2_ALLOW_MASS_DELETE="${REMOTE_GOOGLE_2_ALLOW_MASS_DELETE:-true}"
 RCLONE_FORCE_IPV4="${RCLONE_FORCE_IPV4:-true}"
 FAIL_ON_OPTIONAL_REMOTE_FAILURE="${FAIL_ON_OPTIONAL_REMOTE_FAILURE:-false}"
 
@@ -180,6 +183,7 @@ run_bisync() {
   local log_file="$4"
   local initial_resync_mode="$5"
   local required_flag="$6"
+  local allow_mass_delete="$7"
   local workdir="${STATE_DIR}/${remote_name}"
 
   if ! remote_is_configured "${remote_name}"; then
@@ -208,6 +212,10 @@ run_bisync() {
   # as iCloud can prefer path2, while newly connected remotes should prefer
   # path1 so an empty local mirror does not become the source of truth.
   local bisync_args=("${RCLONE_COMMON_ARGS[@]}" --workdir "${workdir}")
+  if is_truthy "${allow_mass_delete}"; then
+    bisync_args+=(--force)
+    log_line "${log_file}" "Mass-delete guard disabled for ${remote_name}; allowing intentional large delete waves."
+  fi
   if ! compgen -G "${workdir}/*.lst" > /dev/null; then
     bisync_args+=(--resync --resync-mode "${initial_resync_mode}")
     log_line "${log_file}" "No bisync state found for ${remote_name}. Running initial resync with ${initial_resync_mode} preferred."
@@ -254,9 +262,9 @@ fi
     exit 0
   }
 
-  run_bisync "${REMOTE_ICLOUD}" "${REMOTE_ICLOUD}:" "${VAULT_MOUNT}/mirrors/icloud" "${LOG_DIR}/icloud.log" "${REMOTE_ICLOUD_INITIAL_RESYNC_MODE}" "${REMOTE_ICLOUD_REQUIRED}"
-  run_bisync "${REMOTE_GOOGLE_1}" "${REMOTE_GOOGLE_1}:" "${VAULT_MOUNT}/mirrors/google1" "${LOG_DIR}/google1.log" "${REMOTE_GOOGLE_1_INITIAL_RESYNC_MODE}" "${REMOTE_GOOGLE_1_REQUIRED}"
-  run_bisync "${REMOTE_GOOGLE_2}" "${REMOTE_GOOGLE_2}:" "${VAULT_MOUNT}/mirrors/google2" "${LOG_DIR}/google2.log" "${REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE}" "${REMOTE_GOOGLE_2_REQUIRED}"
+  run_bisync "${REMOTE_ICLOUD}" "${REMOTE_ICLOUD}:" "${VAULT_MOUNT}/mirrors/icloud" "${LOG_DIR}/icloud.log" "${REMOTE_ICLOUD_INITIAL_RESYNC_MODE}" "${REMOTE_ICLOUD_REQUIRED}" "${REMOTE_ICLOUD_ALLOW_MASS_DELETE}"
+  run_bisync "${REMOTE_GOOGLE_1}" "${REMOTE_GOOGLE_1}:" "${VAULT_MOUNT}/mirrors/google1" "${LOG_DIR}/google1.log" "${REMOTE_GOOGLE_1_INITIAL_RESYNC_MODE}" "${REMOTE_GOOGLE_1_REQUIRED}" "${REMOTE_GOOGLE_1_ALLOW_MASS_DELETE}"
+  run_bisync "${REMOTE_GOOGLE_2}" "${REMOTE_GOOGLE_2}:" "${VAULT_MOUNT}/mirrors/google2" "${LOG_DIR}/google2.log" "${REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE}" "${REMOTE_GOOGLE_2_REQUIRED}" "${REMOTE_GOOGLE_2_ALLOW_MASS_DELETE}"
   final_exit_code="$(compute_run_exit_code)"
   write_sync_status_file "${final_exit_code}"
   if [[ "${final_exit_code}" != "0" ]]; then

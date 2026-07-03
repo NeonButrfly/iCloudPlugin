@@ -91,6 +91,11 @@ The script is intentionally resilient:
 - the first iCloud run seeds bisync state from the existing local mirror copy
 - the first Google Drive runs seed bisync state from the remote Drive accounts
   so an empty local mirror cannot become the initial source of truth
+- Google remotes now default `--force` on bisync after issue `#83`, so
+  intentional dedupe-driven mass deletes are not blocked for:
+  - `gdrive1`
+  - `gdrive2`
+- iCloud stays on the safer default without `--force`
 - dangling Google Drive shortcuts are skipped because rclone cannot read them
   as source objects
 - quarantine content still syncs normally; only quarantine-scoped bisync
@@ -117,6 +122,10 @@ The script is intentionally resilient:
     - `REMOTE_ICLOUD_REQUIRED`
     - `REMOTE_GOOGLE_1_REQUIRED`
     - `REMOTE_GOOGLE_2_REQUIRED`
+  - per-remote mass-delete policy can be overridden with:
+    - `REMOTE_ICLOUD_ALLOW_MASS_DELETE`
+    - `REMOTE_GOOGLE_1_ALLOW_MASS_DELETE`
+    - `REMOTE_GOOGLE_2_ALLOW_MASS_DELETE`
   - after issue `#85`, required remote failures still finish the status
     artifact but now also make `cloud-vault-sync.sh` exit non-zero so the
     systemd unit reflects the real mirror outage
@@ -136,6 +145,8 @@ The script is intentionally resilient:
       - `rclone bisync gdrive2: /srv/cloud-vault/mirrors/google2 --resync --resync-mode path1 ...`
     - the dedupe output remained in place under:
       - `/srv/cloud-vault/mirrors/icloud/_DUPLICATE_QUARANTINE/20260701-162354`
+    - after the follow-up policy change, normal Google bisync runs also allow
+      those intentional delete waves through `--force` by default
 
 For bounded classifier backfill work on the sync host, use:
 

@@ -61,6 +61,19 @@ def test_cloudsync_role_uses_remote_preferred_initial_resync_for_google_mirrors(
     assert 'run_bisync "${REMOTE_GOOGLE_2}" "${REMOTE_GOOGLE_2}:" "${VAULT_MOUNT}/mirrors/google2" "${LOG_DIR}/google2.log" "${REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE}"' in script_text
 
 
+def test_cloudsync_role_allows_google_mass_deletes_but_keeps_icloud_guarded():
+    repo_root = Path(__file__).resolve().parents[1]
+    sync_script = repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh"
+    script_text = sync_script.read_text(encoding="utf-8")
+
+    assert 'REMOTE_ICLOUD_ALLOW_MASS_DELETE="${REMOTE_ICLOUD_ALLOW_MASS_DELETE:-false}"' in script_text
+    assert 'REMOTE_GOOGLE_1_ALLOW_MASS_DELETE="${REMOTE_GOOGLE_1_ALLOW_MASS_DELETE:-true}"' in script_text
+    assert 'REMOTE_GOOGLE_2_ALLOW_MASS_DELETE="${REMOTE_GOOGLE_2_ALLOW_MASS_DELETE:-true}"' in script_text
+    assert 'if is_truthy "${allow_mass_delete}"; then' in script_text
+    assert "bisync_args+=(--force)" in script_text
+    assert 'Mass-delete guard disabled for ${remote_name}; allowing intentional large delete waves.' in script_text
+
+
 def test_cloudsync_role_skips_dangling_google_drive_shortcuts():
     repo_root = Path(__file__).resolve().parents[1]
     sync_script = repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh"
@@ -231,6 +244,8 @@ def test_cloudsync_docs_reference_targeted_batch_helper():
     assert "#85" in role_readme.read_text(encoding="utf-8")
     assert "#83" in role_readme.read_text(encoding="utf-8")
     assert "--resync --resync-mode path1" in role_readme.read_text(encoding="utf-8")
+    assert "REMOTE_GOOGLE_1_ALLOW_MASS_DELETE" in role_readme.read_text(encoding="utf-8")
+    assert "REMOTE_GOOGLE_2_ALLOW_MASS_DELETE" in role_readme.read_text(encoding="utf-8")
     assert "POSTGRES_HOST=postgres" in role_readme.read_text(encoding="utf-8")
     assert "run_targeted_classification_batch.sh" in operations_doc.read_text(encoding="utf-8")
     assert "report_live_status.sh" in operations_doc.read_text(encoding="utf-8")
@@ -239,6 +254,8 @@ def test_cloudsync_docs_reference_targeted_batch_helper():
     assert "#85" in operations_doc.read_text(encoding="utf-8")
     assert "#83" in operations_doc.read_text(encoding="utf-8")
     assert "--resync --resync-mode path1" in operations_doc.read_text(encoding="utf-8")
+    assert "REMOTE_GOOGLE_1_ALLOW_MASS_DELETE" in operations_doc.read_text(encoding="utf-8")
+    assert "REMOTE_GOOGLE_2_ALLOW_MASS_DELETE" in operations_doc.read_text(encoding="utf-8")
     assert "POSTGRES_HOST=postgres" in operations_doc.read_text(encoding="utf-8")
 
 

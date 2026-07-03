@@ -124,6 +124,10 @@ Behavior:
   iCloud mirror is not discarded
 - the first Google Drive runs seed bisync state from the remote Drive accounts
   so newly connected or empty local Google mirrors do not become authoritative
+- after issue `#83`, Google remotes now default `--force` during bisync so
+  intentional dedupe-driven mass deletes are not blocked for `gdrive1` and
+  `gdrive2`
+- iCloud remains on the safer default without `--force`
 - remotes that are missing or unauthenticated are logged and skipped instead of
   failing the entire timer run
 - Google Drive dangling shortcuts are skipped because they cannot be read as
@@ -148,6 +152,10 @@ Behavior:
     - `gdrive2`: optional
   - the artifact records per-remote outcomes plus an overall status such as
     `ok` or `degraded`
+  - per-remote mass-delete behavior can be overridden with:
+    - `REMOTE_ICLOUD_ALLOW_MASS_DELETE`
+    - `REMOTE_GOOGLE_1_ALLOW_MASS_DELETE`
+    - `REMOTE_GOOGLE_2_ALLOW_MASS_DELETE`
   - after issue `#85`, required remote failures still write this artifact but
     now also make `cloud-vault-sync.sh` exit non-zero so
     `cloud-vault-sync.service` reflects the real iCloud mirror failure
