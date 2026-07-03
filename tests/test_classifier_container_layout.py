@@ -68,3 +68,17 @@ def test_shadow_worker_compose_mounts_shared_source_root_for_image_reviews():
     assert combined_compose.count("CLASSIFIER_SOURCE_ROOT=${CLASSIFIER_SOURCE_ROOT:-/source}") >= 2
     assert combined_compose.count("ICLOUD_MIRROR_ROOT=${ICLOUD_MIRROR_ROOT:-/srv/cloud-vault/mirrors}") >= 2
     assert combined_compose.count("CLASSIFIER_SOURCE_MOUNT_SOURCE") >= 2
+
+
+def test_root_project_dependencies_cover_classifier_runtime_imports():
+    repo_root = Path(__file__).resolve().parents[1]
+    pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert '"requests>=' in pyproject
+    assert '"python-magic>=' in pyproject
+    assert '"pandas>=' in pyproject
+    assert '"joblib>=' in pyproject
+    assert '"numpy>=' in pyproject
+    assert '"scikit-learn>=' in pyproject
+    assert '"lightgbm>=' in pyproject
+    assert '"paddleocr>=' in pyproject
