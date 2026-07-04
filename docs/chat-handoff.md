@@ -99,6 +99,16 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     columns required by the current resumable dedupe workflow
   - the repair path is a forward migration so already-upgraded hosts can add
     the missing dedupe tables/columns without rebaselining the database
+- issue [#96](https://github.com/NeonButrfly/iCloudPlugin/issues/96) tracks the
+  follow-on live dedupe stall discovered on `tichuml1` on 2026-07-04 AKDT:
+  - resumable dedupe analysis can stop after the first bounded chunk while the
+    task record still says `running`
+  - the current root cause is that the deployed `cloudsync-worker` loop drains
+    metadata refresh jobs but does not yet drain queued/running
+    `cloud_vault_tasks`
+  - the intended repair is to let the existing worker advance a bounded number
+    of cloud-vault tasks per poll so dedupe progress keeps moving under the
+    same healthy worker that already heartbeats refresh
 - `tichuml1` is the authoritative live monitor target for cloud-vault refresh
   and backlog checks
 - `kayraspi` no longer serves the live local `/refresh/status` listener; it now

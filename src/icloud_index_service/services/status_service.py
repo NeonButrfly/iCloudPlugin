@@ -18,6 +18,7 @@ from icloud_index_service.models.cloud_vault_task import CloudVaultTask
 from icloud_index_service.models.document_vault_note import DocumentVaultNote
 from icloud_index_service.models.file import FileRecord
 from icloud_index_service.services.cloud_vault_task_service import collect_cloud_vault_task_counts
+from icloud_index_service.services.cloud_vault_task_service import get_cloud_vault_task_worker_enabled
 from icloud_index_service.services.classification_submission import (
     get_background_classification_enabled,
     get_classifier_mode,
@@ -400,7 +401,7 @@ def build_status_summary(
             "queued_classifier_jobs": classification_job_counts.get("queued", 0),
             "queued_jobs_auto_running": get_background_classification_enabled(),
             "queued_cloud_vault_tasks": cloud_vault_task_counts.get("queued", 0),
-            "queued_cloud_vault_tasks_auto_running": False,
+            "queued_cloud_vault_tasks_auto_running": get_cloud_vault_task_worker_enabled(),
         },
         "capabilities": {
             "document_vault_write_capability": True,

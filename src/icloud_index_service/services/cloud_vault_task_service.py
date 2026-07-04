@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
@@ -73,10 +74,30 @@ SUPPORTED_TASK_TYPES = {
 }
 
 DEFAULT_IMPORT_NOTE_FOLDER = "00 Inbox/ChatGPT Imports"
+DEFAULT_CLOUD_VAULT_TASK_WORKER_ENABLED = True
+DEFAULT_CLOUD_VAULT_TASK_WORKER_LIMIT = 1
 
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def get_cloud_vault_task_worker_enabled() -> bool:
+    raw_value = str(
+        os.getenv("CLOUD_VAULT_TASK_WORKER_ENABLED", str(DEFAULT_CLOUD_VAULT_TASK_WORKER_ENABLED))
+    ).strip().lower()
+    return raw_value not in {"0", "false", "no", "off"}
+
+
+def get_cloud_vault_task_worker_limit() -> int:
+    raw_value = os.getenv("CLOUD_VAULT_TASK_WORKER_LIMIT")
+    if raw_value is None:
+        return DEFAULT_CLOUD_VAULT_TASK_WORKER_LIMIT
+    try:
+        parsed_value = int(raw_value)
+    except ValueError:
+        return DEFAULT_CLOUD_VAULT_TASK_WORKER_LIMIT
+    return min(max(parsed_value, 1), 25)
 
 
 def _dumps(value: object) -> str:

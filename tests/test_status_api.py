@@ -260,7 +260,7 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
         "queued_classifier_jobs": 1,
         "queued_jobs_auto_running": False,
         "queued_cloud_vault_tasks": 0,
-        "queued_cloud_vault_tasks_auto_running": False,
+        "queued_cloud_vault_tasks_auto_running": True,
     }
     assert payload["capabilities"] == {
         "document_vault_write_capability": True,

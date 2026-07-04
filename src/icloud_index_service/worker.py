@@ -5,6 +5,11 @@ import sys
 import time
 
 from icloud_index_service.db import get_session_factory
+from icloud_index_service.services.cloud_vault_task_service import (
+    continue_cloud_vault_task_queue,
+    get_cloud_vault_task_worker_enabled,
+    get_cloud_vault_task_worker_limit,
+)
 from icloud_index_service.services.icloud_web_client import ICloudWebClient
 from icloud_index_service.services.job_runner import (
     SchemaNotReadyError,
@@ -49,9 +54,15 @@ def run_worker_once(
             client=client,
             worker_id=worker_id or get_worker_identity(),
         )
+        task_results = {"processed_count": 0}
+        if get_cloud_vault_task_worker_enabled():
+            task_results = continue_cloud_vault_task_queue(
+                session,
+                limit=get_cloud_vault_task_worker_limit(),
+            )
     finally:
         session.close()
-    return 0 if job is None else 1
+    return (0 if job is None else 1) + int(task_results.get("processed_count") or 0)
 
 
 def run_worker_loop(
