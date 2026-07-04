@@ -292,6 +292,21 @@ export const TOOL_SUBMISSION_DETAILS = {
         "Does not delete or overwrite existing source data; it creates a structured reversible note-side artifact.",
     },
   },
+  queue_cloud_vault_task: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Queues a generic private cloud-vault task, so it changes internal backend task state.",
+      open_world_justification:
+        "Only uses private cloud-vault backend services and does not publish or transmit changes to public internet systems.",
+      destructive_justification:
+        "Does not hard delete data by itself; it only records a bounded private workflow request for later execution.",
+    },
+  },
   continue_cloud_vault_task: {
     annotations: {
       readOnlyHint: false,
@@ -380,6 +395,96 @@ export const TOOL_SUBMISSION_DETAILS = {
         "Only uses private cloud-vault backend services and does not publish or transmit changes to public internet systems.",
       destructive_justification:
         "Does not hard delete source data; it queues a reversible note-side fallback workflow for one explicit file id.",
+    },
+  },
+  queue_create_document_vault_note_from_external_data: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Queues creation of a private document_vault note from request-supplied external data, so it changes internal backend task state.",
+      open_world_justification:
+        "Only uses private cloud-vault backend services and does not publish or transmit changes to public internet systems.",
+      destructive_justification:
+        "Does not hard delete source data; it queues a reversible note-side workflow that creates a new private note artifact.",
+    },
+  },
+  queue_import_server_file_to_cloud_vault: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Queues import of a server-visible file into the private vault, so it changes internal backend task state.",
+      open_world_justification:
+        "Only uses private cloud-vault backend services and does not publish or transmit changes to public internet systems.",
+      destructive_justification:
+        "Defaults to copy mode and does not hard delete source data; any move behavior remains explicit and bounded to allowed import roots.",
+    },
+  },
+  queue_import_server_folder_to_cloud_vault: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Queues chunked import of a server-visible folder into the private vault, so it changes internal backend task state.",
+      open_world_justification:
+        "Only uses private cloud-vault backend services and does not publish or transmit changes to public internet systems.",
+      destructive_justification:
+        "Does not hard delete files and constrains work to allowed import roots while preserving reversible vault-side provenance.",
+    },
+  },
+  queue_refresh_cloud_vault_index: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Queues bounded metadata and note-index refresh work on the private backend, so it changes internal backend task state.",
+      open_world_justification:
+        "Only mutates the private cloud-vault backend and does not publish or send changes to public internet systems.",
+      destructive_justification:
+        "Does not delete data or perform irreversible actions; it only queues internal refresh work.",
+    },
+  },
+  queue_reindex_document_vault_notes: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Queues reindexing of private document_vault notes, so it changes internal backend task state.",
+      open_world_justification:
+        "Only mutates the private cloud-vault backend and does not publish or send changes to public internet systems.",
+      destructive_justification:
+        "Does not delete data or perform irreversible actions; it only updates indexed note metadata.",
+    },
+  },
+  queue_sync_manual_feedback_events: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Queues manual-feedback event synchronization from private notes, so it changes internal backend task state.",
+      open_world_justification:
+        "Only mutates the private cloud-vault backend and does not publish or send changes to public internet systems.",
+      destructive_justification:
+        "Does not delete source files or perform irreversible actions; it only queues metadata synchronization.",
     },
   },
   classify_file_and_create_document_vault_note_fallback: {

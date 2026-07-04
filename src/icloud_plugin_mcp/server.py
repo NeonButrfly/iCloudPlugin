@@ -288,17 +288,33 @@ def queue_cloud_vault_task(
 
 
 @mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
-def continue_cloud_vault_task(task_id: TaskId) -> dict[str, Any]:
+def continue_cloud_vault_task(
+    task_id: TaskId,
+    max_runtime_seconds: int | None = None,
+    chunk_size: int | None = None,
+) -> dict[str, Any]:
     """Advance one cloud-vault task by one bounded server-side execution step."""
     with build_service_client_from_env() as client:
-        return client.continue_cloud_vault_task(task_id=task_id)
+        return client.continue_cloud_vault_task(
+            task_id=task_id,
+            max_runtime_seconds=max_runtime_seconds,
+            chunk_size=chunk_size,
+        )
 
 
 @mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
-def continue_cloud_vault_task_queue(limit: WorkflowLimit = 5) -> dict[str, Any]:
+def continue_cloud_vault_task_queue(
+    limit: WorkflowLimit = 5,
+    max_tasks: int | None = None,
+    task_types_json: OptionalText = None,
+) -> dict[str, Any]:
     """Advance the next few queued or running cloud-vault tasks in priority order."""
     with build_service_client_from_env() as client:
-        return client.continue_cloud_vault_task_queue(limit=limit)
+        return client.continue_cloud_vault_task_queue(
+            limit=limit,
+            max_tasks=max_tasks,
+            task_types=json.loads(task_types_json) if task_types_json else None,
+        )
 
 
 @mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
@@ -319,6 +335,7 @@ def queue_create_document_vault_note_from_file_id_chatgpt_first(
     fallback_summary_mode: SummaryMode = "classifier",
     fallback_title_mode: TitleMode = "classifier",
     attach_originals: bool = True,
+    index_after_create: bool = False,
     idempotency_key: OptionalText = None,
     priority: int = 100,
 ) -> dict[str, Any]:
@@ -334,6 +351,7 @@ def queue_create_document_vault_note_from_file_id_chatgpt_first(
             fallback_summary_mode=fallback_summary_mode,
             fallback_title_mode=fallback_title_mode,
             attach_originals=attach_originals,
+            index_after_create=index_after_create,
             idempotency_key=idempotency_key,
             priority=priority,
         )
@@ -347,6 +365,7 @@ def queue_create_document_vault_notes_from_search(
     limit: WorkflowLimit = 10,
     note_mode: OptionalText = "minimal",
     fallback_enabled: bool = False,
+    index_after_create: bool = False,
     idempotency_key: OptionalText = None,
     priority: int = 100,
 ) -> dict[str, Any]:
@@ -359,6 +378,7 @@ def queue_create_document_vault_notes_from_search(
             limit=limit,
             note_mode=str(note_mode or "minimal"),
             fallback_enabled=fallback_enabled,
+            index_after_create=index_after_create,
             idempotency_key=idempotency_key,
             priority=priority,
         )
@@ -372,6 +392,7 @@ def queue_classifier_fallback_note_from_file_id(
     summary_mode: SummaryMode = "classifier",
     title_mode: TitleMode = "classifier",
     attach_originals: bool = True,
+    index_after_create: bool = False,
     idempotency_key: OptionalText = None,
     priority: int = 100,
 ) -> dict[str, Any]:
@@ -384,6 +405,155 @@ def queue_classifier_fallback_note_from_file_id(
             summary_mode=summary_mode,
             title_mode=title_mode,
             attach_originals=attach_originals,
+            index_after_create=index_after_create,
+            idempotency_key=idempotency_key,
+            priority=priority,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_create_document_vault_note_from_external_data(
+    visible_title: VisibleTitle,
+    content: SummaryText,
+    relative_folder: OptionalText = None,
+    external_source_name: OptionalText = None,
+    external_source_type: OptionalText = "chatgpt",
+    summary: OptionalText = None,
+    tags_json: OptionalText = None,
+    metadata_json: OptionalText = None,
+    index_after_create: bool = False,
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Queue creation of a document_vault note from arbitrary external structured data supplied by ChatGPT."""
+    with build_service_client_from_env() as client:
+        return client.queue_create_document_vault_note_from_external_data(
+            visible_title=visible_title,
+            content=content,
+            relative_folder=relative_folder,
+            external_source_name=external_source_name,
+            external_source_type=str(external_source_type or "chatgpt"),
+            summary=summary,
+            tags=json.loads(tags_json) if tags_json else None,
+            metadata=json.loads(metadata_json) if metadata_json else None,
+            index_after_create=index_after_create,
+            idempotency_key=idempotency_key,
+            priority=priority,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_import_server_file_to_cloud_vault(
+    server_path: RelativePath,
+    destination_folder: OptionalText = None,
+    namespace: OptionalText = "uploads",
+    copy_mode: OptionalText = "copy",
+    index_after_import: bool = True,
+    create_note_after_import: bool = False,
+    note_mode: OptionalText = "minimal",
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Queue import of a file already visible to the MCP server under an allowed import root."""
+    with build_service_client_from_env() as client:
+        return client.queue_import_server_file_to_cloud_vault(
+            server_path=server_path,
+            destination_folder=destination_folder,
+            namespace=str(namespace or "uploads"),
+            copy_mode=str(copy_mode or "copy"),
+            index_after_import=index_after_import,
+            create_note_after_import=create_note_after_import,
+            note_mode=str(note_mode or "minimal"),
+            idempotency_key=idempotency_key,
+            priority=priority,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_import_server_folder_to_cloud_vault(
+    server_folder: RelativePath,
+    destination_folder: OptionalText = None,
+    namespace: OptionalText = "uploads",
+    copy_mode: OptionalText = "copy",
+    recursive: bool = True,
+    include_globs_json: OptionalText = None,
+    exclude_globs_json: OptionalText = None,
+    index_after_import: bool = True,
+    create_notes_after_import: bool = False,
+    note_mode: OptionalText = "minimal",
+    chunk_size: int | None = None,
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Queue import of a server-visible folder under an allowed import root while preserving relative structure."""
+    with build_service_client_from_env() as client:
+        return client.queue_import_server_folder_to_cloud_vault(
+            server_folder=server_folder,
+            destination_folder=destination_folder,
+            namespace=str(namespace or "uploads"),
+            copy_mode=str(copy_mode or "copy"),
+            recursive=recursive,
+            include_globs=json.loads(include_globs_json) if include_globs_json else None,
+            exclude_globs=json.loads(exclude_globs_json) if exclude_globs_json else None,
+            index_after_import=index_after_import,
+            create_notes_after_import=create_notes_after_import,
+            note_mode=str(note_mode or "minimal"),
+            chunk_size=chunk_size,
+            idempotency_key=idempotency_key,
+            priority=priority,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_refresh_cloud_vault_index(
+    namespaces_json: OptionalText = None,
+    path_scope: OptionalText = None,
+    full: bool = False,
+    extract_text: bool = False,
+    update_notes_index: bool = False,
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Queue metadata/index refresh work without triggering automatic classifier execution."""
+    with build_service_client_from_env() as client:
+        return client.queue_refresh_cloud_vault_index(
+            namespaces=json.loads(namespaces_json) if namespaces_json else None,
+            path_scope=path_scope,
+            full=full,
+            extract_text=extract_text,
+            update_notes_index=update_notes_index,
+            idempotency_key=idempotency_key,
+            priority=priority,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_reindex_document_vault_notes(
+    path_scope: OptionalText = None,
+    limit: WorkflowLimit = 25,
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Queue reindexing of document_vault notes after external note creation or manual edits."""
+    with build_service_client_from_env() as client:
+        return client.queue_reindex_document_vault_notes(
+            path_scope=path_scope,
+            limit=limit,
+            idempotency_key=idempotency_key,
+            priority=priority,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_sync_manual_feedback_events(
+    limit: WorkflowLimit = 25,
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Queue manual-feedback event synchronization without coupling it to broader background automation."""
+    with build_service_client_from_env() as client:
+        return client.queue_sync_manual_feedback_events(
+            limit=limit,
             idempotency_key=idempotency_key,
             priority=priority,
         )

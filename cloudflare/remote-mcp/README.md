@@ -16,9 +16,27 @@ remote MCP tools over Streamable HTTP at `/mcp`.
 - `get_icloud_note`
 - `get_icloud_source_reference`
 - `get_icloud_file_bundle`
+- `get_cloud_vault_task_status`
+- `list_cloud_vault_tasks`
 - `refresh_icloud_index`
 - `pause_icloud_index`
 - `resume_icloud_index`
+- `queue_cloud_vault_task`
+- `continue_cloud_vault_task`
+- `continue_cloud_vault_task_queue`
+- `cancel_cloud_vault_task`
+- `queue_create_document_vault_note_from_file_id_chatgpt_first`
+- `queue_create_document_vault_notes_from_search`
+- `queue_classifier_fallback_note_from_file_id`
+- `queue_create_document_vault_note_from_external_data`
+- `queue_import_server_file_to_cloud_vault`
+- `queue_import_server_folder_to_cloud_vault`
+- `queue_refresh_cloud_vault_index`
+- `queue_reindex_document_vault_notes`
+- `queue_sync_manual_feedback_events`
+- `queue_dedupe_analysis`
+- `queue_apply_icloud_dedupe_group`
+- `queue_restore_icloud_change_set`
 
 The source-reference tool includes a Worker download URL when the origin reports
 that the original file can be handed off safely.

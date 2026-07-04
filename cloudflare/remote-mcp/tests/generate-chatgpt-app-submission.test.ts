@@ -89,12 +89,19 @@ describe("generate-chatgpt-app-submission", () => {
       "pause_icloud_index",
       "resume_icloud_index",
       "create_document_vault_note",
+      "queue_cloud_vault_task",
       "continue_cloud_vault_task",
       "continue_cloud_vault_task_queue",
       "cancel_cloud_vault_task",
       "queue_create_document_vault_note_from_file_id_chatgpt_first",
       "queue_create_document_vault_notes_from_search",
       "queue_classifier_fallback_note_from_file_id",
+      "queue_create_document_vault_note_from_external_data",
+      "queue_import_server_file_to_cloud_vault",
+      "queue_import_server_folder_to_cloud_vault",
+      "queue_refresh_cloud_vault_index",
+      "queue_reindex_document_vault_notes",
+      "queue_sync_manual_feedback_events",
       "classify_file_and_create_document_vault_note_fallback",
       "batch_classify_files_and_create_document_vault_notes_fallback",
       "search_files_and_create_document_vault_notes_fallback",
@@ -121,6 +128,8 @@ describe("generate-chatgpt-app-submission", () => {
     expect(formatted).toContain('"refresh_icloud_index"');
     expect(formatted).toContain('"pause_icloud_index"');
     expect(formatted).toContain('"create_document_vault_note"');
+    expect(formatted).toContain('"queue_create_document_vault_note_from_external_data"');
+    expect(formatted).toContain('"queue_import_server_file_to_cloud_vault"');
     expect(formatted).toContain('"classify_file_and_create_document_vault_note_fallback"');
     expect(formatted).toContain('"get_icloud_change_set"');
     expect(formatted).toContain('"get_cloud_vault_task_status"');

@@ -493,6 +493,66 @@ def test_get_cloud_vault_task_status_uses_task_status_endpoint():
     assert str(captured_request.url) == "http://service.test/files/ops/tasks/task123"
 
 
+def test_continue_cloud_vault_task_posts_optional_runtime_controls():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"task_id": "task123", "status": "running"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.continue_cloud_vault_task(
+            task_id="task123",
+            max_runtime_seconds=20,
+            chunk_size=10,
+        )
+    finally:
+        client.close()
+
+    assert payload["status"] == "running"
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    body = captured_request.read().decode("utf-8")
+    assert '"max_runtime_seconds":20' in body
+    assert '"chunk_size":10' in body
+
+
+def test_continue_cloud_vault_task_queue_posts_optional_filters():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"processed_count": 1, "remaining_count": 0})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.continue_cloud_vault_task_queue(
+            limit=3,
+            max_tasks=2,
+            task_types=["import_server_file_to_cloud_vault"],
+        )
+    finally:
+        client.close()
+
+    assert payload["processed_count"] == 1
+    assert captured_request is not None
+    body = captured_request.read().decode("utf-8")
+    assert '"limit":3' in body
+    assert '"max_tasks":2' in body
+    assert '"task_types":["import_server_file_to_cloud_vault"]' in body
+
+
 def test_create_document_vault_note_posts_to_origin_endpoint():
     captured_request: httpx.Request | None = None
 
@@ -522,6 +582,162 @@ def test_create_document_vault_note_posts_to_origin_endpoint():
     assert str(captured_request.url) == "http://service.test/files/ops/document-vault/note"
     assert captured_request.read().decode("utf-8").find('"visible_title":"Appeal"') != -1
     assert captured_request.read().decode("utf-8").find('"file_id":7') != -1
+
+
+def test_queue_external_data_note_posts_to_origin_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"task_id": "task123", "status": "queued"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.queue_create_document_vault_note_from_external_data(
+            visible_title="Aquarium Cycle Log",
+            content="ammonia stable",
+            relative_folder="Personal/Aquarium",
+            index_after_create=True,
+        )
+    finally:
+        client.close()
+
+    assert payload["task_id"] == "task123"
+    assert captured_request is not None
+    assert str(captured_request.url) == "http://service.test/files/ops/tasks/document-vault/note/external-data"
+    body = captured_request.read().decode("utf-8")
+    assert '"visible_title":"Aquarium Cycle Log"' in body
+    assert '"index_after_create":true' in body
+
+
+def test_queue_import_server_file_posts_to_origin_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"task_id": "task123", "status": "queued"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.queue_import_server_file_to_cloud_vault(
+            server_path="/srv/cloud-vault/imports/file.pdf",
+            create_note_after_import=True,
+        )
+    finally:
+        client.close()
+
+    assert payload["task_id"] == "task123"
+    assert captured_request is not None
+    assert str(captured_request.url) == "http://service.test/files/ops/tasks/imports/file"
+
+
+def test_queue_import_server_folder_posts_to_origin_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"task_id": "task123", "status": "queued"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.queue_import_server_folder_to_cloud_vault(
+            server_folder="/srv/cloud-vault/imports/batch",
+            include_globs=["*.pdf"],
+        )
+    finally:
+        client.close()
+
+    assert payload["task_id"] == "task123"
+    assert captured_request is not None
+    assert str(captured_request.url) == "http://service.test/files/ops/tasks/imports/folder"
+
+
+def test_queue_refresh_cloud_vault_index_posts_to_origin_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"task_id": "task123", "status": "queued"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.queue_refresh_cloud_vault_index(
+            namespaces=["uploads", "document_vault"],
+            extract_text=True,
+            update_notes_index=True,
+        )
+    finally:
+        client.close()
+
+    assert payload["task_id"] == "task123"
+    assert captured_request is not None
+    assert str(captured_request.url) == "http://service.test/files/ops/tasks/index/refresh"
+
+
+def test_queue_reindex_document_vault_notes_posts_to_origin_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"task_id": "task123", "status": "queued"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.queue_reindex_document_vault_notes(path_scope="00 Inbox", limit=10)
+    finally:
+        client.close()
+
+    assert payload["task_id"] == "task123"
+    assert captured_request is not None
+    assert str(captured_request.url) == "http://service.test/files/ops/tasks/document-vault/reindex"
+
+
+def test_queue_sync_manual_feedback_events_posts_to_origin_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"task_id": "task123", "status": "queued"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.queue_sync_manual_feedback_events(limit=10)
+    finally:
+        client.close()
+
+    assert payload["task_id"] == "task123"
+    assert captured_request is not None
+    assert str(captured_request.url) == "http://service.test/files/ops/tasks/manual-feedback/sync"
 
 
 def test_fallback_note_creation_posts_to_origin_endpoint():

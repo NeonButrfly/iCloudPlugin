@@ -109,6 +109,60 @@ def sync_manual_feedback_events(
     }
 
 
+def reindex_document_vault_notes(
+    session: Session,
+    *,
+    path_scope: str | None = None,
+    limit: int = 25,
+) -> dict[str, object]:
+    vault_root = resolve_namespace_root(FileNamespace.DOCUMENT_VAULT)
+    if not vault_root.exists() or not vault_root.is_dir():
+        return {
+            "scanned": 0,
+            "indexed": 0,
+            "path_scope": path_scope,
+        }
+
+    normalized_scope = str(path_scope or "").replace("\\", "/").strip("/")
+    scope_root = vault_root / normalized_scope if normalized_scope else vault_root
+    scope_root = scope_root.resolve()
+    try:
+        scope_root.relative_to(vault_root.resolve())
+    except ValueError:
+        return {
+            "scanned": 0,
+            "indexed": 0,
+            "path_scope": path_scope,
+        }
+
+    if not scope_root.exists():
+        return {
+            "scanned": 0,
+            "indexed": 0,
+            "path_scope": path_scope,
+        }
+
+    indexed = 0
+    scanned = 0
+    for note_path in sorted(scope_root.rglob("*.md")):
+        if any(part.startswith("_") for part in note_path.relative_to(vault_root).parts):
+            continue
+        scanned += 1
+        if indexed < limit:
+            _upsert_document_vault_note_record(
+                session,
+                note_path=note_path,
+                vault_root=vault_root,
+            )
+            indexed += 1
+    session.commit()
+    return {
+        "scanned": scanned,
+        "indexed": indexed,
+        "path_scope": normalized_scope or None,
+    }
+
+
 def _live_file_hash(path: Path) -> str:
     digest = sha256()
     with path.open("rb") as handle:

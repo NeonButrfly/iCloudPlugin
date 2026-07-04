@@ -255,11 +255,29 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
         "classifier_mode": "mcp_fallback_only",
         "background_classification_enabled": False,
         "mcp_fallback_classification_enabled": True,
+        "classifier_fallback_available": True,
         "local_classifier_configured": False,
         "queued_classifier_jobs": 1,
         "queued_jobs_auto_running": False,
         "queued_cloud_vault_tasks": 0,
         "queued_cloud_vault_tasks_auto_running": False,
+    }
+    assert payload["capabilities"] == {
+        "document_vault_write_capability": True,
+        "upload_capability": False,
+        "chatgpt_uploaded_file_import_capability": False,
+        "server_side_import_capability": True,
+        "external_data_note_capability": True,
+        "task_queue_health": "ok",
+        "task_queue_counts": {},
+        "dedupe_job_capability": True,
+        "non_destructive_dedupe_archive_capability": True,
+        "restore_change_set_capability": True,
+        "allowed_import_roots": [
+            "/srv/cloud-vault/imports",
+            "/srv/cloud-vault/dropbox",
+            "/mnt/imports",
+        ],
     }
     assert payload["classification_job_counts"] == {"completed": 1, "queued": 1}
     assert payload["classification_state_counts"] == {"completed": 1, "queued": 1}

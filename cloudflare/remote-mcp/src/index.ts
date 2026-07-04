@@ -898,12 +898,44 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
+    name: "queue_cloud_vault_task",
+    description: "Queue a generic cloud-vault task when a higher-level wrapper is not sufficient.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_type: { type: "string", minLength: 1 },
+        input_payload: { type: "object", additionalProperties: true },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      required: ["task_type", "input_payload"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/queue", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          task_type: readString(args.task_type, "task_type"),
+          input: asObject(args.input_payload),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
+  },
+  {
     name: "continue_cloud_vault_task",
     description: "Advance one cloud-vault task by one bounded server-side execution step.",
     inputSchema: {
       type: "object",
       properties: {
         task_id: { type: "string", minLength: 1 },
+        max_runtime_seconds: { type: "integer", minimum: 1, maximum: 120 },
+        chunk_size: { type: "integer", minimum: 1, maximum: 200 },
       },
       required: ["task_id"],
       additionalProperties: false,
@@ -914,7 +946,15 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       fetchOriginJson(env, "/files/ops/tasks/continue", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ task_id: readString(args.task_id, "task_id") }),
+        body: JSON.stringify({
+          task_id: readString(args.task_id, "task_id"),
+          ...(typeof args.max_runtime_seconds === "undefined"
+            ? {}
+            : { max_runtime_seconds: readPositiveInt(args.max_runtime_seconds, "max_runtime_seconds") }),
+          ...(typeof args.chunk_size === "undefined"
+            ? {}
+            : { chunk_size: readPositiveInt(args.chunk_size, "chunk_size") }),
+        }),
       }),
   },
   {
@@ -924,6 +964,28 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       type: "object",
       properties: {
         limit: { type: "integer", minimum: 1, maximum: 200 },
+        max_tasks: { type: "integer", minimum: 1, maximum: 200 },
+        task_types: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: [
+              "create_document_vault_note_from_file_id_chatgpt_first",
+              "create_document_vault_notes_from_search",
+              "classifier_fallback_note_from_file_id",
+              "create_document_vault_note_from_external_data",
+              "import_server_file_to_cloud_vault",
+              "import_server_folder_to_cloud_vault",
+              "refresh_cloud_vault_index",
+              "reindex_document_vault_notes",
+              "sync_manual_feedback_events",
+              "dedupe_analysis",
+              "apply_dedupe_group",
+              "restore_change_set",
+            ],
+          },
+          minItems: 1,
+        },
       },
       additionalProperties: false,
     },
@@ -935,6 +997,27 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           limit: readOptionalBoundedInt(args.limit, "limit", 1, 200) ?? 5,
+          ...(typeof args.max_tasks === "undefined"
+            ? {}
+            : { max_tasks: readPositiveInt(args.max_tasks, "max_tasks") }),
+          ...(typeof args.task_types === "undefined"
+            ? {}
+            : {
+                task_types: readStringArray(args.task_types, "task_types", [
+                  "create_document_vault_note_from_file_id_chatgpt_first",
+                  "create_document_vault_notes_from_search",
+                  "classifier_fallback_note_from_file_id",
+                  "create_document_vault_note_from_external_data",
+                  "import_server_file_to_cloud_vault",
+                  "import_server_folder_to_cloud_vault",
+                  "refresh_cloud_vault_index",
+                  "reindex_document_vault_notes",
+                  "sync_manual_feedback_events",
+                  "dedupe_analysis",
+                  "apply_dedupe_group",
+                  "restore_change_set",
+                ]),
+              }),
         }),
       }),
   },
@@ -983,6 +1066,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
         fallback_summary_mode: { type: "string", enum: ["minimal", "classifier", "full_note"] },
         fallback_title_mode: { type: "string", enum: ["generic", "source_name", "classifier"] },
         attach_originals: { type: "boolean" },
+        index_after_create: { type: "boolean" },
         idempotency_key: { type: "string", minLength: 1 },
         priority: { type: "integer", minimum: 1, maximum: 1000 },
       },
@@ -1026,6 +1110,10 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
             typeof args.attach_originals === "undefined"
               ? true
               : readBoolean(args.attach_originals, "attach_originals"),
+          index_after_create:
+            typeof args.index_after_create === "undefined"
+              ? false
+              : readBoolean(args.index_after_create, "index_after_create"),
           ...(typeof args.idempotency_key === "undefined"
             ? {}
             : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
@@ -1041,10 +1129,11 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         query: { type: "string", minLength: 1 },
         path_scope: { type: "string", minLength: 1 },
-        namespace: { type: "string", enum: ["icloud", "google1", "google2", "document_vault"] },
+        namespace: { type: "string", enum: ["icloud", "google1", "google2", "document_vault", "local", "uploads"] },
         limit: { type: "integer", minimum: 1, maximum: 200 },
         note_mode: { type: "string", enum: ["chatgpt_first", "classifier_fallback", "minimal"] },
         fallback_enabled: { type: "boolean" },
+        index_after_create: { type: "boolean" },
         idempotency_key: { type: "string", minLength: 1 },
         priority: { type: "integer", minimum: 1, maximum: 1000 },
       },
@@ -1070,6 +1159,10 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
             typeof args.fallback_enabled === "undefined"
               ? false
               : readBoolean(args.fallback_enabled, "fallback_enabled"),
+          index_after_create:
+            typeof args.index_after_create === "undefined"
+              ? false
+              : readBoolean(args.index_after_create, "index_after_create"),
           ...(typeof args.idempotency_key === "undefined"
             ? {}
             : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
@@ -1099,6 +1192,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
         summary_mode: { type: "string", enum: ["minimal", "classifier", "full_note"] },
         title_mode: { type: "string", enum: ["generic", "source_name", "classifier"] },
         attach_originals: { type: "boolean" },
+        index_after_create: { type: "boolean" },
         idempotency_key: { type: "string", minLength: 1 },
         priority: { type: "integer", minimum: 1, maximum: 1000 },
       },
@@ -1133,6 +1227,301 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
             typeof args.attach_originals === "undefined"
               ? true
               : readBoolean(args.attach_originals, "attach_originals"),
+          index_after_create:
+            typeof args.index_after_create === "undefined"
+              ? false
+              : readBoolean(args.index_after_create, "index_after_create"),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
+  },
+  {
+    name: "queue_create_document_vault_note_from_external_data",
+    description:
+      "Queue creation of a document_vault note from arbitrary external structured data supplied by ChatGPT.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        visible_title: { type: "string", minLength: 1 },
+        content: { type: "string", minLength: 1 },
+        relative_folder: { type: "string", minLength: 1 },
+        external_source_name: { type: "string", minLength: 1 },
+        external_source_type: {
+          type: "string",
+          enum: ["chatgpt", "manual", "project_kay", "semester", "school", "work", "web", "technical", "personal", "other"],
+        },
+        summary: { type: "string", minLength: 1 },
+        tags: { type: "array", items: { type: "string", minLength: 1 } },
+        metadata: { type: "object", additionalProperties: true },
+        index_after_create: { type: "boolean" },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      required: ["visible_title", "content"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/document-vault/note/external-data", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          visible_title: readString(args.visible_title, "visible_title"),
+          content: readString(args.content, "content"),
+          ...(typeof args.relative_folder === "undefined"
+            ? {}
+            : { relative_folder: readString(args.relative_folder, "relative_folder") }),
+          ...(typeof args.external_source_name === "undefined"
+            ? {}
+            : { external_source_name: readString(args.external_source_name, "external_source_name") }),
+          external_source_type:
+            typeof args.external_source_type === "undefined"
+              ? "chatgpt"
+              : readString(args.external_source_type, "external_source_type"),
+          ...(typeof args.summary === "undefined" ? {} : { summary: readString(args.summary, "summary") }),
+          ...(typeof args.tags === "undefined"
+            ? {}
+            : {
+                tags: readStringArray(args.tags, "tags", Array.isArray(args.tags) ? args.tags.map((value) => readString(value, "tags")) : []),
+              }),
+          ...(typeof args.metadata === "undefined" ? {} : { metadata: asObject(args.metadata) }),
+          index_after_create:
+            typeof args.index_after_create === "undefined"
+              ? false
+              : readBoolean(args.index_after_create, "index_after_create"),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
+  },
+  {
+    name: "queue_import_server_file_to_cloud_vault",
+    description: "Queue import of a file already visible to the MCP server under an allowed import root.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        server_path: { type: "string", minLength: 1 },
+        destination_folder: { type: "string", minLength: 1 },
+        namespace: { type: "string", enum: ["uploads", "local"] },
+        copy_mode: { type: "string", enum: ["copy", "move"] },
+        index_after_import: { type: "boolean" },
+        create_note_after_import: { type: "boolean" },
+        note_mode: { type: "string", enum: ["chatgpt_first", "classifier_fallback", "minimal"] },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      required: ["server_path"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/imports/file", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          server_path: readString(args.server_path, "server_path"),
+          ...(typeof args.destination_folder === "undefined"
+            ? {}
+            : { destination_folder: readString(args.destination_folder, "destination_folder") }),
+          namespace: typeof args.namespace === "undefined" ? "uploads" : readString(args.namespace, "namespace"),
+          copy_mode: typeof args.copy_mode === "undefined" ? "copy" : readString(args.copy_mode, "copy_mode"),
+          index_after_import:
+            typeof args.index_after_import === "undefined"
+              ? true
+              : readBoolean(args.index_after_import, "index_after_import"),
+          create_note_after_import:
+            typeof args.create_note_after_import === "undefined"
+              ? false
+              : readBoolean(args.create_note_after_import, "create_note_after_import"),
+          note_mode:
+            typeof args.note_mode === "undefined"
+              ? "minimal"
+              : readString(args.note_mode, "note_mode"),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
+  },
+  {
+    name: "queue_import_server_folder_to_cloud_vault",
+    description:
+      "Queue import of a server-visible folder under an allowed import root while preserving relative structure.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        server_folder: { type: "string", minLength: 1 },
+        destination_folder: { type: "string", minLength: 1 },
+        namespace: { type: "string", enum: ["uploads", "local"] },
+        copy_mode: { type: "string", enum: ["copy", "move"] },
+        recursive: { type: "boolean" },
+        include_globs: { type: "array", items: { type: "string", minLength: 1 } },
+        exclude_globs: { type: "array", items: { type: "string", minLength: 1 } },
+        index_after_import: { type: "boolean" },
+        create_notes_after_import: { type: "boolean" },
+        note_mode: { type: "string", enum: ["chatgpt_first", "classifier_fallback", "minimal"] },
+        chunk_size: { type: "integer", minimum: 1, maximum: 200 },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      required: ["server_folder"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/imports/folder", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          server_folder: readString(args.server_folder, "server_folder"),
+          ...(typeof args.destination_folder === "undefined"
+            ? {}
+            : { destination_folder: readString(args.destination_folder, "destination_folder") }),
+          namespace: typeof args.namespace === "undefined" ? "uploads" : readString(args.namespace, "namespace"),
+          copy_mode: typeof args.copy_mode === "undefined" ? "copy" : readString(args.copy_mode, "copy_mode"),
+          recursive: typeof args.recursive === "undefined" ? true : readBoolean(args.recursive, "recursive"),
+          ...(typeof args.include_globs === "undefined"
+            ? {}
+            : { include_globs: (args.include_globs as JsonValue[]).map((value) => readString(value, "include_globs")) }),
+          ...(typeof args.exclude_globs === "undefined"
+            ? {}
+            : { exclude_globs: (args.exclude_globs as JsonValue[]).map((value) => readString(value, "exclude_globs")) }),
+          index_after_import:
+            typeof args.index_after_import === "undefined"
+              ? true
+              : readBoolean(args.index_after_import, "index_after_import"),
+          create_notes_after_import:
+            typeof args.create_notes_after_import === "undefined"
+              ? false
+              : readBoolean(args.create_notes_after_import, "create_notes_after_import"),
+          note_mode:
+            typeof args.note_mode === "undefined"
+              ? "minimal"
+              : readString(args.note_mode, "note_mode"),
+          ...(typeof args.chunk_size === "undefined"
+            ? {}
+            : { chunk_size: readPositiveInt(args.chunk_size, "chunk_size") }),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
+  },
+  {
+    name: "queue_refresh_cloud_vault_index",
+    description: "Queue metadata/index refresh work without triggering automatic classifier execution.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        namespaces: {
+          type: "array",
+          items: { type: "string", enum: ["icloud", "google1", "google2", "document_vault", "local", "uploads"] },
+          minItems: 1,
+        },
+        path_scope: { type: "string", minLength: 1 },
+        full: { type: "boolean" },
+        extract_text: { type: "boolean" },
+        update_notes_index: { type: "boolean" },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/index/refresh", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...(typeof args.namespaces === "undefined"
+            ? {}
+            : {
+                namespaces: readStringArray(args.namespaces, "namespaces", [
+                  "icloud",
+                  "google1",
+                  "google2",
+                  "document_vault",
+                  "local",
+                  "uploads",
+                ]),
+              }),
+          ...(typeof args.path_scope === "undefined" ? {} : { path_scope: readString(args.path_scope, "path_scope") }),
+          full: typeof args.full === "undefined" ? false : readBoolean(args.full, "full"),
+          extract_text:
+            typeof args.extract_text === "undefined"
+              ? false
+              : readBoolean(args.extract_text, "extract_text"),
+          update_notes_index:
+            typeof args.update_notes_index === "undefined"
+              ? false
+              : readBoolean(args.update_notes_index, "update_notes_index"),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
+  },
+  {
+    name: "queue_reindex_document_vault_notes",
+    description: "Queue reindexing of document_vault notes after external note creation or manual edits.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path_scope: { type: "string", minLength: 1 },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/document-vault/reindex", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...(typeof args.path_scope === "undefined" ? {} : { path_scope: readString(args.path_scope, "path_scope") }),
+          limit: readOptionalBoundedInt(args.limit, "limit", 1, 200) ?? 25,
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
+  },
+  {
+    name: "queue_sync_manual_feedback_events",
+    description: "Queue manual-feedback event synchronization without coupling it to broader background automation.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/manual-feedback/sync", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          limit: readOptionalBoundedInt(args.limit, "limit", 1, 200) ?? 25,
           ...(typeof args.idempotency_key === "undefined"
             ? {}
             : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
@@ -1148,7 +1537,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         namespaces: {
           type: "array",
-          items: { type: "string", enum: ["google1", "google2", "icloud", "document_vault"] },
+          items: { type: "string", enum: ["google1", "google2", "icloud", "document_vault", "uploads", "local"] },
           minItems: 1,
         },
         path_scope: { type: "string", minLength: 1 },
@@ -1178,6 +1567,8 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
                   "google2",
                   "icloud",
                   "document_vault",
+                  "uploads",
+                  "local",
                 ]),
               }),
           ...(typeof args.path_scope === "undefined" ? {} : { path_scope: readString(args.path_scope, "path_scope") }),

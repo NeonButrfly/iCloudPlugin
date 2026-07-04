@@ -15,9 +15,15 @@ from icloud_index_service.services.cloud_vault_task_service import (
     TASK_TYPE_APPLY_DEDUPE_GROUP,
     TASK_TYPE_CHATGPT_FIRST_FILE_NOTE,
     TASK_TYPE_DEDUPE_ANALYSIS,
+    TASK_TYPE_EXTERNAL_DATA_NOTE,
     TASK_TYPE_FALLBACK_FILE_NOTE,
+    TASK_TYPE_IMPORT_SERVER_FILE,
+    TASK_TYPE_IMPORT_SERVER_FOLDER,
+    TASK_TYPE_REFRESH_INDEX,
+    TASK_TYPE_REINDEX_NOTES,
     TASK_TYPE_RESTORE_CHANGE_SET,
     TASK_TYPE_SEARCH_NOTES,
+    TASK_TYPE_SYNC_FEEDBACK,
     cancel_cloud_vault_task,
     continue_cloud_vault_task,
     continue_cloud_vault_task_queue,
@@ -112,7 +118,7 @@ class BatchClassifyDocumentVaultNotesFallbackRequest(BaseModel):
 class SearchDocumentVaultNotesFallbackRequest(BaseModel):
     query: str
     path_scope: str | None = None
-    namespace: Literal["icloud", "google1", "google2"] | None = None
+    namespace: Literal["icloud", "google1", "google2", "local", "uploads"] | None = None
     limit: int = 10
     fallback_reason: FallbackReason = "manual_fallback"
     force_reclassify: bool = False
@@ -169,10 +175,14 @@ class QueueCloudVaultTaskRequest(BaseModel):
 
 class ContinueCloudVaultTaskRequest(BaseModel):
     task_id: str
+    max_runtime_seconds: int | None = None
+    chunk_size: int | None = None
 
 
 class ContinueCloudVaultTaskQueueRequest(BaseModel):
     limit: int = 5
+    max_tasks: int | None = None
+    task_types: list[str] | None = None
 
 
 class ListCloudVaultTasksRequest(BaseModel):
@@ -196,6 +206,7 @@ class QueueCreateDocumentVaultNoteFromFileIdChatgptFirstRequest(BaseModel):
     fallback_summary_mode: Literal["minimal", "classifier", "full_note"] = "classifier"
     fallback_title_mode: Literal["generic", "source_name", "classifier"] = "classifier"
     attach_originals: bool = True
+    index_after_create: bool = False
     idempotency_key: str | None = None
     priority: int = 100
 
@@ -203,10 +214,11 @@ class QueueCreateDocumentVaultNoteFromFileIdChatgptFirstRequest(BaseModel):
 class QueueCreateDocumentVaultNotesFromSearchRequest(BaseModel):
     query: str
     path_scope: str | None = None
-    namespace: Literal["icloud", "google1", "google2", "document_vault"] | None = None
+    namespace: Literal["icloud", "google1", "google2", "document_vault", "local", "uploads"] | None = None
     limit: int = 10
     note_mode: Literal["chatgpt_first", "classifier_fallback", "minimal"] = "minimal"
     fallback_enabled: bool = False
+    index_after_create: bool = False
     idempotency_key: str | None = None
     priority: int = 100
 
@@ -218,12 +230,81 @@ class QueueClassifierFallbackNoteFromFileIdRequest(BaseModel):
     summary_mode: Literal["minimal", "classifier", "full_note"] = "classifier"
     title_mode: Literal["generic", "source_name", "classifier"] = "classifier"
     attach_originals: bool = True
+    index_after_create: bool = False
+    idempotency_key: str | None = None
+    priority: int = 100
+
+
+class QueueCreateDocumentVaultNoteFromExternalDataRequest(BaseModel):
+    visible_title: str
+    relative_folder: str | None = None
+    external_source_name: str | None = None
+    external_source_type: Literal[
+        "chatgpt", "manual", "project_kay", "semester", "school",
+        "work", "web", "technical", "personal", "other"
+    ] = "chatgpt"
+    content: str
+    summary: str | None = None
+    tags: list[str] | None = None
+    metadata: dict[str, object] | None = None
+    index_after_create: bool = False
+    idempotency_key: str | None = None
+    priority: int = 100
+
+
+class QueueImportServerFileToCloudVaultRequest(BaseModel):
+    server_path: str
+    destination_folder: str | None = None
+    namespace: Literal["uploads", "local"] = "uploads"
+    copy_mode: Literal["copy", "move"] = "copy"
+    index_after_import: bool = True
+    create_note_after_import: bool = False
+    note_mode: Literal["chatgpt_first", "classifier_fallback", "minimal"] = "minimal"
+    idempotency_key: str | None = None
+    priority: int = 100
+
+
+class QueueImportServerFolderToCloudVaultRequest(BaseModel):
+    server_folder: str
+    destination_folder: str | None = None
+    namespace: Literal["uploads", "local"] = "uploads"
+    copy_mode: Literal["copy", "move"] = "copy"
+    recursive: bool = True
+    include_globs: list[str] | None = None
+    exclude_globs: list[str] | None = None
+    index_after_import: bool = True
+    create_notes_after_import: bool = False
+    note_mode: Literal["chatgpt_first", "classifier_fallback", "minimal"] = "minimal"
+    chunk_size: int | None = None
+    idempotency_key: str | None = None
+    priority: int = 100
+
+
+class QueueRefreshCloudVaultIndexRequest(BaseModel):
+    namespaces: list[Literal["icloud", "google1", "google2", "document_vault", "local", "uploads"]] | None = None
+    path_scope: str | None = None
+    full: bool = False
+    extract_text: bool = False
+    update_notes_index: bool = False
+    idempotency_key: str | None = None
+    priority: int = 100
+
+
+class QueueReindexDocumentVaultNotesRequest(BaseModel):
+    path_scope: str | None = None
+    limit: int = 25
+    idempotency_key: str | None = None
+    priority: int = 100
+
+
+class QueueSyncManualFeedbackEventsRequest(BaseModel):
+    limit: int = 25
     idempotency_key: str | None = None
     priority: int = 100
 
 
 class QueueDedupeAnalysisRequest(BaseModel):
-    namespaces: list[Literal["google1", "google2", "icloud", "document_vault"]] | None = None
+    namespaces: list[Literal["google1", "google2", "icloud", "document_vault", "uploads", "local"]] | None = None
     path_scope: str | None = None
     strategy: Literal["exact_hash", "normalized_name_size", "content_hash", "all"] = "exact_hash"
     chunk_size: int | None = None
@@ -713,7 +794,11 @@ def continue_cloud_vault_task_queue_route(
     payload: ContinueCloudVaultTaskQueueRequest,
     session: Session = Depends(_get_files_session),
 ) -> dict[str, object]:
-    return continue_cloud_vault_task_queue(session, limit=payload.limit)
+    return continue_cloud_vault_task_queue(
+        session,
+        limit=payload.max_tasks or payload.limit,
+        task_types=payload.task_types,
+    )
 
 
 @router.get(
@@ -806,6 +891,108 @@ def queue_classifier_fallback_note_from_file_id_route(
     return queue_cloud_vault_task(
         session,
         task_type=TASK_TYPE_FALLBACK_FILE_NOTE,
+        input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
+        idempotency_key=payload.idempotency_key,
+        priority=payload.priority,
+    )
+
+
+@router.post(
+    "/ops/tasks/document-vault/note/external-data",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_create_document_vault_note_from_external_data_route(
+    payload: QueueCreateDocumentVaultNoteFromExternalDataRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return queue_cloud_vault_task(
+        session,
+        task_type=TASK_TYPE_EXTERNAL_DATA_NOTE,
+        input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
+        idempotency_key=payload.idempotency_key,
+        priority=payload.priority,
+    )
+
+
+@router.post(
+    "/ops/tasks/imports/file",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_import_server_file_to_cloud_vault_route(
+    payload: QueueImportServerFileToCloudVaultRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return queue_cloud_vault_task(
+        session,
+        task_type=TASK_TYPE_IMPORT_SERVER_FILE,
+        input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
+        idempotency_key=payload.idempotency_key,
+        priority=payload.priority,
+    )
+
+
+@router.post(
+    "/ops/tasks/imports/folder",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_import_server_folder_to_cloud_vault_route(
+    payload: QueueImportServerFolderToCloudVaultRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return queue_cloud_vault_task(
+        session,
+        task_type=TASK_TYPE_IMPORT_SERVER_FOLDER,
+        input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
+        idempotency_key=payload.idempotency_key,
+        priority=payload.priority,
+    )
+
+
+@router.post(
+    "/ops/tasks/index/refresh",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_refresh_cloud_vault_index_route(
+    payload: QueueRefreshCloudVaultIndexRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return queue_cloud_vault_task(
+        session,
+        task_type=TASK_TYPE_REFRESH_INDEX,
+        input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
+        idempotency_key=payload.idempotency_key,
+        priority=payload.priority,
+    )
+
+
+@router.post(
+    "/ops/tasks/document-vault/reindex",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_reindex_document_vault_notes_route(
+    payload: QueueReindexDocumentVaultNotesRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return queue_cloud_vault_task(
+        session,
+        task_type=TASK_TYPE_REINDEX_NOTES,
+        input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
+        idempotency_key=payload.idempotency_key,
+        priority=payload.priority,
+    )
+
+
+@router.post(
+    "/ops/tasks/manual-feedback/sync",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_sync_manual_feedback_events_route(
+    payload: QueueSyncManualFeedbackEventsRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return queue_cloud_vault_task(
+        session,
+        task_type=TASK_TYPE_SYNC_FEEDBACK,
         input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
         idempotency_key=payload.idempotency_key,
         priority=payload.priority,

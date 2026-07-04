@@ -130,18 +130,36 @@ class ICloudIndexServiceClient:
             body["idempotency_key"] = idempotency_key
         return self._request("POST", "/files/ops/tasks/queue", json_body=body)
 
-    def continue_cloud_vault_task(self, *, task_id: str) -> dict[str, Any]:
-        return self._request(
-            "POST",
-            "/files/ops/tasks/continue",
-            json_body={"task_id": task_id},
-        )
+    def continue_cloud_vault_task(
+        self,
+        *,
+        task_id: str,
+        max_runtime_seconds: int | None = None,
+        chunk_size: int | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"task_id": task_id}
+        if max_runtime_seconds is not None:
+            body["max_runtime_seconds"] = max_runtime_seconds
+        if chunk_size is not None:
+            body["chunk_size"] = chunk_size
+        return self._request("POST", "/files/ops/tasks/continue", json_body=body)
 
-    def continue_cloud_vault_task_queue(self, *, limit: int = 5) -> dict[str, Any]:
+    def continue_cloud_vault_task_queue(
+        self,
+        *,
+        limit: int = 5,
+        max_tasks: int | None = None,
+        task_types: list[str] | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"limit": limit}
+        if max_tasks is not None:
+            body["max_tasks"] = max_tasks
+        if task_types is not None:
+            body["task_types"] = task_types
         return self._request(
             "POST",
             "/files/ops/tasks/continue-queue",
-            json_body={"limit": limit},
+            json_body=body,
         )
 
     def get_cloud_vault_task_status(self, *, task_id: str) -> dict[str, Any]:
@@ -320,6 +338,7 @@ class ICloudIndexServiceClient:
         fallback_summary_mode: str = "classifier",
         fallback_title_mode: str = "classifier",
         attach_originals: bool = True,
+        index_after_create: bool = False,
         idempotency_key: str | None = None,
         priority: int = 100,
     ) -> dict[str, Any]:
@@ -330,6 +349,7 @@ class ICloudIndexServiceClient:
             "fallback_summary_mode": fallback_summary_mode,
             "fallback_title_mode": fallback_title_mode,
             "attach_originals": attach_originals,
+            "index_after_create": index_after_create,
             "priority": priority,
         }
         if chatgpt_relative_folder:
@@ -355,6 +375,7 @@ class ICloudIndexServiceClient:
         limit: int = 10,
         note_mode: str = "minimal",
         fallback_enabled: bool = False,
+        index_after_create: bool = False,
         idempotency_key: str | None = None,
         priority: int = 100,
     ) -> dict[str, Any]:
@@ -363,6 +384,7 @@ class ICloudIndexServiceClient:
             "limit": limit,
             "note_mode": note_mode,
             "fallback_enabled": fallback_enabled,
+            "index_after_create": index_after_create,
             "priority": priority,
         }
         if path_scope:
@@ -386,6 +408,7 @@ class ICloudIndexServiceClient:
         summary_mode: str = "classifier",
         title_mode: str = "classifier",
         attach_originals: bool = True,
+        index_after_create: bool = False,
         idempotency_key: str | None = None,
         priority: int = 100,
     ) -> dict[str, Any]:
@@ -396,6 +419,7 @@ class ICloudIndexServiceClient:
             "summary_mode": summary_mode,
             "title_mode": title_mode,
             "attach_originals": attach_originals,
+            "index_after_create": index_after_create,
             "priority": priority,
         }
         if idempotency_key:
@@ -405,6 +429,161 @@ class ICloudIndexServiceClient:
             "/files/ops/tasks/document-vault/note/fallback/file-id",
             json_body=body,
         )
+
+    def queue_create_document_vault_note_from_external_data(
+        self,
+        *,
+        visible_title: str,
+        content: str,
+        relative_folder: str | None = None,
+        external_source_name: str | None = None,
+        external_source_type: str = "chatgpt",
+        summary: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+        index_after_create: bool = False,
+        idempotency_key: str | None = None,
+        priority: int = 100,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "visible_title": visible_title,
+            "content": content,
+            "external_source_type": external_source_type,
+            "index_after_create": index_after_create,
+            "priority": priority,
+        }
+        if relative_folder:
+            body["relative_folder"] = relative_folder
+        if external_source_name:
+            body["external_source_name"] = external_source_name
+        if summary:
+            body["summary"] = summary
+        if tags is not None:
+            body["tags"] = tags
+        if metadata is not None:
+            body["metadata"] = metadata
+        if idempotency_key:
+            body["idempotency_key"] = idempotency_key
+        return self._request("POST", "/files/ops/tasks/document-vault/note/external-data", json_body=body)
+
+    def queue_import_server_file_to_cloud_vault(
+        self,
+        *,
+        server_path: str,
+        destination_folder: str | None = None,
+        namespace: str = "uploads",
+        copy_mode: str = "copy",
+        index_after_import: bool = True,
+        create_note_after_import: bool = False,
+        note_mode: str = "minimal",
+        idempotency_key: str | None = None,
+        priority: int = 100,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "server_path": server_path,
+            "namespace": namespace,
+            "copy_mode": copy_mode,
+            "index_after_import": index_after_import,
+            "create_note_after_import": create_note_after_import,
+            "note_mode": note_mode,
+            "priority": priority,
+        }
+        if destination_folder:
+            body["destination_folder"] = destination_folder
+        if idempotency_key:
+            body["idempotency_key"] = idempotency_key
+        return self._request("POST", "/files/ops/tasks/imports/file", json_body=body)
+
+    def queue_import_server_folder_to_cloud_vault(
+        self,
+        *,
+        server_folder: str,
+        destination_folder: str | None = None,
+        namespace: str = "uploads",
+        copy_mode: str = "copy",
+        recursive: bool = True,
+        include_globs: list[str] | None = None,
+        exclude_globs: list[str] | None = None,
+        index_after_import: bool = True,
+        create_notes_after_import: bool = False,
+        note_mode: str = "minimal",
+        chunk_size: int | None = None,
+        idempotency_key: str | None = None,
+        priority: int = 100,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "server_folder": server_folder,
+            "namespace": namespace,
+            "copy_mode": copy_mode,
+            "recursive": recursive,
+            "index_after_import": index_after_import,
+            "create_notes_after_import": create_notes_after_import,
+            "note_mode": note_mode,
+            "priority": priority,
+        }
+        if destination_folder:
+            body["destination_folder"] = destination_folder
+        if include_globs is not None:
+            body["include_globs"] = include_globs
+        if exclude_globs is not None:
+            body["exclude_globs"] = exclude_globs
+        if chunk_size is not None:
+            body["chunk_size"] = chunk_size
+        if idempotency_key:
+            body["idempotency_key"] = idempotency_key
+        return self._request("POST", "/files/ops/tasks/imports/folder", json_body=body)
+
+    def queue_refresh_cloud_vault_index(
+        self,
+        *,
+        namespaces: list[str] | None = None,
+        path_scope: str | None = None,
+        full: bool = False,
+        extract_text: bool = False,
+        update_notes_index: bool = False,
+        idempotency_key: str | None = None,
+        priority: int = 100,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "full": full,
+            "extract_text": extract_text,
+            "update_notes_index": update_notes_index,
+            "priority": priority,
+        }
+        if namespaces is not None:
+            body["namespaces"] = namespaces
+        if path_scope:
+            body["path_scope"] = path_scope
+        if idempotency_key:
+            body["idempotency_key"] = idempotency_key
+        return self._request("POST", "/files/ops/tasks/index/refresh", json_body=body)
+
+    def queue_reindex_document_vault_notes(
+        self,
+        *,
+        path_scope: str | None = None,
+        limit: int = 25,
+        idempotency_key: str | None = None,
+        priority: int = 100,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"limit": limit, "priority": priority}
+        if path_scope:
+            body["path_scope"] = path_scope
+        if idempotency_key:
+            body["idempotency_key"] = idempotency_key
+        return self._request("POST", "/files/ops/tasks/document-vault/reindex", json_body=body)
+
+    def queue_sync_manual_feedback_events(
+        self,
+        *,
+        limit: int = 25,
+        idempotency_key: str | None = None,
+        priority: int = 100,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"limit": limit, "priority": priority}
+        if idempotency_key:
+            body["idempotency_key"] = idempotency_key
+        return self._request("POST", "/files/ops/tasks/manual-feedback/sync", json_body=body)
 
     def queue_dedupe_analysis(
         self,

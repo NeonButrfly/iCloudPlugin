@@ -79,7 +79,7 @@ NoteMaxChars = Annotated[
 NamespaceName = Annotated[
     str,
     Field(
-        pattern="^(google1|google2|icloud|document_vault)$",
+        pattern="^(google1|google2|icloud|document_vault|local|uploads)$",
         description="Writable vault namespace.",
     ),
 ]

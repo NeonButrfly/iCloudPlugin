@@ -266,6 +266,14 @@ def collect_cloud_vault_sync_status(
     }
 
 
+def _configured_import_roots() -> list[str]:
+    raw_value = (os.getenv("CLOUD_VAULT_IMPORT_ROOTS") or "").strip()
+    values = [item.strip() for item in raw_value.split(os.pathsep) if item.strip()]
+    if not values:
+        values = ["/srv/cloud-vault/imports", "/srv/cloud-vault/dropbox", "/mnt/imports"]
+    return values
+
+
 def collect_classification_job_counts(session: Session) -> dict[str, int]:
     statuses = session.scalars(select(ClassificationJob.status)).all()
     return _count_values([status for status in statuses if isinstance(status, str)])
@@ -376,6 +384,7 @@ def build_status_summary(
 ) -> dict[str, Any]:
     classification_job_counts = collect_classification_job_counts(session)
     cloud_vault_task_counts = collect_cloud_vault_task_counts(session)
+    import_roots = _configured_import_roots()
     return {
         "generated_at": _utc_now_iso(),
         "service_health": service_health,
@@ -386,11 +395,25 @@ def build_status_summary(
             "classifier_mode": get_classifier_mode(),
             "background_classification_enabled": get_background_classification_enabled(),
             "mcp_fallback_classification_enabled": get_mcp_fallback_classification_enabled(),
+            "classifier_fallback_available": get_mcp_fallback_classification_enabled(),
             "local_classifier_configured": get_local_classifier_configured(),
             "queued_classifier_jobs": classification_job_counts.get("queued", 0),
             "queued_jobs_auto_running": get_background_classification_enabled(),
             "queued_cloud_vault_tasks": cloud_vault_task_counts.get("queued", 0),
             "queued_cloud_vault_tasks_auto_running": False,
+        },
+        "capabilities": {
+            "document_vault_write_capability": True,
+            "upload_capability": False,
+            "chatgpt_uploaded_file_import_capability": False,
+            "server_side_import_capability": True,
+            "external_data_note_capability": True,
+            "task_queue_health": "ok",
+            "task_queue_counts": cloud_vault_task_counts,
+            "dedupe_job_capability": True,
+            "non_destructive_dedupe_archive_capability": True,
+            "restore_change_set_capability": True,
+            "allowed_import_roots": import_roots,
         },
         "classification_job_counts": classification_job_counts,
         "classification_state_counts": collect_classification_state_counts(session),

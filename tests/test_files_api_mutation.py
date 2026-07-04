@@ -485,3 +485,82 @@ def test_queue_chatgpt_first_file_note_route_returns_task_payload(tmp_path, monk
     payload = response.json()
     assert payload["status"] == "queued"
     assert payload["task_id"]
+
+
+def test_queue_external_data_note_route_returns_task_payload(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path)
+
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = _override_get_session(session_factory)
+
+    try:
+        with TestClient(main_module.app) as client:
+            response = client.post(
+                "/files/ops/tasks/document-vault/note/external-data",
+                json={
+                    "visible_title": "Aquarium Cycle Log",
+                    "content": "ammonia stable",
+                    "index_after_create": True,
+                },
+            )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "queued"
+    assert payload["task_id"]
+
+
+def test_queue_import_server_file_route_returns_task_payload(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path)
+
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = _override_get_session(session_factory)
+
+    try:
+        with TestClient(main_module.app) as client:
+            response = client.post(
+                "/files/ops/tasks/imports/file",
+                json={
+                    "server_path": "/srv/cloud-vault/imports/file.pdf",
+                    "create_note_after_import": True,
+                },
+            )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "queued"
+
+
+def test_continue_cloud_vault_task_queue_route_accepts_task_type_filter(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path)
+
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = _override_get_session(session_factory)
+
+    try:
+        with TestClient(main_module.app) as client:
+            queued = client.post(
+                "/files/ops/tasks/imports/file",
+                json={"server_path": "/srv/cloud-vault/imports/file.pdf"},
+            )
+            response = client.post(
+                "/files/ops/tasks/continue-queue",
+                json={
+                    "max_tasks": 1,
+                    "task_types": ["import_server_file_to_cloud_vault"],
+                },
+            )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert queued.status_code == 200
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["processed_count"] == 1
+    assert "remaining_count" in payload

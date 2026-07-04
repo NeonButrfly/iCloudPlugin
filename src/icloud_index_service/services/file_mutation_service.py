@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import os
+import re
 from datetime import datetime, timezone
 from enum import Enum
 from hashlib import sha256
 from pathlib import Path
-from shutil import move
+from shutil import copy2, move
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -40,9 +42,13 @@ class FileNamespace(str, Enum):
     GOOGLE2 = "google2"
     ICLOUD = "icloud"
     DOCUMENT_VAULT = "document_vault"
+    LOCAL = "local"
+    UPLOADS = "uploads"
 
 
 MAX_FALLBACK_BATCH_SIZE = 50
+DEFAULT_EXTERNAL_NOTE_FOLDER = "00 Inbox/ChatGPT Imports"
+SAFE_PATH_SEGMENT_RE = re.compile(r"[^A-Za-z0-9._ -]+")
 
 
 def _utc_now() -> datetime:
@@ -52,11 +58,14 @@ def _utc_now() -> datetime:
 def resolve_namespace_root(namespace: FileNamespace) -> Path:
     if namespace == FileNamespace.DOCUMENT_VAULT:
         raw_root = (os.getenv("CLASSIFIER_VAULT_ROOT") or "").strip()
+        return Path(raw_root).resolve()
+
+    mirror_root = Path((os.getenv("ICLOUD_MIRROR_ROOT") or "").strip()).resolve()
+    if namespace in {FileNamespace.LOCAL, FileNamespace.UPLOADS}:
+        return (mirror_root / namespace.value).resolve()
     else:
         mirror_root = Path((os.getenv("ICLOUD_MIRROR_ROOT") or "").strip()).resolve()
         return (mirror_root / namespace.value).resolve()
-
-    return Path(raw_root).resolve()
 
 
 def is_hidden_internal_path(path: Path, *, namespace_root: Path) -> bool:
@@ -89,6 +98,305 @@ def _changes_backup_root(namespace: FileNamespace) -> Path:
 
 def _change_set_metadata_path(namespace: FileNamespace, change_set_id: str) -> Path:
     return _changes_backup_root(namespace) / change_set_id / "change-set.json"
+
+
+def _safe_path_segment(value: str, *, fallback: str) -> str:
+    cleaned = SAFE_PATH_SEGMENT_RE.sub("-", str(value or "").strip())
+    cleaned = cleaned.replace("\\", "-").replace("/", "-").strip(" .-_")
+    return cleaned or fallback
+
+
+def normalize_relative_folder(relative_folder: str | None, *, default_folder: str) -> str:
+    raw_value = str(relative_folder or "").replace("\\", "/").strip()
+    if not raw_value:
+        raw_value = default_folder
+    if not raw_value:
+        return ""
+    parts: list[str] = []
+    for part in raw_value.split("/"):
+        cleaned = part.strip()
+        if not cleaned or cleaned in {".", ".."}:
+            continue
+        parts.append(_safe_path_segment(cleaned, fallback="item"))
+    normalized = "/".join(parts)
+    if not normalized:
+        normalized = default_folder.replace("\\", "/").strip("/")
+    return normalized
+
+
+def _render_frontmatter_value(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _build_note_markdown(
+    *,
+    frontmatter: dict[str, object],
+    body: str,
+    summary: str | None = None,
+) -> str:
+    lines = ["---"]
+    for key, value in frontmatter.items():
+        if value is None:
+            continue
+        lines.append(f"{key}: {_render_frontmatter_value(value)}")
+    lines.append("---")
+    lines.append("")
+    if summary:
+        lines.append(summary.strip())
+        lines.append("")
+    lines.append(body.rstrip())
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _unique_note_path(*, vault_root: Path, relative_folder: str, visible_title: str) -> Path:
+    folder_path = (vault_root / relative_folder).resolve()
+    try:
+        folder_path.relative_to(vault_root.resolve())
+    except ValueError as exc:
+        raise FileMutationPolicyError("Normalized note folder escapes vault root.") from exc
+    folder_path.mkdir(parents=True, exist_ok=True)
+
+    stem = _safe_path_segment(visible_title, fallback="note")
+    candidate = folder_path / f"{stem}.md"
+    suffix = 2
+    while candidate.exists():
+        candidate = folder_path / f"{stem}-{suffix}.md"
+        suffix += 1
+    return candidate
+
+
+def _content_hash_from_text(value: str) -> str:
+    return sha256(value.encode("utf-8")).hexdigest()
+
+
+def _content_hash_from_file(path: Path) -> str:
+    digest = sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _mirror_root() -> Path:
+    mirror_root = Path((os.getenv("ICLOUD_MIRROR_ROOT") or "").strip()).resolve()
+    if not mirror_root.exists() or not mirror_root.is_dir():
+        raise FileMutationPolicyError("ICLOUD_MIRROR_ROOT is not configured as an existing directory.")
+    return mirror_root
+
+
+def _parse_import_roots() -> list[Path]:
+    raw_value = (os.getenv("CLOUD_VAULT_IMPORT_ROOTS") or "").strip()
+    candidates = [item for item in raw_value.split(os.pathsep) if item.strip()]
+    if not candidates:
+        candidates = [
+            "/srv/cloud-vault/imports",
+            "/srv/cloud-vault/dropbox",
+            "/mnt/imports",
+        ]
+    roots: list[Path] = []
+    for item in candidates:
+        path = Path(item.strip()).resolve()
+        if path.exists() and path.is_dir() and path not in roots:
+            roots.append(path)
+    return roots
+
+
+def _validate_allowed_import_path(server_path: str, *, expect_directory: bool) -> Path:
+    candidate = Path(str(server_path or "").strip()).resolve()
+    allowed_roots = _parse_import_roots()
+    if not allowed_roots:
+        raise FileMutationPolicyError("No allowed server import roots are configured.")
+    if not any(candidate == root or root in candidate.parents for root in allowed_roots):
+        raise FileMutationPolicyError("Server import path is outside the allowed import roots.")
+    if expect_directory and not candidate.is_dir():
+        raise FileMutationPolicyError("Server import folder does not exist.")
+    if not expect_directory and not candidate.is_file():
+        raise FileMutationPolicyError("Server import file does not exist.")
+    return candidate
+
+
+def _destination_source_path(
+    *,
+    namespace: FileNamespace,
+    destination_folder: str | None,
+    source_name: str,
+    import_kind: str,
+) -> tuple[Path, str]:
+    if namespace not in {FileNamespace.LOCAL, FileNamespace.UPLOADS}:
+        raise FileMutationPolicyError("Imports currently support only the local and uploads namespaces.")
+    namespace_root = resolve_namespace_root(namespace)
+    namespace_root.mkdir(parents=True, exist_ok=True)
+    now = _utc_now()
+    relative_parts = [import_kind, now.strftime("%Y"), now.strftime("%m")]
+    normalized_folder = normalize_relative_folder(destination_folder, default_folder="").strip("/")
+    if normalized_folder:
+        relative_parts.extend(normalized_folder.split("/"))
+    safe_name = _safe_path_segment(source_name, fallback="import")
+    destination_relative = Path(*relative_parts) / safe_name
+    destination_path = (namespace_root / destination_relative).resolve()
+    try:
+        destination_path.relative_to(namespace_root.resolve())
+    except ValueError as exc:
+        raise FileMutationPolicyError("Resolved import path escapes the namespace root.") from exc
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    suffix = 2
+    while destination_path.exists():
+        stem = Path(safe_name).stem
+        extension = Path(safe_name).suffix
+        destination_path = destination_path.with_name(f"{stem}-{suffix}{extension}")
+        suffix += 1
+    return destination_path, destination_path.relative_to(namespace_root).as_posix()
+
+
+def _upsert_file_record_for_path(
+    session: Session,
+    *,
+    namespace: FileNamespace,
+    relative_path: str,
+    source_path: Path,
+) -> FileRecord:
+    record_path = _file_record_path(namespace, relative_path)
+    file_record = session.scalar(select(FileRecord).where(FileRecord.path == record_path))
+    mime_type, _ = mimetypes.guess_type(source_path.name)
+    stat_result = source_path.stat()
+    external_id = sha256(record_path.encode("utf-8")).hexdigest()
+    if file_record is None:
+        file_record = FileRecord(
+            external_id=external_id,
+            name=source_path.name,
+            path=record_path,
+            mime_type=mime_type or "application/octet-stream",
+            extension=source_path.suffix.lstrip(".").lower() or None,
+            size_bytes=stat_result.st_size,
+            modified_at=datetime.fromtimestamp(stat_result.st_mtime, tz=timezone.utc),
+            is_deleted=False,
+        )
+        session.add(file_record)
+        session.flush()
+        return file_record
+
+    file_record.external_id = external_id
+    file_record.name = source_path.name
+    file_record.mime_type = mime_type or "application/octet-stream"
+    file_record.extension = source_path.suffix.lstrip(".").lower() or None
+    file_record.size_bytes = stat_result.st_size
+    file_record.modified_at = datetime.fromtimestamp(stat_result.st_mtime, tz=timezone.utc)
+    file_record.is_deleted = False
+    session.flush()
+    return file_record
+
+
+def create_document_vault_note_from_external_data(
+    *,
+    visible_title: str,
+    content: str,
+    relative_folder: str | None = None,
+    external_source_name: str | None = None,
+    external_source_type: str = "chatgpt",
+    summary: str | None = None,
+    tags: list[str] | None = None,
+    metadata: dict[str, object] | None = None,
+    actor: str = "chatgpt-plugin",
+    idempotency_key: str | None = None,
+    session: Session | None = None,
+) -> dict[str, object]:
+    vault_root = resolve_namespace_root(FileNamespace.DOCUMENT_VAULT)
+    ensure_vault(vault_root)
+    normalized_folder = normalize_relative_folder(
+        relative_folder,
+        default_folder=DEFAULT_EXTERNAL_NOTE_FOLDER,
+    )
+    note_path = _unique_note_path(
+        vault_root=vault_root,
+        relative_folder=normalized_folder,
+        visible_title=visible_title,
+    )
+    created_at = _utc_now().isoformat()
+    content_hash = _content_hash_from_text(content)
+    note_text = _build_note_markdown(
+        frontmatter={
+            "type": "external-data",
+            "source_type": "external_data",
+            "external_source_type": external_source_type or "other",
+            "external_source_name": external_source_name or "ChatGPT",
+            "created_by": actor,
+            "created_at": created_at,
+            "content_hash": content_hash,
+            "idempotency_key": idempotency_key,
+            "tags": tags or [],
+            "metadata": metadata or {},
+            "last_seen_filename": visible_title,
+        },
+        body=content,
+        summary=summary,
+    )
+    note_path.write_text(note_text, encoding="utf-8")
+    note_record_id = _upsert_document_vault_note_record(
+        session,
+        note_path=note_path,
+        vault_root=vault_root,
+    )
+    change_set_id = uuid4().hex
+    payload = {
+        "change_set_id": change_set_id,
+        "namespace": FileNamespace.DOCUMENT_VAULT.value,
+        "actor": actor,
+        "operation": "create-external-note",
+        "note_path": str(note_path),
+        "result_path": str(note_path),
+        "status": "created",
+    }
+    _write_change_set_metadata(FileNamespace.DOCUMENT_VAULT, change_set_id, payload)
+    _persist_change_set(
+        session,
+        payload=payload,
+        item_type="document_vault_note",
+        document_note_record_id=note_record_id,
+    )
+    if session is not None:
+        session.commit()
+    return {"note_path": str(note_path), "change_set_id": change_set_id, "content_hash": content_hash}
+
+
+def import_server_file_to_cloud_vault(
+    *,
+    server_path: str,
+    destination_folder: str | None = None,
+    namespace: FileNamespace = FileNamespace.UPLOADS,
+    copy_mode: str = "copy",
+    actor: str = "chatgpt-plugin",
+    session: Session,
+) -> dict[str, object]:
+    source_path = _validate_allowed_import_path(server_path, expect_directory=False)
+    destination_path, destination_relative = _destination_source_path(
+        namespace=namespace,
+        destination_folder=destination_folder,
+        source_name=source_path.name,
+        import_kind="server-imports",
+    )
+    if copy_mode == "move":
+        move(str(source_path), str(destination_path))
+    else:
+        copy2(source_path, destination_path)
+    file_record = _upsert_file_record_for_path(
+        session,
+        namespace=namespace,
+        relative_path=destination_relative,
+        source_path=destination_path,
+    )
+    content_hash = _content_hash_from_file(destination_path)
+    session.commit()
+    return {
+        "status": "imported",
+        "actor": actor,
+        "namespace": namespace.value,
+        "file_id": file_record.id,
+        "imported_path": str(destination_path),
+        "relative_path": destination_relative,
+        "original_server_path": str(source_path),
+        "content_hash": content_hash,
+        "copy_mode": copy_mode,
+    }
 
 
 def _write_change_set_metadata(
