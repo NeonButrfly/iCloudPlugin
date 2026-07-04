@@ -1134,6 +1134,10 @@ The local MCP bridge now exposes:
 - `sync_icloud_manual_feedback_events`
 - `analyze_icloud_duplicates`
 
+`create_document_vault_note` now prefers `file_id` so the origin service can
+resolve the canonical source path server-side. `canonical_source_path` remains
+available only as a backward-compatible fallback for older callers.
+
 The backing service now exposes plugin-facing note/source routes:
 
 - `GET /files/{id}/note`

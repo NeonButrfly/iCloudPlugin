@@ -44,7 +44,8 @@ When asking ChatGPT to perform vault work, keep these constraints explicit:
 Read uncategorized files from google1, google2, and icloud, categorize them,
 and create structured Obsidian notes in document_vault. Skip any folders
 starting with _. Do not hard delete anything. Use the categorizer-compatible
-document_vault note format and prefer vault-local attachment links.
+document_vault note format, prefer vault-local attachment links, and pass
+`file_id` when creating notes so source resolution stays server-side.
 ```
 
 ### 2. Re-Read The Obsidian Vault For Feedback

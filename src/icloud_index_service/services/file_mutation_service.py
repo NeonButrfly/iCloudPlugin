@@ -17,6 +17,7 @@ from icloud_index_service.models.change_set import ChangeSet
 from icloud_index_service.models.change_set_item import ChangeSetItem
 from icloud_index_service.models.document_vault_note import DocumentVaultNote
 from icloud_index_service.models.file import FileRecord
+from icloud_index_service.services.file_access_service import resolve_file_source_path
 from icloud_index_service.services.vault_reconciliation import sync_manual_note_feedback
 
 
@@ -552,14 +553,26 @@ def create_document_vault_note(
     relative_folder: str,
     visible_title: str,
     summary: str,
-    canonical_source_path: str,
+    file_id: int | None = None,
+    canonical_source_path: str | None = None,
     attach_originals: bool = True,
     actor: str = "chatgpt-plugin",
     session: Session | None = None,
 ) -> dict[str, object]:
     vault_root = resolve_namespace_root(FileNamespace.DOCUMENT_VAULT)
     ensure_vault(vault_root)
-    source_path = Path(canonical_source_path).resolve()
+    if file_id is not None:
+        if session is None:
+            raise FileMutationPolicyError("file_id-based note creation requires a database session.")
+        # Prefer server-side source lookup so callers do not need to pass sensitive paths.
+        resolved_source_path = resolve_file_source_path(session, file_id=file_id)
+        if resolved_source_path is None:
+            raise FileMutationPolicyError(f"Source file not found for file_id {file_id}.")
+        source_path = resolved_source_path.resolve()
+    elif canonical_source_path:
+        source_path = Path(canonical_source_path).resolve()
+    else:
+        raise FileMutationPolicyError("Either file_id or canonical_source_path is required.")
     folder_parts = [part for part in relative_folder.replace("\\", "/").split("/") if part]
     primary_hint = folder_parts[-1] if folder_parts else "unknown"
     note_path = write_obsidian_note(

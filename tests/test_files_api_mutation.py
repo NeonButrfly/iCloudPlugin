@@ -9,6 +9,7 @@ from icloud_index_service.db import get_session
 from icloud_index_service.models.base import Base
 from icloud_index_service.models.dedupe_group import DedupeGroup
 from icloud_index_service.models.dedupe_group_item import DedupeGroupItem
+from icloud_index_service.models.file import FileRecord
 
 
 def _build_session_factory(tmp_path: Path) -> sessionmaker[Session]:
@@ -27,6 +28,30 @@ def _override_get_session(session_factory: sessionmaker[Session]):
             session.close()
 
     return _dependency
+
+
+def _seed_file_record(
+    session_factory: sessionmaker[Session],
+    *,
+    external_id: str,
+    name: str,
+    path: str,
+    mime_type: str = "text/plain",
+) -> int:
+    session = session_factory()
+    try:
+        file_record = FileRecord(
+            external_id=external_id,
+            name=name,
+            path=path,
+            mime_type=mime_type,
+        )
+        session.add(file_record)
+        session.commit()
+        session.refresh(file_record)
+        return file_record.id
+    finally:
+        session.close()
 
 
 def test_delete_file_route_moves_file_into_changes_backup(tmp_path, monkeypatch):
@@ -95,6 +120,12 @@ def test_create_document_vault_note_route_writes_structured_note(tmp_path, monke
     source_path.parent.mkdir(parents=True, exist_ok=True)
     source_path.write_text("appeal", encoding="utf-8")
     session_factory = _build_session_factory(tmp_path)
+    file_id = _seed_file_record(
+        session_factory,
+        external_id="file-appeal",
+        name="Appeal.txt",
+        path="/google1/Cases/Appeal.txt",
+    )
 
     monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
     monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
@@ -110,7 +141,7 @@ def test_create_document_vault_note_route_writes_structured_note(tmp_path, monke
                     "relative_folder": "01 Classified/appeal",
                     "visible_title": "Appeal",
                     "summary": "Appeal summary.",
-                    "canonical_source_path": str(source_path),
+                    "file_id": file_id,
                     "attach_originals": True,
                 },
             )
@@ -125,6 +156,32 @@ def test_create_document_vault_note_route_writes_structured_note(tmp_path, monke
     note_text = note_path.read_text(encoding="utf-8")
     assert "type: classified-document" in note_text
     assert "## Original File" in note_text
+
+
+def test_create_document_vault_note_route_requires_source_reference(tmp_path, monkeypatch):
+    vault_root = tmp_path / "cloud-vault" / "document-vault"
+    session_factory = _build_session_factory(tmp_path)
+
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = _override_get_session(session_factory)
+
+    try:
+        with TestClient(main_module.app) as client:
+            response = client.post(
+                "/files/ops/document-vault/note",
+                json={
+                    "relative_folder": "01 Classified/appeal",
+                    "visible_title": "Appeal",
+                    "summary": "Appeal summary.",
+                },
+            )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Either file_id or canonical_source_path is required."
 
 
 def test_get_change_set_route_returns_indexed_change_set(tmp_path, monkeypatch):

@@ -43,3 +43,18 @@ def test_create_document_vault_note_prefers_vault_local_attachment_link(monkeypa
 
     note_text = Path(result["note_path"]).read_text(encoding="utf-8")
     assert "[[90 Attachments/" in note_text
+
+
+def test_create_document_vault_note_requires_source_reference(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(tmp_path / "document-vault"))
+
+    try:
+        create_document_vault_note(
+            relative_folder="01 Classified/appeal",
+            visible_title="Appeal",
+            summary="Appeal summary.",
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "Either file_id or canonical_source_path is required."
+    else:
+        raise AssertionError("Expected create_document_vault_note to reject missing source reference.")

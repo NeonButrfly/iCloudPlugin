@@ -150,19 +150,26 @@ class ICloudIndexServiceClient:
         relative_folder: str,
         visible_title: str,
         summary: str,
-        canonical_source_path: str,
+        file_id: int | None = None,
+        canonical_source_path: str | None = None,
         attach_originals: bool = True,
     ) -> dict[str, Any]:
+        if file_id is None and not canonical_source_path:
+            raise ValueError("Either file_id or canonical_source_path is required.")
+        json_body: dict[str, Any] = {
+            "relative_folder": relative_folder,
+            "visible_title": visible_title,
+            "summary": summary,
+            "attach_originals": attach_originals,
+        }
+        if file_id is not None:
+            json_body["file_id"] = file_id
+        if canonical_source_path:
+            json_body["canonical_source_path"] = canonical_source_path
         return self._request(
             "POST",
             "/files/ops/document-vault/note",
-            json_body={
-                "relative_folder": relative_folder,
-                "visible_title": visible_title,
-                "summary": summary,
-                "canonical_source_path": canonical_source_path,
-                "attach_originals": attach_originals,
-            },
+            json_body=json_body,
         )
 
     def delete_file(self, *, namespace: str, relative_path: str) -> dict[str, Any]:

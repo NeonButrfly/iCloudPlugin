@@ -461,7 +461,7 @@ def test_create_document_vault_note_posts_to_origin_endpoint():
             relative_folder="01 Classified/appeal",
             visible_title="Appeal",
             summary="Appeal summary.",
-            canonical_source_path="/mnt/cloud-vault/mirrors/google1/Appeal.docx",
+            file_id=7,
         )
     finally:
         client.close()
@@ -471,6 +471,7 @@ def test_create_document_vault_note_posts_to_origin_endpoint():
     assert captured_request.method == "POST"
     assert str(captured_request.url) == "http://service.test/files/ops/document-vault/note"
     assert captured_request.read().decode("utf-8").find('"visible_title":"Appeal"') != -1
+    assert captured_request.read().decode("utf-8").find('"file_id":7') != -1
 
 
 def test_delete_file_posts_to_delete_endpoint():

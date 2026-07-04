@@ -49,6 +49,15 @@ FileId = Annotated[
     Field(ge=1, description="Numeric file identifier returned by the iCloud index service."),
 ]
 
+OptionalFileId = Annotated[
+    int | None,
+    Field(
+        default=None,
+        ge=1,
+        description="Optional numeric file identifier used to resolve the source file server-side.",
+    ),
+]
+
 ExcerptMaxChars = Annotated[
     int,
     Field(
@@ -111,6 +120,15 @@ CanonicalSourcePath = Annotated[
     Field(
         min_length=1,
         description="Canonical source file path associated with the structured Obsidian note.",
+    ),
+]
+
+OptionalCanonicalSourcePath = Annotated[
+    str | None,
+    Field(
+        default=None,
+        min_length=1,
+        description="Optional canonical source file path retained for backward-compatible note creation calls.",
     ),
 ]
 

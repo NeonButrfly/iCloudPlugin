@@ -49,7 +49,8 @@ class CreateDocumentVaultNoteRequest(BaseModel):
     relative_folder: str
     visible_title: str
     summary: str
-    canonical_source_path: str
+    file_id: int | None = None
+    canonical_source_path: str | None = None
     attach_originals: bool = True
 
 
@@ -237,11 +238,17 @@ def create_document_vault_note_route(
     payload: CreateDocumentVaultNoteRequest,
     session: Session = Depends(_get_files_session),
 ) -> dict[str, object]:
+    if payload.file_id is None and not payload.canonical_source_path:
+        raise HTTPException(
+            status_code=400,
+            detail="Either file_id or canonical_source_path is required.",
+        )
     try:
         return create_document_vault_note(
             relative_folder=payload.relative_folder,
             visible_title=payload.visible_title,
             summary=payload.summary,
+            file_id=payload.file_id,
             canonical_source_path=payload.canonical_source_path,
             attach_originals=payload.attach_originals,
             actor="plugin-api",

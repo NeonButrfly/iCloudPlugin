@@ -666,29 +666,42 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
         relative_folder: { type: "string", minLength: 1 },
         visible_title: { type: "string", minLength: 1 },
         summary: { type: "string", minLength: 1 },
+        file_id: { type: "integer", minimum: 1 },
         canonical_source_path: { type: "string", minLength: 1 },
         attach_originals: { type: "boolean" },
       },
-      required: ["relative_folder", "visible_title", "summary", "canonical_source_path"],
       additionalProperties: false,
     },
     annotations: WRITE_ANNOTATIONS,
     outputSchema: GENERIC_OBJECT_SCHEMA,
-    handler: async ({ env }, args) =>
-      fetchOriginJson(env, "/files/ops/document-vault/note", {
+    handler: async ({ env }, args) => {
+      const body: Record<string, unknown> = {
+        relative_folder: readString(args.relative_folder, "relative_folder"),
+        visible_title: readString(args.visible_title, "visible_title"),
+        summary: readString(args.summary, "summary"),
+        attach_originals:
+          typeof args.attach_originals === "undefined"
+            ? true
+            : readBoolean(args.attach_originals, "attach_originals"),
+      };
+      if (typeof args.file_id !== "undefined") {
+        body.file_id = readPositiveInt(args.file_id, "file_id");
+      }
+      if (typeof args.canonical_source_path !== "undefined") {
+        body.canonical_source_path = readString(
+          args.canonical_source_path,
+          "canonical_source_path",
+        );
+      }
+      if (typeof body.file_id === "undefined" && typeof body.canonical_source_path === "undefined") {
+        throw new Error("Either file_id or canonical_source_path is required.");
+      }
+      return fetchOriginJson(env, "/files/ops/document-vault/note", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          relative_folder: readString(args.relative_folder, "relative_folder"),
-          visible_title: readString(args.visible_title, "visible_title"),
-          summary: readString(args.summary, "summary"),
-          canonical_source_path: readString(args.canonical_source_path, "canonical_source_path"),
-          attach_originals:
-            typeof args.attach_originals === "undefined"
-              ? true
-              : readBoolean(args.attach_originals, "attach_originals"),
-        }),
-      }),
+        body: JSON.stringify(body),
+      });
+    },
   },
   {
     name: "delete_icloud_file",
