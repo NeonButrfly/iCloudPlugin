@@ -1486,6 +1486,30 @@ That flow pushes `ORIGIN_BASE_URL`, `ORIGIN_API_TOKEN`, and optional
 `WORKER_API_TOKEN` into Worker secrets before the deploy, instead of requiring
 separate manual `wrangler secret put` steps.
 
+Issue [#89](https://github.com/NeonButrfly/iCloudPlugin/issues/89) had one
+important follow-up reconciliation on 2026-07-03/2026-07-04 AKDT:
+
+- the hosted Worker secret `ORIGIN_API_TOKEN` had drifted and caused hosted MCP
+  origin-backed tool calls to fail with
+  `401 Invalid or missing bearer token`
+- the host file `/opt/iCloudPlugin/deploy/roles/cloudsync/.env.live` was also
+  stale for `PLUGIN_API_TOKEN`
+- the active source of truth was the running `cloudsync-service-1` container
+  env on `tichuml1`
+- after updating the Worker secret to match the live container token, hosted MCP
+  `get_icloud_system_status` succeeded again
+- the host env file was then reconciled to the same active token, with backup
+  written to:
+  - `/opt/iCloudPlugin/deploy/roles/cloudsync/.env.live.bak-20260704T0407Z`
+
+When reconciling this path in the future, prefer this order:
+
+1. Verify the active token from the running cloudsync service container.
+2. Verify local origin auth on `http://127.0.0.1:8080/status/summary`.
+3. Update the hosted Worker `ORIGIN_API_TOKEN` only if it no longer matches.
+4. Reconcile `/opt/iCloudPlugin/deploy/roles/cloudsync/.env.live` to the same
+   active token so deploy/operator workflows do not drift back to stale state.
+
 When you want a local deploy-shaped check without touching the hosted Worker,
 the preferred local verification path is:
 

@@ -951,6 +951,21 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     `auth_and_deployment_story_is_real` can report `met` from the origin
     service container without needing the GitHub-hosted Cloudflare deploy
     credentials inside that runtime
+  - follow-up reconciliation on 2026-07-03/2026-07-04 AKDT for issue
+    [#89](https://github.com/NeonButrfly/iCloudPlugin/issues/89):
+    - the hosted Worker had drifted to a stale `ORIGIN_API_TOKEN` and returned
+      `401 Invalid or missing bearer token` on origin-backed MCP calls
+    - the checked host file
+      `/opt/iCloudPlugin/deploy/roles/cloudsync/.env.live` was also stale for
+      `PLUGIN_API_TOKEN`
+    - the active token source of truth was the running
+      `cloudsync-service-1` container env on `tichuml1`
+    - the Worker secret was updated to that active token and hosted MCP was
+      reproven live
+    - the host env file was then reconciled to the same active token and now
+      again succeeds against local `http://127.0.0.1:8080/status/summary`
+    - backup of the stale host file was written to:
+      `/opt/iCloudPlugin/deploy/roles/cloudsync/.env.live.bak-20260704T0407Z`
 
 ## Optional Follow-Ups
 
