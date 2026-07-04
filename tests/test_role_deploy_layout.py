@@ -382,6 +382,26 @@ def test_cloudsync_role_compose_targets_sync_side_services_only():
     assert "classifier-api" not in services
 
 
+def test_cloudsync_role_service_mount_is_writable_for_document_vault_mutations():
+    repo_root = Path(__file__).resolve().parents[1]
+    role_compose = repo_root / "deploy" / "roles" / "cloudsync" / "docker-compose.yml"
+    compose_text = role_compose.read_text(encoding="utf-8")
+
+    assert '${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}:/srv/cloud-vault\n' in compose_text
+    assert '${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}:/srv/cloud-vault:ro' in compose_text
+
+
+def test_root_and_combined_service_mounts_are_writable_for_document_vault_mutations():
+    repo_root = Path(__file__).resolve().parents[1]
+    root_compose = (repo_root / "docker-compose.yml").read_text(encoding="utf-8")
+    combined_compose = (
+        repo_root / "deploy" / "roles" / "combined" / "docker-compose.yml"
+    ).read_text(encoding="utf-8")
+
+    assert '${ICLOUD_MIRROR_MOUNT_SOURCE:-/srv/cloud-vault}:/srv/cloud-vault\n' in root_compose
+    assert '${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}:/srv/cloud-vault\n' in combined_compose
+
+
 def test_classifier_role_compose_targets_classifier_side_services_only():
     repo_root = Path(__file__).resolve().parents[1]
     role_compose = repo_root / "deploy" / "roles" / "classifier" / "docker-compose.yml"

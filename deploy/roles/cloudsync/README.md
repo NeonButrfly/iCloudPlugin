@@ -64,6 +64,10 @@ For the preferred clean split-host deployment on `tichuml1`:
 - set `ICLOUD_MIRROR_MOUNT_SOURCE=/mnt/cloud-vault`
 - leave `ICLOUD_MIRROR_ROOT=/srv/cloud-vault/mirrors` so the container path
   stays stable
+- keep the `service` container bind for `/srv/cloud-vault` writable, not
+  `:ro`, because the origin API now owns live `document-vault` note writes such
+  as `POST /files/ops/document-vault/note`; the background `worker` can remain
+  read-only
 - keep `CLASSIFIER_API_URL=http://192.168.50.196:4319`
 - set `CLASSIFIER_API_TOKEN` to the same live classifier API token used by the
   classifier role; real-folder submission will fail fast if it is blank while
