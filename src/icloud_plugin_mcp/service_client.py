@@ -132,8 +132,88 @@ class ICloudIndexServiceClient:
             json_body={"namespaces": namespaces, "limit": limit},
         )
 
+    def start_dedupe_job(
+        self,
+        *,
+        namespaces: list[str] | None = None,
+        path_scope: str | None = None,
+        strategy: str = "exact_hash",
+        chunk_size: int | None = None,
+        max_groups: int | None = None,
+        dry_run: bool = True,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "strategy": strategy,
+            "dry_run": dry_run,
+        }
+        if namespaces is not None:
+            body["namespaces"] = namespaces
+        if path_scope:
+            body["path_scope"] = path_scope
+        if chunk_size is not None:
+            body["chunk_size"] = chunk_size
+        if max_groups is not None:
+            body["max_groups"] = max_groups
+        return self._request("POST", "/files/ops/dedupe/jobs/start", json_body=body)
+
+    def continue_dedupe_job(
+        self,
+        *,
+        job_id: str,
+        max_runtime_seconds: int | None = None,
+        chunk_size: int | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {"job_id": job_id}
+        if max_runtime_seconds is not None:
+            body["max_runtime_seconds"] = max_runtime_seconds
+        if chunk_size is not None:
+            body["chunk_size"] = chunk_size
+        return self._request("POST", "/files/ops/dedupe/jobs/continue", json_body=body)
+
+    def get_dedupe_job_status(self, *, job_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/files/ops/dedupe/jobs/{job_id}")
+
+    def list_dedupe_groups(
+        self,
+        *,
+        job_id: str | None = None,
+        limit: int = 25,
+        offset: int = 0,
+        strategy: str | None = None,
+        min_group_size: int = 2,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "limit": limit,
+            "offset": offset,
+            "min_group_size": min_group_size,
+        }
+        if job_id:
+            body["job_id"] = job_id
+        if strategy:
+            body["strategy"] = strategy
+        return self._request("POST", "/files/ops/dedupe/groups/list", json_body=body)
+
     def get_dedupe_group(self, *, dedupe_group_id: str) -> dict[str, Any]:
         return self._request("GET", f"/files/ops/dedupe/groups/{dedupe_group_id}")
+
+    def apply_dedupe_group(
+        self,
+        *,
+        dedupe_group_id: str,
+        keep_file_id: int,
+        move_to_backup_file_ids: list[int],
+        dry_run: bool = True,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/files/ops/dedupe/groups/apply",
+            json_body={
+                "dedupe_group_id": dedupe_group_id,
+                "keep_file_id": keep_file_id,
+                "move_to_backup_file_ids": move_to_backup_file_ids,
+                "dry_run": dry_run,
+            },
+        )
 
     def refresh_index(self) -> dict[str, Any]:
         return self._request("POST", "/refresh")

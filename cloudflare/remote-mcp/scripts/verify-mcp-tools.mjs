@@ -13,6 +13,8 @@ export const DEFAULT_EXPECTED_TOOLS = [
   "get_icloud_system_status",
   "get_icloud_product_readiness",
   "get_icloud_change_set",
+  "get_icloud_dedupe_job_status",
+  "list_icloud_dedupe_groups",
   "get_icloud_dedupe_group",
   "get_icloud_file",
   "get_icloud_file_excerpt",
@@ -30,6 +32,9 @@ export const DEFAULT_EXPECTED_TOOLS = [
   "restore_icloud_change_set",
   "sync_icloud_manual_feedback_events",
   "analyze_icloud_duplicates",
+  "start_icloud_dedupe_job",
+  "continue_icloud_dedupe_job",
+  "apply_icloud_dedupe_group",
 ];
 export const DEFAULT_ACCESS_HEADER_MAP = {
   "CF-Access-Client-Id": "CF_ACCESS_CLIENT_ID",

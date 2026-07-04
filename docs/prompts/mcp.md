@@ -1,3 +1,32 @@
+## 2026-07-04 - Replace synchronous duplicate scans with resumable MCP jobs
+
+- Source prompt: "The MCP tool `analyze_icloud_duplicates` is unusable for
+  large vaults" followed by the requirement to "Implement a chunked, resumable,
+  job-based dedupe workflow."
+- Interpreted requirement: stop doing full-vault duplicate analysis inline from
+  MCP/Cloudflare requests and replace it with a persisted dedupe-job flow that
+  can be started, continued in bounded chunks, inspected, and only later
+  applied through an explicit reversible move-to-backup step.
+- Tracking issue: [#93](https://github.com/NeonButrfly/iCloudPlugin/issues/93)
+- Product requirements:
+  - add MCP tools:
+    - `start_icloud_dedupe_job`
+    - `continue_icloud_dedupe_job`
+    - `get_icloud_dedupe_job_status`
+    - `list_icloud_dedupe_groups`
+    - `apply_icloud_dedupe_group`
+  - keep and improve `get_icloud_dedupe_group`
+  - make `analyze_icloud_duplicates` non-blocking by turning it into a
+    compatibility job starter instead of a synchronous scan
+  - apply namespace and `path_scope` filtering before expensive work
+  - keep dedupe analysis proposal-only until an explicit reviewed apply call
+- Safety constraints:
+  - do not delete files automatically
+  - analysis must not move files
+  - apply must default to `dry_run=true`
+  - moved duplicates must go to namespace-specific `_CHANGES_BACKUP`
+  - all non-dry-run apply operations must produce reversible change sets
+
 ## 2026-07-03 - Keep ChatGPT note writing primary and classifier fallback explicit
 
 - Source prompt: "Do not make the local classifier the primary path." followed

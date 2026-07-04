@@ -13,6 +13,8 @@ from .tool_schemas import (
     DEFAULT_NOTE_MAX_CHARS,
     DEFAULT_SEARCH_LIMIT,
     ChangeSetId,
+    DedupeJobId,
+    DedupeStrategy,
     DedupeGroupId,
     ExcerptMaxChars,
     FallbackReason,
@@ -172,6 +174,32 @@ def get_icloud_dedupe_group(dedupe_group_id: DedupeGroupId) -> dict[str, Any]:
         return client.get_dedupe_group(dedupe_group_id=dedupe_group_id)
 
 
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
+def get_icloud_dedupe_job_status(job_id: DedupeJobId) -> dict[str, Any]:
+    """Return persisted status and progress for a dedupe job."""
+    with build_service_client_from_env() as client:
+        return client.get_dedupe_job_status(job_id=job_id)
+
+
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
+def list_icloud_dedupe_groups(
+    job_id: DedupeJobId | None = None,
+    limit: WorkflowLimit = 25,
+    offset: int = 0,
+    strategy: DedupeStrategy | None = None,
+    min_group_size: int = 2,
+) -> dict[str, Any]:
+    """Page duplicate-group proposals produced by the resumable dedupe workflow."""
+    with build_service_client_from_env() as client:
+        return client.list_dedupe_groups(
+            job_id=job_id,
+            limit=limit,
+            offset=offset,
+            strategy=strategy,
+            min_group_size=min_group_size,
+        )
+
+
 @mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
 def refresh_icloud_index() -> dict[str, Any]:
     """Queue an iCloud Drive metadata refresh on the backing service."""
@@ -320,9 +348,62 @@ def analyze_icloud_duplicates(
     namespaces: NamespaceList,
     limit: WorkflowLimit = 25,
 ) -> dict[str, Any]:
-    """Analyze live mirrored files for duplicate candidates and persist indexed duplicate-group proposals."""
+    """Deprecated synchronous dedupe entrypoint that now creates a resumable dedupe job instead."""
     with build_service_client_from_env() as client:
         return client.analyze_duplicate_groups(namespaces=namespaces, limit=limit)
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def start_icloud_dedupe_job(
+    namespaces: NamespaceList | None = None,
+    path_scope: OptionalText = None,
+    strategy: DedupeStrategy = "exact_hash",
+    chunk_size: WorkflowLimit = 25,
+    max_groups: WorkflowLimit = 25,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Create a resumable dedupe job that returns quickly without scanning the whole vault inline."""
+    with build_service_client_from_env() as client:
+        return client.start_dedupe_job(
+            namespaces=namespaces,
+            path_scope=path_scope,
+            strategy=strategy,
+            chunk_size=chunk_size,
+            max_groups=max_groups,
+            dry_run=dry_run,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def continue_icloud_dedupe_job(
+    job_id: DedupeJobId,
+    max_runtime_seconds: int = 15,
+    chunk_size: WorkflowLimit = 25,
+) -> dict[str, Any]:
+    """Continue a dedupe job in bounded chunks so MCP callers can avoid request timeouts."""
+    with build_service_client_from_env() as client:
+        return client.continue_dedupe_job(
+            job_id=job_id,
+            max_runtime_seconds=max_runtime_seconds,
+            chunk_size=chunk_size,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def apply_icloud_dedupe_group(
+    dedupe_group_id: DedupeGroupId,
+    keep_file_id: FileId,
+    move_to_backup_file_ids: FileIdList,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """Apply a reviewed dedupe proposal by moving chosen duplicates into _CHANGES_BACKUP with a reversible change set."""
+    with build_service_client_from_env() as client:
+        return client.apply_dedupe_group(
+            dedupe_group_id=dedupe_group_id,
+            keep_file_id=keep_file_id,
+            move_to_backup_file_ids=move_to_backup_file_ids,
+            dry_run=dry_run,
+        )
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

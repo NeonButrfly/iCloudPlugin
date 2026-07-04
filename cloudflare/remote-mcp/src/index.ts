@@ -178,6 +178,13 @@ function readStringArray(
   return output;
 }
 
+function readIntArray(value: unknown, field: string): number[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`Invalid ${field}; expected a non-empty array.`);
+  }
+  return value.map((entry) => readPositiveInt(entry, field));
+}
+
 async function sha256Bytes(value: string): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
 }
@@ -605,6 +612,57 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       fetchOriginJson(env, `/files/ops/change-sets/${encodeURIComponent(readString(args.change_set_id, "change_set_id"))}`),
   },
   {
+    name: "get_icloud_dedupe_job_status",
+    description: "Get persisted status and progress for a resumable dedupe job.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        job_id: { type: "string", minLength: 1 },
+      },
+      required: ["job_id"],
+      additionalProperties: false,
+    },
+    annotations: READ_ONLY_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, `/files/ops/dedupe/jobs/${encodeURIComponent(readString(args.job_id, "job_id"))}`),
+  },
+  {
+    name: "list_icloud_dedupe_groups",
+    description: "Page duplicate-group proposals produced by a resumable dedupe job.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        job_id: { type: "string", minLength: 1 },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+        offset: { type: "integer", minimum: 0, maximum: 100000 },
+        strategy: {
+          type: "string",
+          enum: ["exact_hash", "normalized_name_size", "content_hash", "all"],
+        },
+        min_group_size: { type: "integer", minimum: 2, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
+    annotations: READ_ONLY_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/dedupe/groups/list", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...(typeof args.job_id === "undefined" ? {} : { job_id: readString(args.job_id, "job_id") }),
+          limit: readOptionalBoundedInt(args.limit, "limit", 1, 200) ?? 25,
+          offset: readOptionalBoundedInt(args.offset, "offset", 0, 100000) ?? 0,
+          ...(typeof args.strategy === "undefined"
+            ? {}
+            : { strategy: readString(args.strategy, "strategy") }),
+          min_group_size:
+            readOptionalBoundedInt(args.min_group_size, "min_group_size", 2, 200) ?? 2,
+        }),
+      }),
+  },
+  {
     name: "get_icloud_dedupe_group",
     description: "Get indexed metadata and member items for a duplicate-group proposal.",
     inputSchema: {
@@ -619,6 +677,96 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     outputSchema: GENERIC_OBJECT_SCHEMA,
     handler: async ({ env }, args) =>
       fetchOriginJson(env, `/files/ops/dedupe/groups/${encodeURIComponent(readString(args.dedupe_group_id, "dedupe_group_id"))}`),
+  },
+  {
+    name: "start_icloud_dedupe_job",
+    description:
+      "Create a resumable dedupe job that returns quickly without scanning the whole vault inline.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        namespaces: {
+          type: "array",
+          items: { type: "string", enum: ["google1", "google2", "icloud", "document_vault"] },
+          minItems: 1,
+        },
+        path_scope: { type: "string", minLength: 1 },
+        strategy: {
+          type: "string",
+          enum: ["exact_hash", "normalized_name_size", "content_hash", "all"],
+        },
+        chunk_size: { type: "integer", minimum: 1, maximum: 200 },
+        max_groups: { type: "integer", minimum: 1, maximum: 200 },
+        dry_run: { type: "boolean" },
+      },
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/dedupe/jobs/start", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...(typeof args.namespaces === "undefined"
+            ? {}
+            : {
+                namespaces: readStringArray(args.namespaces, "namespaces", [
+                  "google1",
+                  "google2",
+                  "icloud",
+                  "document_vault",
+                ]),
+              }),
+          ...(typeof args.path_scope === "undefined"
+            ? {}
+            : { path_scope: readString(args.path_scope, "path_scope") }),
+          strategy:
+            typeof args.strategy === "undefined"
+              ? "exact_hash"
+              : readString(args.strategy, "strategy"),
+          ...(typeof args.chunk_size === "undefined"
+            ? {}
+            : { chunk_size: readPositiveInt(args.chunk_size, "chunk_size") }),
+          ...(typeof args.max_groups === "undefined"
+            ? {}
+            : { max_groups: readPositiveInt(args.max_groups, "max_groups") }),
+          dry_run:
+            typeof args.dry_run === "undefined"
+              ? true
+              : readBoolean(args.dry_run, "dry_run"),
+        }),
+      }),
+  },
+  {
+    name: "continue_icloud_dedupe_job",
+    description: "Continue a resumable dedupe job in bounded chunks to avoid request timeouts.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        job_id: { type: "string", minLength: 1 },
+        max_runtime_seconds: { type: "integer", minimum: 1, maximum: 120 },
+        chunk_size: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      required: ["job_id"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/dedupe/jobs/continue", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          job_id: readString(args.job_id, "job_id"),
+          ...(typeof args.max_runtime_seconds === "undefined"
+            ? {}
+            : { max_runtime_seconds: readPositiveInt(args.max_runtime_seconds, "max_runtime_seconds") }),
+          ...(typeof args.chunk_size === "undefined"
+            ? {}
+            : { chunk_size: readPositiveInt(args.chunk_size, "chunk_size") }),
+        }),
+      }),
   },
   {
     name: "refresh_icloud_index",
@@ -980,7 +1128,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: "analyze_icloud_duplicates",
     description:
-      "Analyze live mirrored files for duplicate candidates and persist indexed duplicate-group proposals.",
+      "Deprecated synchronous dedupe entrypoint that now starts a resumable dedupe job instead of scanning inline.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1003,6 +1151,42 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
         body: JSON.stringify({
           namespaces: readStringArray(args.namespaces, "namespaces", ["google1", "google2", "icloud"]),
           limit: readOptionalBoundedInt(args.limit, "limit", 1, 200) ?? 25,
+        }),
+      }),
+  },
+  {
+    name: "apply_icloud_dedupe_group",
+    description:
+      "Apply a reviewed high-confidence dedupe proposal by moving selected duplicates into _CHANGES_BACKUP with a reversible change set.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        dedupe_group_id: { type: "string", minLength: 1 },
+        keep_file_id: { type: "integer", minimum: 1 },
+        move_to_backup_file_ids: {
+          type: "array",
+          minItems: 1,
+          items: { type: "integer", minimum: 1 },
+        },
+        dry_run: { type: "boolean" },
+      },
+      required: ["dedupe_group_id", "keep_file_id", "move_to_backup_file_ids"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/dedupe/groups/apply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          dedupe_group_id: readString(args.dedupe_group_id, "dedupe_group_id"),
+          keep_file_id: readPositiveInt(args.keep_file_id, "keep_file_id"),
+          move_to_backup_file_ids: readIntArray(args.move_to_backup_file_ids, "move_to_backup_file_ids"),
+          dry_run:
+            typeof args.dry_run === "undefined"
+              ? true
+              : readBoolean(args.dry_run, "dry_run"),
         }),
       }),
   },

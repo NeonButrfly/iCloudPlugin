@@ -120,12 +120,59 @@ describe("remote MCP worker end-to-end", () => {
           );
         }
 
+        if (url.pathname === "/files/ops/dedupe/jobs/job123") {
+          return new Response(
+            JSON.stringify({
+              job_id: "job123",
+              status: "running",
+              namespaces: ["google1", "google2", "icloud"],
+              strategy: "exact_hash",
+              processed_count: 10,
+              remaining_count: 25,
+              groups_found: 1,
+              started_at: "2026-07-04T00:00:00+00:00",
+              updated_at: "2026-07-04T00:01:00+00:00",
+              completed_at: null,
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        if (url.pathname === "/files/ops/dedupe/groups/list") {
+          return new Response(
+            JSON.stringify({
+              groups: [
+                {
+                  dedupe_group_id: "dup123",
+                  strategy: "exact_hash",
+                  member_count: 2,
+                  total_size: 20,
+                  recommended_keep_file_id: 1,
+                  confidence: 0.99,
+                  reason: "Exact byte hash and size match across 2 files.",
+                },
+              ],
+              count: 1,
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
         if (url.pathname === "/files/ops/dedupe/groups/dup123") {
           return new Response(
             JSON.stringify({
               dedupe_group_id: "dup123",
-              status: "candidate",
-              items: [{ path_at_analysis_time: "/google1/A.txt", decision_role: "canonical" }],
+              strategy: "exact_hash",
+              confidence: 0.99,
+              reason: "Exact byte hash and size match across 2 files.",
+              recommended_keep_file_id: 1,
+              members: [{ relative_path: "A.txt", recommended_action: "keep" }],
             }),
             {
               status: 200,
@@ -218,16 +265,56 @@ describe("remote MCP worker end-to-end", () => {
         if (url.pathname === "/files/ops/dedupe/analyze") {
           return new Response(
             JSON.stringify({
-              created_groups: ["dup123"],
-              groups: [
-                {
-                  dedupe_group_id: "dup123",
-                  status: "candidate",
-                  canonical_item_path: "/google1/A.txt",
-                  duplicate_count: 1,
-                  members: ["/google1/A.txt", "/google2/A.txt"],
-                },
-              ],
+              job_id: "job123",
+              status: "queued",
+              queued_count: 25,
+              deprecated: true,
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        if (url.pathname === "/files/ops/dedupe/jobs/start") {
+          return new Response(
+            JSON.stringify({
+              job_id: "job123",
+              status: "queued",
+              queued_count: 25,
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        if (url.pathname === "/files/ops/dedupe/jobs/continue") {
+          return new Response(
+            JSON.stringify({
+              job_id: "job123",
+              status: "running",
+              processed_count: 10,
+              remaining_count: 15,
+              groups_found: 1,
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+
+        if (url.pathname === "/files/ops/dedupe/groups/apply") {
+          return new Response(
+            JSON.stringify({
+              status: "dry_run",
+              change_set_id: "cs123",
+              kept_file_id: 1,
+              moved_to_backup: [],
+              dry_run: true,
             }),
             {
               status: 200,
@@ -269,6 +356,8 @@ describe("remote MCP worker end-to-end", () => {
     expect(toolNames).toContain("get_icloud_system_status");
     expect(toolNames).toContain("get_icloud_product_readiness");
     expect(toolNames).toContain("get_icloud_change_set");
+    expect(toolNames).toContain("get_icloud_dedupe_job_status");
+    expect(toolNames).toContain("list_icloud_dedupe_groups");
     expect(toolNames).toContain("get_icloud_dedupe_group");
     expect(toolNames).toContain("search_icloud_notes_and_files");
     expect(toolNames).toContain("create_document_vault_note");
@@ -279,6 +368,9 @@ describe("remote MCP worker end-to-end", () => {
     expect(toolNames).toContain("restore_icloud_change_set");
     expect(toolNames).toContain("sync_icloud_manual_feedback_events");
     expect(toolNames).toContain("analyze_icloud_duplicates");
+    expect(toolNames).toContain("start_icloud_dedupe_job");
+    expect(toolNames).toContain("continue_icloud_dedupe_job");
+    expect(toolNames).toContain("apply_icloud_dedupe_group");
 
     const readOnlyTool = toolList.tools.find((tool) => tool.name === "get_icloud_system_status");
     expect(readOnlyTool?.outputSchema).toBeDefined();
@@ -514,7 +606,31 @@ describe("remote MCP worker end-to-end", () => {
     expect(dedupeRead.isError).not.toBe(true);
     expect(dedupeRead.structuredContent).toMatchObject({
       dedupe_group_id: "dup123",
-      status: "candidate",
+      strategy: "exact_hash",
+    });
+
+    const dedupeStatus = await connectedClient.callTool({
+      name: "get_icloud_dedupe_job_status",
+      arguments: {
+        job_id: "job123",
+      },
+    });
+    expect(dedupeStatus.isError).not.toBe(true);
+    expect(dedupeStatus.structuredContent).toMatchObject({
+      job_id: "job123",
+      status: "running",
+    });
+
+    const dedupeList = await connectedClient.callTool({
+      name: "list_icloud_dedupe_groups",
+      arguments: {
+        job_id: "job123",
+        limit: 10,
+      },
+    });
+    expect(dedupeList.isError).not.toBe(true);
+    expect(dedupeList.structuredContent).toMatchObject({
+      count: 1,
     });
 
     const feedbackSync = await connectedClient.callTool({
@@ -538,7 +654,50 @@ describe("remote MCP worker end-to-end", () => {
     });
     expect(dedupeAnalyze.isError).not.toBe(true);
     expect(dedupeAnalyze.structuredContent).toMatchObject({
-      created_groups: ["dup123"],
+      job_id: "job123",
+      deprecated: true,
+    });
+
+    const dedupeStart = await connectedClient.callTool({
+      name: "start_icloud_dedupe_job",
+      arguments: {
+        namespaces: ["google1", "google2", "icloud"],
+        strategy: "exact_hash",
+        dry_run: true,
+      },
+    });
+    expect(dedupeStart.isError).not.toBe(true);
+    expect(dedupeStart.structuredContent).toMatchObject({
+      job_id: "job123",
+      status: "queued",
+    });
+
+    const dedupeContinue = await connectedClient.callTool({
+      name: "continue_icloud_dedupe_job",
+      arguments: {
+        job_id: "job123",
+        max_runtime_seconds: 20,
+      },
+    });
+    expect(dedupeContinue.isError).not.toBe(true);
+    expect(dedupeContinue.structuredContent).toMatchObject({
+      status: "running",
+      groups_found: 1,
+    });
+
+    const dedupeApply = await connectedClient.callTool({
+      name: "apply_icloud_dedupe_group",
+      arguments: {
+        dedupe_group_id: "dup123",
+        keep_file_id: 1,
+        move_to_backup_file_ids: [2],
+        dry_run: true,
+      },
+    });
+    expect(dedupeApply.isError).not.toBe(true);
+    expect(dedupeApply.structuredContent).toMatchObject({
+      change_set_id: "cs123",
+      status: "dry_run",
     });
   });
 

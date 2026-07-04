@@ -23,10 +23,15 @@ REQUIRED_REMOTE_MCP_TOOLS = (
     "create_document_vault_note",
     "delete_icloud_file",
     "get_icloud_change_set",
+    "get_icloud_dedupe_job_status",
+    "list_icloud_dedupe_groups",
     "get_icloud_dedupe_group",
     "restore_icloud_change_set",
     "sync_icloud_manual_feedback_events",
     "analyze_icloud_duplicates",
+    "start_icloud_dedupe_job",
+    "continue_icloud_dedupe_job",
+    "apply_icloud_dedupe_group",
 )
 
 DEFAULT_REPO_ROOT = Path(__file__).resolve().parents[3]

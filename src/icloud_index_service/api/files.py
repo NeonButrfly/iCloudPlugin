@@ -27,9 +27,16 @@ from icloud_index_service.services.file_mutation_service import (
     restore_change_set,
     search_files_and_create_document_vault_notes_fallback,
 )
-from icloud_index_service.services.workflow_index_service import (
+from icloud_index_service.services.dedupe_workflow_service import (
+    apply_dedupe_group,
     analyze_duplicate_groups,
+    continue_dedupe_job,
+    get_dedupe_job_status,
     get_dedupe_group,
+    list_dedupe_groups,
+    start_dedupe_job,
+)
+from icloud_index_service.services.workflow_index_service import (
     sync_manual_feedback_events,
 )
 from icloud_index_service.services.search_service import (
@@ -107,6 +114,36 @@ class SyncManualFeedbackEventsRequest(BaseModel):
 class AnalyzeDuplicateGroupsRequest(BaseModel):
     namespaces: list[str]
     limit: int = 25
+
+
+class StartDedupeJobRequest(BaseModel):
+    namespaces: list[Literal["google1", "google2", "icloud", "document_vault"]] | None = None
+    path_scope: str | None = None
+    strategy: Literal["exact_hash", "normalized_name_size", "content_hash", "all"] = "exact_hash"
+    chunk_size: int | None = None
+    max_groups: int | None = None
+    dry_run: bool = True
+
+
+class ContinueDedupeJobRequest(BaseModel):
+    job_id: str
+    max_runtime_seconds: int | None = None
+    chunk_size: int | None = None
+
+
+class ListDedupeGroupsRequest(BaseModel):
+    job_id: str | None = None
+    limit: int = 25
+    offset: int = 0
+    strategy: Literal["exact_hash", "normalized_name_size", "content_hash", "all"] | None = None
+    min_group_size: int = 2
+
+
+class ApplyDedupeGroupRequest(BaseModel):
+    dedupe_group_id: str
+    keep_file_id: int
+    move_to_backup_file_ids: list[int]
+    dry_run: bool = True
 
 
 def _ensure_files_database_available(request: Request) -> None:
@@ -419,6 +456,82 @@ def analyze_duplicate_groups_route(
     )
 
 
+@router.post(
+    "/ops/dedupe/jobs/start",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def start_dedupe_job_route(
+    payload: StartDedupeJobRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        return start_dedupe_job(
+            session,
+            namespaces=list(payload.namespaces) if payload.namespaces is not None else None,
+            path_scope=payload.path_scope,
+            strategy=payload.strategy,
+            chunk_size=payload.chunk_size,
+            max_groups=payload.max_groups,
+            dry_run=payload.dry_run,
+        )
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/ops/dedupe/jobs/continue",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def continue_dedupe_job_route(
+    payload: ContinueDedupeJobRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        return continue_dedupe_job(
+            session,
+            job_id=payload.job_id,
+            max_runtime_seconds=payload.max_runtime_seconds,
+            chunk_size=payload.chunk_size,
+        )
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/ops/dedupe/jobs/{job_id}",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def get_dedupe_job_status_route(
+    job_id: str,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        return get_dedupe_job_status(session, job_id=job_id)
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/ops/dedupe/groups/list",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def list_dedupe_groups_route(
+    payload: ListDedupeGroupsRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        return list_dedupe_groups(
+            session,
+            job_id=payload.job_id,
+            limit=payload.limit,
+            offset=payload.offset,
+            strategy=payload.strategy,
+            min_group_size=payload.min_group_size,
+        )
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.get(
     "/ops/dedupe/groups/{dedupe_group_id}",
     dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
@@ -431,3 +544,24 @@ def get_dedupe_group_route(
     if payload is None:
         raise HTTPException(status_code=404, detail="Dedupe group not found")
     return payload
+
+
+@router.post(
+    "/ops/dedupe/groups/apply",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def apply_dedupe_group_route(
+    payload: ApplyDedupeGroupRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        return apply_dedupe_group(
+            session,
+            dedupe_group_id=payload.dedupe_group_id,
+            keep_file_id=payload.keep_file_id,
+            move_to_backup_file_ids=payload.move_to_backup_file_ids,
+            dry_run=payload.dry_run,
+            actor="plugin-api",
+        )
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

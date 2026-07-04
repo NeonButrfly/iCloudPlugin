@@ -506,6 +506,92 @@ def restore_change_set(
         if not metadata_path.exists():
             continue
         payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+        multi_items = payload.get("items")
+        if isinstance(multi_items, list):
+            restored_items: list[dict[str, object]] = []
+            for entry in multi_items:
+                entry_namespace = FileNamespace(str(entry["namespace"]))
+                live_path = resolve_live_path(
+                    namespace=entry_namespace,
+                    relative_path=str(entry["original_relative_path"]),
+                    allow_internal=False,
+                )
+                live_path.parent.mkdir(parents=True, exist_ok=True)
+                move(str(entry["backup_path"]), str(live_path))
+
+                file_record_id = _find_file_record_id(
+                    session,
+                    namespace=entry_namespace,
+                    relative_path=str(entry["original_relative_path"]),
+                )
+                if entry_namespace != FileNamespace.DOCUMENT_VAULT:
+                    vault_root = resolve_namespace_root(FileNamespace.DOCUMENT_VAULT)
+                    note_ids = [
+                        _sync_note_source_state(
+                            session=session,
+                            note_path=note_path,
+                            vault_root=vault_root,
+                            status="active",
+                            change_set_id=change_set_id,
+                        )
+                        for note_path in _iter_note_paths_for_canonical_source(
+                            vault_root=vault_root,
+                            canonical_source_path=str(live_path),
+                        )
+                    ]
+                    item_payload = {
+                        "change_set_id": change_set_id,
+                        "namespace": entry_namespace.value,
+                        "actor": actor,
+                        "operation": "restore",
+                        "status": "restored",
+                        "original_relative_path": str(entry["original_relative_path"]),
+                        "backup_path": str(entry["backup_path"]),
+                        "parent_change_set_id": change_set_id,
+                    }
+                    for note_id in note_ids:
+                        if note_id is not None:
+                            _persist_change_set(
+                                session,
+                                payload=item_payload,
+                                item_type="document_vault_note",
+                                document_note_record_id=note_id,
+                            )
+                else:
+                    item_payload = {
+                        "change_set_id": change_set_id,
+                        "namespace": entry_namespace.value,
+                        "actor": actor,
+                        "operation": "restore",
+                        "status": "restored",
+                        "original_relative_path": str(entry["original_relative_path"]),
+                        "backup_path": str(entry["backup_path"]),
+                        "parent_change_set_id": change_set_id,
+                    }
+                _persist_change_set(
+                    session,
+                    payload=item_payload,
+                    item_type="source_file",
+                    file_record_id=file_record_id,
+                    content_hash_after=sha256(live_path.read_bytes()).hexdigest(),
+                )
+                restored_items.append(
+                    {
+                        "namespace": entry_namespace.value,
+                        "original_relative_path": str(entry["original_relative_path"]),
+                        "backup_path": str(entry["backup_path"]),
+                    }
+                )
+
+            payload["status"] = "restored"
+            payload["restored_by"] = actor
+            payload["parent_change_set_id"] = change_set_id
+            payload["items"] = restored_items
+            _write_change_set_metadata(namespace, change_set_id, payload)
+            if session is not None:
+                session.commit()
+            return payload
+
         live_path = resolve_live_path(
             namespace=namespace,
             relative_path=str(payload["original_relative_path"]),

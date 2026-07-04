@@ -677,3 +677,133 @@ def test_get_dedupe_group_uses_group_endpoint():
     assert captured_request is not None
     assert captured_request.method == "GET"
     assert str(captured_request.url) == "http://service.test/files/ops/dedupe/groups/dup123"
+
+
+def test_start_dedupe_job_posts_to_start_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"job_id": "job123", "status": "queued"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.start_dedupe_job(
+            namespaces=["google1", "google2", "icloud"],
+            strategy="exact_hash",
+            chunk_size=20,
+            max_groups=50,
+        )
+    finally:
+        client.close()
+
+    assert payload["job_id"] == "job123"
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    assert str(captured_request.url) == "http://service.test/files/ops/dedupe/jobs/start"
+
+
+def test_continue_dedupe_job_posts_to_continue_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"job_id": "job123", "status": "running"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.continue_dedupe_job(job_id="job123", max_runtime_seconds=20, chunk_size=10)
+    finally:
+        client.close()
+
+    assert payload["status"] == "running"
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    assert str(captured_request.url) == "http://service.test/files/ops/dedupe/jobs/continue"
+
+
+def test_get_dedupe_job_status_uses_status_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"job_id": "job123", "status": "running"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.get_dedupe_job_status(job_id="job123")
+    finally:
+        client.close()
+
+    assert payload["job_id"] == "job123"
+    assert captured_request is not None
+    assert captured_request.method == "GET"
+    assert str(captured_request.url) == "http://service.test/files/ops/dedupe/jobs/job123"
+
+
+def test_list_dedupe_groups_posts_to_list_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"groups": [], "count": 0})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.list_dedupe_groups(job_id="job123", limit=10, offset=5, strategy="exact_hash")
+    finally:
+        client.close()
+
+    assert payload["count"] == 0
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    assert str(captured_request.url) == "http://service.test/files/ops/dedupe/groups/list"
+
+
+def test_apply_dedupe_group_posts_to_apply_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"change_set_id": "cs123", "status": "dry_run"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.apply_dedupe_group(
+            dedupe_group_id="dup123",
+            keep_file_id=1,
+            move_to_backup_file_ids=[2],
+            dry_run=True,
+        )
+    finally:
+        client.close()
+
+    assert payload["change_set_id"] == "cs123"
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    assert str(captured_request.url) == "http://service.test/files/ops/dedupe/groups/apply"

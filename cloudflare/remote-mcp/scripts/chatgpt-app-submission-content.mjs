@@ -82,6 +82,36 @@ export const TOOL_SUBMISSION_DETAILS = {
         "Does not delete, overwrite, or perform irreversible actions.",
     },
   },
+  get_icloud_dedupe_job_status: {
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Only retrieves persisted status and progress for a duplicate-analysis job without changing backend state.",
+      open_world_justification:
+        "Does not publish or mutate public internet state or third-party systems.",
+      destructive_justification:
+        "Does not delete, overwrite, or perform irreversible actions.",
+    },
+  },
+  list_icloud_dedupe_groups: {
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Only pages indexed duplicate-group proposals that were already produced by a dedupe job.",
+      open_world_justification:
+        "Does not publish or mutate public internet state or third-party systems.",
+      destructive_justification:
+        "Does not delete, overwrite, or perform irreversible actions.",
+    },
+  },
   get_icloud_dedupe_group: {
     annotations: {
       readOnlyHint: true,
@@ -330,11 +360,56 @@ export const TOOL_SUBMISSION_DETAILS = {
     },
     justifications: {
       read_only_justification:
-        "Analyzes live mirrored files and persists indexed duplicate-group proposals, so it changes internal backend state.",
+        "Creates a resumable dedupe job instead of scanning inline, so it changes internal backend state without performing a full synchronous vault scan.",
       open_world_justification:
         "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
       destructive_justification:
-        "Does not delete or overwrite files; it creates candidate duplicate-group metadata for later review.",
+        "Does not delete or overwrite files; it creates a resumable analysis job for later review.",
+    },
+  },
+  start_icloud_dedupe_job: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Creates a persisted dedupe-analysis job and returns immediately, so it changes internal backend state.",
+      open_world_justification:
+        "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
+      destructive_justification:
+        "Does not move or delete files; it only creates analysis proposals for later review.",
+    },
+  },
+  continue_icloud_dedupe_job: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Continues a persisted dedupe-analysis job in bounded chunks, so it changes internal backend state.",
+      open_world_justification:
+        "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
+      destructive_justification:
+        "Does not move or delete files; it only advances analysis progress and proposal generation.",
+    },
+  },
+  apply_icloud_dedupe_group: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Moves explicitly selected duplicate files into reversible _CHANGES_BACKUP storage and records a change set, so it changes internal backend state.",
+      open_world_justification:
+        "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
+      destructive_justification:
+        "Does not hard delete files; it routes approved duplicates through reversible backup storage.",
     },
   },
 };

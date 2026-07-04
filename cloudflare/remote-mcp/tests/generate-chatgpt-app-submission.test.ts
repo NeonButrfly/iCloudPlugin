@@ -75,6 +75,8 @@ describe("generate-chatgpt-app-submission", () => {
       "get_icloud_system_status",
       "get_icloud_product_readiness",
       "get_icloud_change_set",
+      "get_icloud_dedupe_job_status",
+      "list_icloud_dedupe_groups",
       "get_icloud_dedupe_group",
       "get_icloud_file",
       "get_icloud_file_excerpt",
@@ -92,6 +94,9 @@ describe("generate-chatgpt-app-submission", () => {
       "restore_icloud_change_set",
       "sync_icloud_manual_feedback_events",
       "analyze_icloud_duplicates",
+      "start_icloud_dedupe_job",
+      "continue_icloud_dedupe_job",
+      "apply_icloud_dedupe_group",
     ]);
     expect(payload.test_cases.length).toBeGreaterThanOrEqual(5);
     expect(payload.negative_test_cases.length).toBeGreaterThanOrEqual(3);
@@ -108,6 +113,8 @@ describe("generate-chatgpt-app-submission", () => {
     expect(formatted).toContain('"classify_file_and_create_document_vault_note_fallback"');
     expect(formatted).toContain('"get_icloud_change_set"');
     expect(formatted).toContain('"analyze_icloud_duplicates"');
+    expect(formatted).toContain('"start_icloud_dedupe_job"');
+    expect(formatted).toContain('"apply_icloud_dedupe_group"');
   });
 
   it("keeps the submission tool metadata aligned with the actual Worker tool surface", async () => {

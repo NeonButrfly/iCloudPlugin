@@ -141,13 +141,26 @@ NamespaceList = Annotated[
     list[str],
     Field(
         min_length=1,
-        description="Namespace list restricted to google1, google2, and icloud for dedupe analysis.",
+        description="Namespace list restricted to google1, google2, icloud, and document_vault for dedupe workflows.",
     ),
 ]
 
 DedupeGroupId = Annotated[
     str,
     Field(min_length=1, description="Indexed duplicate-group identifier."),
+]
+
+DedupeJobId = Annotated[
+    str,
+    Field(min_length=1, description="Persisted dedupe job identifier."),
+]
+
+DedupeStrategy = Annotated[
+    str,
+    Field(
+        pattern="^(exact_hash|normalized_name_size|content_hash|all)$",
+        description="Duplicate-analysis strategy.",
+    ),
 ]
 
 FallbackReason = Annotated[

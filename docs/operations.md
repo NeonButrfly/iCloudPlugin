@@ -1119,6 +1119,8 @@ The local MCP bridge now exposes:
 - `get_icloud_system_status`
 - `get_icloud_product_readiness`
 - `get_icloud_change_set`
+- `get_icloud_dedupe_job_status`
+- `list_icloud_dedupe_groups`
 - `get_icloud_dedupe_group`
 - `get_icloud_file`
 - `get_icloud_file_excerpt`
@@ -1136,6 +1138,9 @@ The local MCP bridge now exposes:
 - `restore_icloud_change_set`
 - `sync_icloud_manual_feedback_events`
 - `analyze_icloud_duplicates`
+- `start_icloud_dedupe_job`
+- `continue_icloud_dedupe_job`
+- `apply_icloud_dedupe_group`
 
 `create_document_vault_note` now prefers `file_id` so the origin service can
 resolve the canonical source path server-side. `canonical_source_path` remains
@@ -1211,6 +1216,21 @@ plugin-authenticated snapshot covering:
   `hybrid_live_source` and whether they still line up with completed, queued,
   or missing backend state rows
 
+Duplicate analysis now uses a resumable job flow instead of the old
+timeout-prone synchronous scan:
+
+1. `start_icloud_dedupe_job`
+2. `continue_icloud_dedupe_job` until complete
+3. `list_icloud_dedupe_groups`
+4. `get_icloud_dedupe_group`
+5. `apply_icloud_dedupe_group` only after explicit review
+
+`analyze_icloud_duplicates` is now a compatibility entrypoint that creates a
+dedupe job and returns immediately. It no longer performs a full-vault scan
+inline. Analysis remains proposal-only, and `apply_icloud_dedupe_group` still
+defaults to `dry_run=true` so no files move unless the caller explicitly
+chooses a reviewed group and backup plan.
+
 The product-readiness tool uses `GET /status/readiness`, which wraps:
 
 - the live `status_summary`
@@ -1265,6 +1285,8 @@ first production-shaped external MCP slice in
 - The Worker now also exposes the first reversible mutation tools for issue
   #84:
   - `get_icloud_change_set`
+  - `get_icloud_dedupe_job_status`
+  - `list_icloud_dedupe_groups`
   - `get_icloud_dedupe_group`
   - `create_document_vault_note`
   - `classify_file_and_create_document_vault_note_fallback`
@@ -1274,6 +1296,9 @@ first production-shaped external MCP slice in
   - `restore_icloud_change_set`
   - `sync_icloud_manual_feedback_events`
   - `analyze_icloud_duplicates`
+  - `start_icloud_dedupe_job`
+  - `continue_icloud_dedupe_job`
+  - `apply_icloud_dedupe_group`
   - those tools share the same origin-backed `_CHANGES_BACKUP` / structured
     note contract as the repo-local FastMCP bridge
   - the origin service now also persists:

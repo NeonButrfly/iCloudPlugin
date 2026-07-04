@@ -16,3 +16,4 @@ class DedupeGroupItem(Base):
     file_record_id: Mapped[int | None] = mapped_column(ForeignKey("files.id"), default=None)
     size_bytes: Mapped[int | None] = mapped_column(default=None)
     similarity_score: Mapped[float | None] = mapped_column(Float, default=None)
+    source_exists: Mapped[bool | None] = mapped_column(default=None)

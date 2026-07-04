@@ -5,6 +5,7 @@ from icloud_index_service.models.change_set import ChangeSet
 from icloud_index_service.models.change_set_item import ChangeSetItem
 from icloud_index_service.models.dedupe_group import DedupeGroup
 from icloud_index_service.models.dedupe_group_item import DedupeGroupItem
+from icloud_index_service.models.dedupe_job import DedupeJob
 from icloud_index_service.models.document_vault_note import DocumentVaultNote
 from icloud_index_service.models.extracted_content import ExtractedContent
 from icloud_index_service.models.file import FileRecord
@@ -20,6 +21,7 @@ __all__ = [
     "ChangeSetItem",
     "DedupeGroup",
     "DedupeGroupItem",
+    "DedupeJob",
     "DocumentVaultNote",
     "ExtractedContent",
     "FileRecord",

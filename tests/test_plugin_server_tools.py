@@ -22,6 +22,8 @@ def test_plugin_server_tools_expose_annotations_and_output_schemas():
         "get_icloud_system_status",
         "get_icloud_product_readiness",
         "get_icloud_change_set",
+        "get_icloud_dedupe_job_status",
+        "list_icloud_dedupe_groups",
         "get_icloud_dedupe_group",
     }
 
@@ -50,6 +52,9 @@ def test_plugin_server_tools_expose_annotations_and_output_schemas():
         "restore_icloud_change_set",
         "sync_icloud_manual_feedback_events",
         "analyze_icloud_duplicates",
+        "start_icloud_dedupe_job",
+        "continue_icloud_dedupe_job",
+        "apply_icloud_dedupe_group",
     }:
         tool = tools_by_name[tool_name]
         assert tool.outputSchema is not None
