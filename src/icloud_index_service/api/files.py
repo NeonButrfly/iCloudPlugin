@@ -11,6 +11,20 @@ from sqlalchemy.orm import Session
 
 from icloud_index_service.api.security import require_plugin_api_token
 from icloud_index_service.db import get_session
+from icloud_index_service.services.cloud_vault_task_service import (
+    TASK_TYPE_APPLY_DEDUPE_GROUP,
+    TASK_TYPE_CHATGPT_FIRST_FILE_NOTE,
+    TASK_TYPE_DEDUPE_ANALYSIS,
+    TASK_TYPE_FALLBACK_FILE_NOTE,
+    TASK_TYPE_RESTORE_CHANGE_SET,
+    TASK_TYPE_SEARCH_NOTES,
+    cancel_cloud_vault_task,
+    continue_cloud_vault_task,
+    continue_cloud_vault_task_queue,
+    get_cloud_vault_task_status,
+    list_cloud_vault_tasks,
+    queue_cloud_vault_task,
+)
 from icloud_index_service.services.file_access_service import (
     get_file_note_details,
     get_file_source_details,
@@ -144,6 +158,96 @@ class ApplyDedupeGroupRequest(BaseModel):
     keep_file_id: int
     move_to_backup_file_ids: list[int]
     dry_run: bool = True
+
+
+class QueueCloudVaultTaskRequest(BaseModel):
+    task_type: str
+    input: dict[str, object]
+    idempotency_key: str | None = None
+    priority: int = 100
+
+
+class ContinueCloudVaultTaskRequest(BaseModel):
+    task_id: str
+
+
+class ContinueCloudVaultTaskQueueRequest(BaseModel):
+    limit: int = 5
+
+
+class ListCloudVaultTasksRequest(BaseModel):
+    status: str | None = None
+    task_type: str | None = None
+    limit: int = 25
+    offset: int = 0
+
+
+class CancelCloudVaultTaskRequest(BaseModel):
+    task_id: str
+
+
+class QueueCreateDocumentVaultNoteFromFileIdChatgptFirstRequest(BaseModel):
+    file_id: int
+    chatgpt_relative_folder: str | None = None
+    chatgpt_visible_title: str | None = None
+    chatgpt_summary: str | None = None
+    fallback_enabled: bool = False
+    fallback_reason: FallbackReason = "manual_fallback"
+    fallback_summary_mode: Literal["minimal", "classifier", "full_note"] = "classifier"
+    fallback_title_mode: Literal["generic", "source_name", "classifier"] = "classifier"
+    attach_originals: bool = True
+    idempotency_key: str | None = None
+    priority: int = 100
+
+
+class QueueCreateDocumentVaultNotesFromSearchRequest(BaseModel):
+    query: str
+    path_scope: str | None = None
+    namespace: Literal["icloud", "google1", "google2", "document_vault"] | None = None
+    limit: int = 10
+    note_mode: Literal["chatgpt_first", "classifier_fallback", "minimal"] = "minimal"
+    fallback_enabled: bool = False
+    idempotency_key: str | None = None
+    priority: int = 100
+
+
+class QueueClassifierFallbackNoteFromFileIdRequest(BaseModel):
+    file_id: int
+    fallback_reason: FallbackReason = "manual_fallback"
+    force_reclassify: bool = False
+    summary_mode: Literal["minimal", "classifier", "full_note"] = "classifier"
+    title_mode: Literal["generic", "source_name", "classifier"] = "classifier"
+    attach_originals: bool = True
+    idempotency_key: str | None = None
+    priority: int = 100
+
+
+class QueueDedupeAnalysisRequest(BaseModel):
+    namespaces: list[Literal["google1", "google2", "icloud", "document_vault"]] | None = None
+    path_scope: str | None = None
+    strategy: Literal["exact_hash", "normalized_name_size", "content_hash", "all"] = "exact_hash"
+    chunk_size: int | None = None
+    max_groups: int | None = None
+    group_limit: int | None = None
+    dry_run: bool = True
+    max_runtime_seconds: int | None = None
+    idempotency_key: str | None = None
+    priority: int = 100
+
+
+class QueueApplyDedupeGroupRequest(BaseModel):
+    dedupe_group_id: str
+    keep_file_id: int
+    move_to_backup_file_ids: list[int]
+    dry_run: bool = True
+    idempotency_key: str | None = None
+    priority: int = 100
+
+
+class QueueRestoreCloudVaultChangeSetRequest(BaseModel):
+    change_set_id: str
+    idempotency_key: str | None = None
+    priority: int = 100
 
 
 def _ensure_files_database_available(request: Request) -> None:
@@ -565,3 +669,195 @@ def apply_dedupe_group_route(
         )
     except FileMutationPolicyError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/ops/tasks/queue",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_cloud_vault_task_route(
+    payload: QueueCloudVaultTaskRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        return queue_cloud_vault_task(
+            session,
+            task_type=payload.task_type,
+            input_payload=payload.input,
+            idempotency_key=payload.idempotency_key,
+            priority=payload.priority,
+        )
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/ops/tasks/continue",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def continue_cloud_vault_task_route(
+    payload: ContinueCloudVaultTaskRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        return continue_cloud_vault_task(session, task_id=payload.task_id)
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/ops/tasks/continue-queue",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def continue_cloud_vault_task_queue_route(
+    payload: ContinueCloudVaultTaskQueueRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return continue_cloud_vault_task_queue(session, limit=payload.limit)
+
+
+@router.get(
+    "/ops/tasks/{task_id}",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def get_cloud_vault_task_status_route(
+    task_id: str,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        return get_cloud_vault_task_status(session, task_id=task_id)
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/ops/tasks/list",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def list_cloud_vault_tasks_route(
+    payload: ListCloudVaultTasksRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return list_cloud_vault_tasks(
+        session,
+        status=payload.status,
+        task_type=payload.task_type,
+        limit=payload.limit,
+        offset=payload.offset,
+    )
+
+
+@router.post(
+    "/ops/tasks/cancel",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def cancel_cloud_vault_task_route(
+    payload: CancelCloudVaultTaskRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        return cancel_cloud_vault_task(session, task_id=payload.task_id)
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/ops/tasks/document-vault/note/file-id/chatgpt-first",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_create_document_vault_note_from_file_id_chatgpt_first_route(
+    payload: QueueCreateDocumentVaultNoteFromFileIdChatgptFirstRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return queue_cloud_vault_task(
+        session,
+        task_type=TASK_TYPE_CHATGPT_FIRST_FILE_NOTE,
+        input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
+        idempotency_key=payload.idempotency_key,
+        priority=payload.priority,
+    )
+
+
+@router.post(
+    "/ops/tasks/document-vault/notes/search",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_create_document_vault_notes_from_search_route(
+    payload: QueueCreateDocumentVaultNotesFromSearchRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return queue_cloud_vault_task(
+        session,
+        task_type=TASK_TYPE_SEARCH_NOTES,
+        input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
+        idempotency_key=payload.idempotency_key,
+        priority=payload.priority,
+    )
+
+
+@router.post(
+    "/ops/tasks/document-vault/note/fallback/file-id",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_classifier_fallback_note_from_file_id_route(
+    payload: QueueClassifierFallbackNoteFromFileIdRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return queue_cloud_vault_task(
+        session,
+        task_type=TASK_TYPE_FALLBACK_FILE_NOTE,
+        input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
+        idempotency_key=payload.idempotency_key,
+        priority=payload.priority,
+    )
+
+
+@router.post(
+    "/ops/tasks/dedupe/analyze",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_dedupe_analysis_route(
+    payload: QueueDedupeAnalysisRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return queue_cloud_vault_task(
+        session,
+        task_type=TASK_TYPE_DEDUPE_ANALYSIS,
+        input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
+        idempotency_key=payload.idempotency_key,
+        priority=payload.priority,
+    )
+
+
+@router.post(
+    "/ops/tasks/dedupe/groups/apply",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_apply_icloud_dedupe_group_route(
+    payload: QueueApplyDedupeGroupRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return queue_cloud_vault_task(
+        session,
+        task_type=TASK_TYPE_APPLY_DEDUPE_GROUP,
+        input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
+        idempotency_key=payload.idempotency_key,
+        priority=payload.priority,
+    )
+
+
+@router.post(
+    "/ops/tasks/restore",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def queue_restore_icloud_change_set_route(
+    payload: QueueRestoreCloudVaultChangeSetRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    return queue_cloud_vault_task(
+        session,
+        task_type=TASK_TYPE_RESTORE_CHANGE_SET,
+        input_payload=payload.model_dump(exclude={"idempotency_key", "priority"}),
+        idempotency_key=payload.idempotency_key,
+        priority=payload.priority,
+    )

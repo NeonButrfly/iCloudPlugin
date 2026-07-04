@@ -612,6 +612,52 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
       fetchOriginJson(env, `/files/ops/change-sets/${encodeURIComponent(readString(args.change_set_id, "change_set_id"))}`),
   },
   {
+    name: "get_cloud_vault_task_status",
+    description: "Get persisted status, progress, and result metadata for a cloud-vault task.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: { type: "string", minLength: 1 },
+      },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    annotations: READ_ONLY_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, `/files/ops/tasks/${encodeURIComponent(readString(args.task_id, "task_id"))}`),
+  },
+  {
+    name: "list_cloud_vault_tasks",
+    description: "List queued, running, completed, failed, or canceled cloud-vault tasks.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          enum: ["queued", "running", "completed", "failed", "canceled"],
+        },
+        task_type: { type: "string", minLength: 1 },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+        offset: { type: "integer", minimum: 0, maximum: 100000 },
+      },
+      additionalProperties: false,
+    },
+    annotations: READ_ONLY_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/list", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...(typeof args.status === "undefined" ? {} : { status: readString(args.status, "status") }),
+          ...(typeof args.task_type === "undefined" ? {} : { task_type: readString(args.task_type, "task_type") }),
+          limit: readOptionalBoundedInt(args.limit, "limit", 1, 200) ?? 25,
+          offset: readOptionalBoundedInt(args.offset, "offset", 0, 100000) ?? 0,
+        }),
+      }),
+  },
+  {
     name: "get_icloud_dedupe_job_status",
     description: "Get persisted status and progress for a resumable dedupe job.",
     inputSchema: {
@@ -850,6 +896,374 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
         body: JSON.stringify(body),
       });
     },
+  },
+  {
+    name: "continue_cloud_vault_task",
+    description: "Advance one cloud-vault task by one bounded server-side execution step.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: { type: "string", minLength: 1 },
+      },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/continue", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ task_id: readString(args.task_id, "task_id") }),
+      }),
+  },
+  {
+    name: "continue_cloud_vault_task_queue",
+    description: "Advance the next few queued or running cloud-vault tasks in priority order.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/continue-queue", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          limit: readOptionalBoundedInt(args.limit, "limit", 1, 200) ?? 5,
+        }),
+      }),
+  },
+  {
+    name: "cancel_cloud_vault_task",
+    description: "Cancel a queued or running cloud-vault task before it completes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task_id: { type: "string", minLength: 1 },
+      },
+      required: ["task_id"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/cancel", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ task_id: readString(args.task_id, "task_id") }),
+      }),
+  },
+  {
+    name: "queue_create_document_vault_note_from_file_id_chatgpt_first",
+    description:
+      "Queue a file-id-based ChatGPT-first document_vault note creation task with optional fallback to the local classifier.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        file_id: { type: "integer", minimum: 1 },
+        chatgpt_relative_folder: { type: "string", minLength: 1 },
+        chatgpt_visible_title: { type: "string", minLength: 1 },
+        chatgpt_summary: { type: "string", minLength: 1 },
+        fallback_enabled: { type: "boolean" },
+        fallback_reason: {
+          type: "string",
+          enum: [
+            "chatgpt_payload_blocked",
+            "chatgpt_note_write_failed",
+            "server_500",
+            "manual_fallback",
+            "other",
+          ],
+        },
+        fallback_summary_mode: { type: "string", enum: ["minimal", "classifier", "full_note"] },
+        fallback_title_mode: { type: "string", enum: ["generic", "source_name", "classifier"] },
+        attach_originals: { type: "boolean" },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      required: ["file_id"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/document-vault/note/file-id/chatgpt-first", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          file_id: readPositiveInt(args.file_id, "file_id"),
+          ...(typeof args.chatgpt_relative_folder === "undefined"
+            ? {}
+            : { chatgpt_relative_folder: readString(args.chatgpt_relative_folder, "chatgpt_relative_folder") }),
+          ...(typeof args.chatgpt_visible_title === "undefined"
+            ? {}
+            : { chatgpt_visible_title: readString(args.chatgpt_visible_title, "chatgpt_visible_title") }),
+          ...(typeof args.chatgpt_summary === "undefined"
+            ? {}
+            : { chatgpt_summary: readString(args.chatgpt_summary, "chatgpt_summary") }),
+          fallback_enabled:
+            typeof args.fallback_enabled === "undefined"
+              ? false
+              : readBoolean(args.fallback_enabled, "fallback_enabled"),
+          fallback_reason:
+            typeof args.fallback_reason === "undefined"
+              ? "manual_fallback"
+              : readString(args.fallback_reason, "fallback_reason"),
+          fallback_summary_mode:
+            typeof args.fallback_summary_mode === "undefined"
+              ? "classifier"
+              : readString(args.fallback_summary_mode, "fallback_summary_mode"),
+          fallback_title_mode:
+            typeof args.fallback_title_mode === "undefined"
+              ? "classifier"
+              : readString(args.fallback_title_mode, "fallback_title_mode"),
+          attach_originals:
+            typeof args.attach_originals === "undefined"
+              ? true
+              : readBoolean(args.attach_originals, "attach_originals"),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
+  },
+  {
+    name: "queue_create_document_vault_notes_from_search",
+    description: "Search indexed files and queue server-side note creation work for the matching file ids.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", minLength: 1 },
+        path_scope: { type: "string", minLength: 1 },
+        namespace: { type: "string", enum: ["icloud", "google1", "google2", "document_vault"] },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+        note_mode: { type: "string", enum: ["chatgpt_first", "classifier_fallback", "minimal"] },
+        fallback_enabled: { type: "boolean" },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/document-vault/notes/search", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          query: readString(args.query, "query"),
+          ...(typeof args.path_scope === "undefined" ? {} : { path_scope: readString(args.path_scope, "path_scope") }),
+          ...(typeof args.namespace === "undefined" ? {} : { namespace: readString(args.namespace, "namespace") }),
+          limit: readOptionalBoundedInt(args.limit, "limit", 1, 200) ?? 10,
+          note_mode:
+            typeof args.note_mode === "undefined"
+              ? "minimal"
+              : readString(args.note_mode, "note_mode"),
+          fallback_enabled:
+            typeof args.fallback_enabled === "undefined"
+              ? false
+              : readBoolean(args.fallback_enabled, "fallback_enabled"),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
+  },
+  {
+    name: "queue_classifier_fallback_note_from_file_id",
+    description:
+      "Queue explicit file-id-only local-classifier fallback note creation without auto-draining any broader queue.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        file_id: { type: "integer", minimum: 1 },
+        fallback_reason: {
+          type: "string",
+          enum: [
+            "chatgpt_payload_blocked",
+            "chatgpt_note_write_failed",
+            "server_500",
+            "manual_fallback",
+            "other",
+          ],
+        },
+        force_reclassify: { type: "boolean" },
+        summary_mode: { type: "string", enum: ["minimal", "classifier", "full_note"] },
+        title_mode: { type: "string", enum: ["generic", "source_name", "classifier"] },
+        attach_originals: { type: "boolean" },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      required: ["file_id"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/document-vault/note/fallback/file-id", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          file_id: readPositiveInt(args.file_id, "file_id"),
+          fallback_reason:
+            typeof args.fallback_reason === "undefined"
+              ? "manual_fallback"
+              : readString(args.fallback_reason, "fallback_reason"),
+          force_reclassify:
+            typeof args.force_reclassify === "undefined"
+              ? false
+              : readBoolean(args.force_reclassify, "force_reclassify"),
+          summary_mode:
+            typeof args.summary_mode === "undefined"
+              ? "classifier"
+              : readString(args.summary_mode, "summary_mode"),
+          title_mode:
+            typeof args.title_mode === "undefined"
+              ? "classifier"
+              : readString(args.title_mode, "title_mode"),
+          attach_originals:
+            typeof args.attach_originals === "undefined"
+              ? true
+              : readBoolean(args.attach_originals, "attach_originals"),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
+  },
+  {
+    name: "queue_dedupe_analysis",
+    description: "Queue resumable dedupe analysis that advances in bounded chunks instead of timing out inline.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        namespaces: {
+          type: "array",
+          items: { type: "string", enum: ["google1", "google2", "icloud", "document_vault"] },
+          minItems: 1,
+        },
+        path_scope: { type: "string", minLength: 1 },
+        strategy: { type: "string", enum: ["exact_hash", "normalized_name_size", "content_hash", "all"] },
+        chunk_size: { type: "integer", minimum: 1, maximum: 200 },
+        max_groups: { type: "integer", minimum: 1, maximum: 200 },
+        group_limit: { type: "integer", minimum: 1, maximum: 200 },
+        dry_run: { type: "boolean" },
+        max_runtime_seconds: { type: "integer", minimum: 1, maximum: 120 },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/dedupe/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...(typeof args.namespaces === "undefined"
+            ? {}
+            : {
+                namespaces: readStringArray(args.namespaces, "namespaces", [
+                  "google1",
+                  "google2",
+                  "icloud",
+                  "document_vault",
+                ]),
+              }),
+          ...(typeof args.path_scope === "undefined" ? {} : { path_scope: readString(args.path_scope, "path_scope") }),
+          strategy:
+            typeof args.strategy === "undefined"
+              ? "exact_hash"
+              : readString(args.strategy, "strategy"),
+          ...(typeof args.chunk_size === "undefined" ? {} : { chunk_size: readPositiveInt(args.chunk_size, "chunk_size") }),
+          ...(typeof args.max_groups === "undefined" ? {} : { max_groups: readPositiveInt(args.max_groups, "max_groups") }),
+          ...(typeof args.group_limit === "undefined" ? {} : { group_limit: readPositiveInt(args.group_limit, "group_limit") }),
+          dry_run: typeof args.dry_run === "undefined" ? true : readBoolean(args.dry_run, "dry_run"),
+          ...(typeof args.max_runtime_seconds === "undefined"
+            ? {}
+            : { max_runtime_seconds: readPositiveInt(args.max_runtime_seconds, "max_runtime_seconds") }),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
+  },
+  {
+    name: "queue_apply_icloud_dedupe_group",
+    description: "Queue non-destructive dedupe application through reversible _CHANGES_BACKUP storage.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        dedupe_group_id: { type: "string", minLength: 1 },
+        keep_file_id: { type: "integer", minimum: 1 },
+        move_to_backup_file_ids: {
+          type: "array",
+          minItems: 1,
+          items: { type: "integer", minimum: 1 },
+        },
+        dry_run: { type: "boolean" },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      required: ["dedupe_group_id", "keep_file_id", "move_to_backup_file_ids"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/dedupe/groups/apply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          dedupe_group_id: readString(args.dedupe_group_id, "dedupe_group_id"),
+          keep_file_id: readPositiveInt(args.keep_file_id, "keep_file_id"),
+          move_to_backup_file_ids: readIntArray(args.move_to_backup_file_ids, "move_to_backup_file_ids"),
+          dry_run: typeof args.dry_run === "undefined" ? true : readBoolean(args.dry_run, "dry_run"),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
+  },
+  {
+    name: "queue_restore_icloud_change_set",
+    description: "Queue a reversible change-set restore through the cloud-vault task system.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        change_set_id: { type: "string", minLength: 1 },
+        idempotency_key: { type: "string", minLength: 1 },
+        priority: { type: "integer", minimum: 1, maximum: 1000 },
+      },
+      required: ["change_set_id"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/tasks/restore", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          change_set_id: readString(args.change_set_id, "change_set_id"),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+          priority: readOptionalBoundedInt(args.priority, "priority", 1, 1000) ?? 100,
+        }),
+      }),
   },
   {
     name: "classify_file_and_create_document_vault_note_fallback",

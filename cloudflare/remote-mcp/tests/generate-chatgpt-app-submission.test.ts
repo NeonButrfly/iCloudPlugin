@@ -75,6 +75,8 @@ describe("generate-chatgpt-app-submission", () => {
       "get_icloud_system_status",
       "get_icloud_product_readiness",
       "get_icloud_change_set",
+      "get_cloud_vault_task_status",
+      "list_cloud_vault_tasks",
       "get_icloud_dedupe_job_status",
       "list_icloud_dedupe_groups",
       "get_icloud_dedupe_group",
@@ -87,6 +89,12 @@ describe("generate-chatgpt-app-submission", () => {
       "pause_icloud_index",
       "resume_icloud_index",
       "create_document_vault_note",
+      "continue_cloud_vault_task",
+      "continue_cloud_vault_task_queue",
+      "cancel_cloud_vault_task",
+      "queue_create_document_vault_note_from_file_id_chatgpt_first",
+      "queue_create_document_vault_notes_from_search",
+      "queue_classifier_fallback_note_from_file_id",
       "classify_file_and_create_document_vault_note_fallback",
       "batch_classify_files_and_create_document_vault_notes_fallback",
       "search_files_and_create_document_vault_notes_fallback",
@@ -94,9 +102,12 @@ describe("generate-chatgpt-app-submission", () => {
       "restore_icloud_change_set",
       "sync_icloud_manual_feedback_events",
       "analyze_icloud_duplicates",
+      "queue_dedupe_analysis",
       "start_icloud_dedupe_job",
       "continue_icloud_dedupe_job",
       "apply_icloud_dedupe_group",
+      "queue_apply_icloud_dedupe_group",
+      "queue_restore_icloud_change_set",
     ]);
     expect(payload.test_cases.length).toBeGreaterThanOrEqual(5);
     expect(payload.negative_test_cases.length).toBeGreaterThanOrEqual(3);
@@ -112,7 +123,9 @@ describe("generate-chatgpt-app-submission", () => {
     expect(formatted).toContain('"create_document_vault_note"');
     expect(formatted).toContain('"classify_file_and_create_document_vault_note_fallback"');
     expect(formatted).toContain('"get_icloud_change_set"');
+    expect(formatted).toContain('"get_cloud_vault_task_status"');
     expect(formatted).toContain('"analyze_icloud_duplicates"');
+    expect(formatted).toContain('"queue_dedupe_analysis"');
     expect(formatted).toContain('"start_icloud_dedupe_job"');
     expect(formatted).toContain('"apply_icloud_dedupe_group"');
   });

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -34,6 +35,9 @@ from .tool_schemas import (
     SearchQuery,
     SummaryMode,
     SummaryText,
+    TaskId,
+    TaskStatus,
+    TaskType,
     TitleMode,
     VisibleTitle,
     WorkflowLimit,
@@ -168,6 +172,30 @@ def get_icloud_change_set(change_set_id: ChangeSetId) -> dict[str, Any]:
 
 
 @mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
+def get_cloud_vault_task_status(task_id: TaskId) -> dict[str, Any]:
+    """Return persisted status, progress, and result metadata for a cloud-vault task."""
+    with build_service_client_from_env() as client:
+        return client.get_cloud_vault_task_status(task_id=task_id)
+
+
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
+def list_cloud_vault_tasks(
+    status: TaskStatus = None,
+    task_type: TaskType = None,
+    limit: WorkflowLimit = 25,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """List queued, running, completed, failed, or canceled cloud-vault tasks."""
+    with build_service_client_from_env() as client:
+        return client.list_cloud_vault_tasks(
+            status=status,
+            task_type=task_type,
+            limit=limit,
+            offset=offset,
+        )
+
+
+@mcp.tool(annotations=READ_ONLY_TOOL_ANNOTATIONS, structured_output=True)
 def get_icloud_dedupe_group(dedupe_group_id: DedupeGroupId) -> dict[str, Any]:
     """Return indexed metadata and member items for a duplicate-group proposal."""
     with build_service_client_from_env() as client:
@@ -239,6 +267,190 @@ def create_document_vault_note(
             file_id=file_id,
             canonical_source_path=canonical_source_path,
             attach_originals=attach_originals,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_cloud_vault_task(
+    task_type: str,
+    input_payload_json: str,
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Queue a generic cloud-vault task when a higher-level wrapper is not sufficient."""
+    with build_service_client_from_env() as client:
+        return client.queue_cloud_vault_task(
+            task_type=task_type,
+            input_payload=json.loads(input_payload_json),
+            idempotency_key=idempotency_key,
+            priority=priority,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def continue_cloud_vault_task(task_id: TaskId) -> dict[str, Any]:
+    """Advance one cloud-vault task by one bounded server-side execution step."""
+    with build_service_client_from_env() as client:
+        return client.continue_cloud_vault_task(task_id=task_id)
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def continue_cloud_vault_task_queue(limit: WorkflowLimit = 5) -> dict[str, Any]:
+    """Advance the next few queued or running cloud-vault tasks in priority order."""
+    with build_service_client_from_env() as client:
+        return client.continue_cloud_vault_task_queue(limit=limit)
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def cancel_cloud_vault_task(task_id: TaskId) -> dict[str, Any]:
+    """Cancel a queued or running cloud-vault task before it completes."""
+    with build_service_client_from_env() as client:
+        return client.cancel_cloud_vault_task(task_id=task_id)
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_create_document_vault_note_from_file_id_chatgpt_first(
+    file_id: FileId,
+    chatgpt_relative_folder: OptionalText = None,
+    chatgpt_visible_title: OptionalText = None,
+    chatgpt_summary: OptionalText = None,
+    fallback_enabled: bool = False,
+    fallback_reason: FallbackReason = "manual_fallback",
+    fallback_summary_mode: SummaryMode = "classifier",
+    fallback_title_mode: TitleMode = "classifier",
+    attach_originals: bool = True,
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Queue a file-id-based ChatGPT-first note creation task with optional fallback to the local classifier."""
+    with build_service_client_from_env() as client:
+        return client.queue_create_document_vault_note_from_file_id_chatgpt_first(
+            file_id=file_id,
+            chatgpt_relative_folder=chatgpt_relative_folder,
+            chatgpt_visible_title=chatgpt_visible_title,
+            chatgpt_summary=chatgpt_summary,
+            fallback_enabled=fallback_enabled,
+            fallback_reason=fallback_reason,
+            fallback_summary_mode=fallback_summary_mode,
+            fallback_title_mode=fallback_title_mode,
+            attach_originals=attach_originals,
+            idempotency_key=idempotency_key,
+            priority=priority,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_create_document_vault_notes_from_search(
+    query: SearchQuery,
+    path_scope: PathScope = None,
+    namespace: OptionalText = None,
+    limit: WorkflowLimit = 10,
+    note_mode: OptionalText = "minimal",
+    fallback_enabled: bool = False,
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Search indexed files and queue server-side note creation work for the matching file ids."""
+    with build_service_client_from_env() as client:
+        return client.queue_create_document_vault_notes_from_search(
+            query=query,
+            path_scope=path_scope,
+            namespace=namespace,
+            limit=limit,
+            note_mode=str(note_mode or "minimal"),
+            fallback_enabled=fallback_enabled,
+            idempotency_key=idempotency_key,
+            priority=priority,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_classifier_fallback_note_from_file_id(
+    file_id: FileId,
+    fallback_reason: FallbackReason = "manual_fallback",
+    force_reclassify: bool = False,
+    summary_mode: SummaryMode = "classifier",
+    title_mode: TitleMode = "classifier",
+    attach_originals: bool = True,
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Queue explicit file-id-only local-classifier fallback note creation without auto-draining any broader queue."""
+    with build_service_client_from_env() as client:
+        return client.queue_classifier_fallback_note_from_file_id(
+            file_id=file_id,
+            fallback_reason=fallback_reason,
+            force_reclassify=force_reclassify,
+            summary_mode=summary_mode,
+            title_mode=title_mode,
+            attach_originals=attach_originals,
+            idempotency_key=idempotency_key,
+            priority=priority,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_dedupe_analysis(
+    namespaces: NamespaceList | None = None,
+    path_scope: OptionalText = None,
+    strategy: DedupeStrategy = "exact_hash",
+    chunk_size: WorkflowLimit = 25,
+    max_groups: WorkflowLimit = 25,
+    group_limit: WorkflowLimit = 25,
+    dry_run: bool = True,
+    max_runtime_seconds: int = 15,
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Queue resumable dedupe analysis that advances in bounded chunks instead of timing out inline."""
+    with build_service_client_from_env() as client:
+        return client.queue_dedupe_analysis(
+            namespaces=namespaces,
+            path_scope=path_scope,
+            strategy=strategy,
+            chunk_size=chunk_size,
+            max_groups=max_groups,
+            group_limit=group_limit,
+            dry_run=dry_run,
+            max_runtime_seconds=max_runtime_seconds,
+            idempotency_key=idempotency_key,
+            priority=priority,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_apply_icloud_dedupe_group(
+    dedupe_group_id: DedupeGroupId,
+    keep_file_id: FileId,
+    move_to_backup_file_ids: FileIdList,
+    dry_run: bool = True,
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Queue non-destructive dedupe application through reversible _CHANGES_BACKUP storage."""
+    with build_service_client_from_env() as client:
+        return client.queue_apply_icloud_dedupe_group(
+            dedupe_group_id=dedupe_group_id,
+            keep_file_id=keep_file_id,
+            move_to_backup_file_ids=move_to_backup_file_ids,
+            dry_run=dry_run,
+            idempotency_key=idempotency_key,
+            priority=priority,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def queue_restore_icloud_change_set(
+    change_set_id: ChangeSetId,
+    idempotency_key: OptionalText = None,
+    priority: int = 100,
+) -> dict[str, Any]:
+    """Queue a reversible change-set restore through the cloud-vault task system."""
+    with build_service_client_from_env() as client:
+        return client.queue_restore_icloud_change_set(
+            change_set_id=change_set_id,
+            idempotency_key=idempotency_key,
+            priority=priority,
         )
 
 

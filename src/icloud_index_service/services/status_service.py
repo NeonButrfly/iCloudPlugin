@@ -8,14 +8,16 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from icloud_index_service.models.classification_job import ClassificationJob
 from icloud_index_service.models.classification_state import ClassificationState
 from icloud_index_service.models.change_set import ChangeSet
+from icloud_index_service.models.cloud_vault_task import CloudVaultTask
 from icloud_index_service.models.document_vault_note import DocumentVaultNote
 from icloud_index_service.models.file import FileRecord
+from icloud_index_service.services.cloud_vault_task_service import collect_cloud_vault_task_counts
 from icloud_index_service.services.classification_submission import (
     get_background_classification_enabled,
     get_classifier_mode,
@@ -316,6 +318,13 @@ def collect_document_vault_note_counts(session: Session) -> dict[str, int]:
     return summary
 
 
+def collect_cloud_vault_task_type_counts(session: Session) -> dict[str, int]:
+    rows = session.execute(
+        select(CloudVaultTask.task_type, func.count()).group_by(CloudVaultTask.task_type)
+    ).all()
+    return {str(task_type): int(count) for task_type, count in rows if isinstance(task_type, str)}
+
+
 def fetch_classifier_health() -> dict[str, Any]:
     token = (os.getenv("CLASSIFIER_API_TOKEN") or "").strip()
     if not token:
@@ -366,6 +375,7 @@ def build_status_summary(
     auth_status: dict[str, Any],
 ) -> dict[str, Any]:
     classification_job_counts = collect_classification_job_counts(session)
+    cloud_vault_task_counts = collect_cloud_vault_task_counts(session)
     return {
         "generated_at": _utc_now_iso(),
         "service_health": service_health,
@@ -379,9 +389,13 @@ def build_status_summary(
             "local_classifier_configured": get_local_classifier_configured(),
             "queued_classifier_jobs": classification_job_counts.get("queued", 0),
             "queued_jobs_auto_running": get_background_classification_enabled(),
+            "queued_cloud_vault_tasks": cloud_vault_task_counts.get("queued", 0),
+            "queued_cloud_vault_tasks_auto_running": False,
         },
         "classification_job_counts": classification_job_counts,
         "classification_state_counts": collect_classification_state_counts(session),
+        "cloud_vault_task_counts": cloud_vault_task_counts,
+        "cloud_vault_task_type_counts": collect_cloud_vault_task_type_counts(session),
         "provider_counts": collect_provider_counts(session),
         "change_set_counts": collect_change_set_counts(session),
         "document_vault_note_counts": collect_document_vault_note_counts(session),

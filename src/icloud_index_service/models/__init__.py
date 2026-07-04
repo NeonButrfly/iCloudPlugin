@@ -3,6 +3,7 @@ from icloud_index_service.models.classification_job import ClassificationJob
 from icloud_index_service.models.classification_state import ClassificationState
 from icloud_index_service.models.change_set import ChangeSet
 from icloud_index_service.models.change_set_item import ChangeSetItem
+from icloud_index_service.models.cloud_vault_task import CloudVaultTask
 from icloud_index_service.models.dedupe_group import DedupeGroup
 from icloud_index_service.models.dedupe_group_item import DedupeGroupItem
 from icloud_index_service.models.dedupe_job import DedupeJob
@@ -19,6 +20,7 @@ __all__ = [
     "ClassificationState",
     "ChangeSet",
     "ChangeSetItem",
+    "CloudVaultTask",
     "DedupeGroup",
     "DedupeGroupItem",
     "DedupeJob",

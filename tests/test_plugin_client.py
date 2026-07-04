@@ -443,6 +443,56 @@ def test_get_change_set_uses_change_set_endpoint():
     assert str(captured_request.url) == "http://service.test/files/ops/change-sets/abc123"
 
 
+def test_queue_cloud_vault_task_posts_to_task_queue_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"task_id": "task123", "status": "queued"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.queue_cloud_vault_task(
+            task_type="restore_change_set",
+            input_payload={"change_set_id": "abc123"},
+        )
+    finally:
+        client.close()
+
+    assert payload["task_id"] == "task123"
+    assert captured_request is not None
+    assert captured_request.method == "POST"
+    assert str(captured_request.url) == "http://service.test/files/ops/tasks/queue"
+
+
+def test_get_cloud_vault_task_status_uses_task_status_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"task_id": "task123", "status": "running"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.get_cloud_vault_task_status(task_id="task123")
+    finally:
+        client.close()
+
+    assert payload["status"] == "running"
+    assert captured_request is not None
+    assert str(captured_request.url) == "http://service.test/files/ops/tasks/task123"
+
+
 def test_create_document_vault_note_posts_to_origin_endpoint():
     captured_request: httpx.Request | None = None
 

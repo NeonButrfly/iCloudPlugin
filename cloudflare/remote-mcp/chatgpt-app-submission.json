@@ -68,6 +68,30 @@
         "destructive_justification": "Does not delete, overwrite, or perform irreversible actions."
       }
     },
+    "get_cloud_vault_task_status": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves persisted task status, progress, and result metadata without mutating backend state.",
+        "open_world_justification": "Does not publish or mutate public internet state or third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, or perform irreversible actions."
+      }
+    },
+    "list_cloud_vault_tasks": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only lists persisted cloud-vault task records and their current statuses without changing backend state.",
+        "open_world_justification": "Does not publish or mutate public internet state or third-party systems.",
+        "destructive_justification": "Does not delete, overwrite, or perform irreversible actions."
+      }
+    },
     "get_icloud_dedupe_job_status": {
       "annotations": {
         "readOnlyHint": true,
@@ -212,6 +236,78 @@
         "destructive_justification": "Does not delete or overwrite existing source data; it creates a structured reversible note-side artifact."
       }
     },
+    "continue_cloud_vault_task": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Advances a persisted cloud-vault task by one bounded step, so it changes internal backend task state.",
+        "open_world_justification": "Only mutates the private cloud-vault backend and does not publish or send changes to public internet systems.",
+        "destructive_justification": "Does not hard delete data or perform irreversible actions by itself; it only advances queued private workflows."
+      }
+    },
+    "continue_cloud_vault_task_queue": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Advances a bounded batch of queued private tasks, so it changes internal backend task state.",
+        "open_world_justification": "Only mutates the private cloud-vault backend and does not publish or send changes to public internet systems.",
+        "destructive_justification": "Does not hard delete data or perform irreversible actions by itself; it only advances queued private workflows."
+      }
+    },
+    "cancel_cloud_vault_task": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Changes internal backend state by canceling a queued or running private task before it completes.",
+        "open_world_justification": "Only mutates the private cloud-vault backend and does not publish or send changes to public internet systems.",
+        "destructive_justification": "Cancels future execution but does not hard delete data or perform irreversible file removal."
+      }
+    },
+    "queue_create_document_vault_note_from_file_id_chatgpt_first": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Queues file-id-based note creation work and may later create a private document_vault note, so it changes internal backend task state.",
+        "open_world_justification": "Only uses private cloud-vault backend services and does not publish or transmit changes to public internet systems.",
+        "destructive_justification": "Does not hard delete source data; it queues a reversible note-side workflow with optional fallback behavior."
+      }
+    },
+    "queue_create_document_vault_notes_from_search": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Queues note-creation work for a bounded search result set, so it changes internal backend task state.",
+        "open_world_justification": "Only uses private cloud-vault backend services and does not publish or transmit changes to public internet systems.",
+        "destructive_justification": "Does not hard delete source data; it queues a reversible note-side workflow for explicit matching files only."
+      }
+    },
+    "queue_classifier_fallback_note_from_file_id": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Queues fallback-only local-classifier note creation for one explicit file id, so it changes internal backend task state.",
+        "open_world_justification": "Only uses private cloud-vault backend services and does not publish or transmit changes to public internet systems.",
+        "destructive_justification": "Does not hard delete source data; it queues a reversible note-side fallback workflow for one explicit file id."
+      }
+    },
     "classify_file_and_create_document_vault_note_fallback": {
       "annotations": {
         "readOnlyHint": false,
@@ -296,6 +392,18 @@
         "destructive_justification": "Does not delete or overwrite files; it creates a resumable analysis job for later review."
       }
     },
+    "queue_dedupe_analysis": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Queues resumable dedupe analysis work, so it changes internal backend task state.",
+        "open_world_justification": "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
+        "destructive_justification": "Does not delete or overwrite files; it queues bounded duplicate-analysis work for later review."
+      }
+    },
     "start_icloud_dedupe_job": {
       "annotations": {
         "readOnlyHint": false,
@@ -330,6 +438,30 @@
         "read_only_justification": "Moves explicitly selected duplicate files into reversible _CHANGES_BACKUP storage and records a change set, so it changes internal backend state.",
         "open_world_justification": "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
         "destructive_justification": "Does not hard delete files; it routes approved duplicates through reversible backup storage."
+      }
+    },
+    "queue_apply_icloud_dedupe_group": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Queues non-destructive dedupe application through reversible backup storage, so it changes internal backend task state.",
+        "open_world_justification": "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
+        "destructive_justification": "Does not hard delete files; it queues approved duplicate moves through reversible backup storage."
+      }
+    },
+    "queue_restore_icloud_change_set": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Queues a reversible change-set restore on the private backend, so it changes internal backend task state.",
+        "open_world_justification": "Only mutates the private synced vault backend and does not publish or send changes to public internet systems.",
+        "destructive_justification": "Restores previously backed-up files rather than hard deleting data or performing irreversible actions."
       }
     }
   },

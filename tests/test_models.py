@@ -17,6 +17,7 @@ from icloud_index_service.models.job import Job
 from icloud_index_service.models.base import Base
 from icloud_index_service.models.change_set import ChangeSet
 from icloud_index_service.models.change_set_item import ChangeSetItem
+from icloud_index_service.models.cloud_vault_task import CloudVaultTask
 from icloud_index_service.models.dedupe_group import DedupeGroup
 from icloud_index_service.models.dedupe_group_item import DedupeGroupItem
 from icloud_index_service.models.document_vault_note import DocumentVaultNote
@@ -160,6 +161,8 @@ def test_document_vault_note_model_tracks_unique_relative_paths_and_source_links
 def test_manual_feedback_and_dedupe_models_capture_indexed_learning_and_candidates():
     assert ManualFeedbackEvent.__table__.c.event_id.unique is True
     assert len(ManualFeedbackEvent.__table__.c.note_id.foreign_keys) == 1
+    assert CloudVaultTask.__table__.c.task_id.unique is True
+    assert CloudVaultTask.__table__.c.status.nullable is False
     assert DedupeGroup.__table__.c.dedupe_group_id.unique is True
     assert DedupeGroup.__table__.c.status.nullable is False
     assert len(DedupeGroupItem.__table__.c.dedupe_group_id.foreign_keys) == 1
@@ -207,6 +210,8 @@ def test_initial_migration_captures_authoritative_schema_rules():
     assert "CREATE TABLE manual_feedback_events" in result.stdout
     assert "CREATE TABLE dedupe_groups" in result.stdout
     assert "CREATE TABLE dedupe_group_items" in result.stdout
+    assert "Running upgrade 0007_feedback_and_dedupe_index_tables -> 0008_cloud_vault_tasks" in result.stdout
+    assert "CREATE TABLE cloud_vault_tasks" in result.stdout
 
 
 def test_retrieval_metadata_migration_hardens_alembic_version_column_for_long_revision_ids():

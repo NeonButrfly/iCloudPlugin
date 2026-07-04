@@ -432,3 +432,56 @@ def test_apply_dedupe_group_route_returns_change_set(tmp_path, monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["change_set_id"] == "cs123"
+
+
+def test_queue_cloud_vault_task_route_returns_task_payload(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path)
+
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = _override_get_session(session_factory)
+
+    try:
+        with TestClient(main_module.app) as client:
+            response = client.post(
+                "/files/ops/tasks/queue",
+                json={
+                    "task_type": "restore_change_set",
+                    "input": {"change_set_id": "abc123"},
+                    "idempotency_key": "restore-abc123",
+                },
+            )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "queued"
+    assert payload["task_id"]
+
+
+def test_queue_chatgpt_first_file_note_route_returns_task_payload(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path)
+
+    monkeypatch.setattr(main_module, "validate_database_configuration", lambda: None)
+    monkeypatch.setattr(main_module, "check_database_health", lambda: True)
+    main_module.app.dependency_overrides[get_session] = _override_get_session(session_factory)
+
+    try:
+        with TestClient(main_module.app) as client:
+            response = client.post(
+                "/files/ops/tasks/document-vault/note/file-id/chatgpt-first",
+                json={
+                    "file_id": 7,
+                    "chatgpt_relative_folder": "01 Classified/appeal",
+                    "chatgpt_visible_title": "Appeal",
+                    "chatgpt_summary": "Appeal summary.",
+                },
+            )
+    finally:
+        main_module.app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "queued"
+    assert payload["task_id"]

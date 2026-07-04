@@ -258,9 +258,13 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
         "local_classifier_configured": False,
         "queued_classifier_jobs": 1,
         "queued_jobs_auto_running": False,
+        "queued_cloud_vault_tasks": 0,
+        "queued_cloud_vault_tasks_auto_running": False,
     }
     assert payload["classification_job_counts"] == {"completed": 1, "queued": 1}
     assert payload["classification_state_counts"] == {"completed": 1, "queued": 1}
+    assert payload["cloud_vault_task_counts"] == {}
+    assert payload["cloud_vault_task_type_counts"] == {}
     assert payload["provider_counts"] == {"google1": 1, "icloud": 1}
     assert payload["vault_counts"] == {
         "vault_root": str(vault_root.resolve()),

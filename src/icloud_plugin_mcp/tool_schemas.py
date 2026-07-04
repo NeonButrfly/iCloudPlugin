@@ -205,3 +205,26 @@ OptionalText = Annotated[
     str | None,
     Field(default=None, min_length=1, description="Optional free-form idempotency or path-scope string."),
 ]
+
+TaskId = Annotated[
+    str,
+    Field(min_length=1, description="Persisted cloud-vault task identifier."),
+]
+
+TaskStatus = Annotated[
+    str | None,
+    Field(
+        default=None,
+        pattern="^(queued|running|completed|failed|canceled)$",
+        description="Optional cloud-vault task status filter.",
+    ),
+]
+
+TaskType = Annotated[
+    str | None,
+    Field(
+        default=None,
+        min_length=1,
+        description="Optional cloud-vault task type filter.",
+    ),
+]
