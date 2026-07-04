@@ -783,6 +783,8 @@ def continue_cloud_vault_task(session: Session, *, task_id: str) -> dict[str, ob
     try:
         result_payload = _dispatch_task(session, task=task)
     except Exception as exc:
+        session.rollback()
+        task = _load_task_by_public_id(session, task_id=task_id)
         return _mark_task_failed(session, task=task, message=str(exc))
     if task.status in {TASK_STATUS_RUNNING, TASK_STATUS_QUEUED} and task.task_type in {
         TASK_TYPE_SEARCH_NOTES,

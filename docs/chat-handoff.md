@@ -92,6 +92,13 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 ## Current Status
 
 - `tichuml1` `iCloudPlugin` health is OK on `127.0.0.1:8080`
+- issue [#95](https://github.com/NeonButrfly/iCloudPlugin/issues/95) tracks the
+  live dedupe schema drift discovered on `tichuml1` on 2026-07-04 AKDT:
+  - the runtime reached Alembic head `0008_cloud_vault_tasks`
+  - but the schema still lacked `dedupe_jobs` and newer `dedupe_groups`
+    columns required by the current resumable dedupe workflow
+  - the repair path is a forward migration so already-upgraded hosts can add
+    the missing dedupe tables/columns without rebaselining the database
 - `tichuml1` is the authoritative live monitor target for cloud-vault refresh
   and backlog checks
 - `kayraspi` no longer serves the live local `/refresh/status` listener; it now
