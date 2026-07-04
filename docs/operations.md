@@ -1129,6 +1129,9 @@ The local MCP bridge now exposes:
 - `pause_icloud_index`
 - `resume_icloud_index`
 - `create_document_vault_note`
+- `classify_file_and_create_document_vault_note_fallback`
+- `batch_classify_files_and_create_document_vault_notes_fallback`
+- `search_files_and_create_document_vault_notes_fallback`
 - `delete_icloud_file`
 - `restore_icloud_change_set`
 - `sync_icloud_manual_feedback_events`
@@ -1137,6 +1140,33 @@ The local MCP bridge now exposes:
 `create_document_vault_note` now prefers `file_id` so the origin service can
 resolve the canonical source path server-side. `canonical_source_path` remains
 available only as a backward-compatible fallback for older callers.
+
+For document-vault note creation, keep the workflow priority:
+
+1. `search_icloud_notes_and_files`
+2. ChatGPT-authored summary/title/folder selection
+3. `create_document_vault_note`
+4. fallback-only classifier tools only when the normal note write is blocked or fails
+
+The fallback tools accept `file_id` so ChatGPT does not need to pass sensitive
+title, summary, or source-path fields through the MCP payload when the normal
+write path is blocked by safety filters or returns a server-side failure.
+
+Classifier runtime mode now supports:
+
+- `disabled`
+- `mcp_fallback_only`
+- `mcp_on_demand`
+- `background`
+
+`CLASSIFIER_MODE=mcp_fallback_only` is the default safe mode for MCP note
+fallbacks. In that mode:
+
+- the local classifier runs only when an explicit fallback MCP tool is called
+- startup does not launch background classification
+- sync and metadata refresh do not trigger classification
+- old queued classifier jobs remain dormant
+- `queued_jobs_auto_running` stays `false`
 
 The backing service now exposes plugin-facing note/source routes:
 
@@ -1237,6 +1267,9 @@ first production-shaped external MCP slice in
   - `get_icloud_change_set`
   - `get_icloud_dedupe_group`
   - `create_document_vault_note`
+  - `classify_file_and_create_document_vault_note_fallback`
+  - `batch_classify_files_and_create_document_vault_notes_fallback`
+  - `search_files_and_create_document_vault_notes_fallback`
   - `delete_icloud_file`
   - `restore_icloud_change_set`
   - `sync_icloud_manual_feedback_events`

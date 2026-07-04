@@ -34,6 +34,16 @@ DEFAULT_CLASSIFIER_API_URL = "http://192.168.50.196:4319"
 CLASSIFIER_UPLOAD_ENDPOINT = "/classify/upload"
 CLASSIFIER_SOURCE_ENDPOINT = "/classify/source"
 CLASSIFIER_INGESTION_MODE = "real-folder"
+CLASSIFIER_MODE_DISABLED = "disabled"
+CLASSIFIER_MODE_MCP_FALLBACK_ONLY = "mcp_fallback_only"
+CLASSIFIER_MODE_MCP_ON_DEMAND = "mcp_on_demand"
+CLASSIFIER_MODE_BACKGROUND = "background"
+SUPPORTED_CLASSIFIER_MODES = {
+    CLASSIFIER_MODE_DISABLED,
+    CLASSIFIER_MODE_MCP_FALLBACK_ONLY,
+    CLASSIFIER_MODE_MCP_ON_DEMAND,
+    CLASSIFIER_MODE_BACKGROUND,
+}
 PRIORITY_BUCKET_DOCUMENT = "document"
 PRIORITY_BUCKET_TEXT_BACKED = "text-backed"
 PRIORITY_BUCKET_IMAGE = "image"
@@ -130,11 +140,43 @@ def _read_bool_env(name: str, *, default: bool) -> bool:
 
 
 def get_classification_submission_enabled() -> bool:
-    return _read_bool_env("CLASSIFICATION_SUBMISSION_ENABLED", default=True)
+    return get_classifier_mode() == CLASSIFIER_MODE_BACKGROUND
 
 
 def get_classification_backfill_enabled() -> bool:
-    return _read_bool_env("CLASSIFICATION_BACKFILL_ENABLED", default=True)
+    return get_classification_submission_enabled() and _read_bool_env(
+        "CLASSIFICATION_BACKFILL_ENABLED",
+        default=True,
+    )
+
+
+def get_classifier_mode() -> str:
+    raw_mode = (os.getenv("CLASSIFIER_MODE") or "").strip().lower()
+    if raw_mode in SUPPORTED_CLASSIFIER_MODES:
+        return raw_mode
+    if "CLASSIFICATION_SUBMISSION_ENABLED" in os.environ:
+        return (
+            CLASSIFIER_MODE_BACKGROUND
+            if _read_bool_env("CLASSIFICATION_SUBMISSION_ENABLED", default=True)
+            else CLASSIFIER_MODE_DISABLED
+        )
+    return CLASSIFIER_MODE_MCP_FALLBACK_ONLY
+
+
+def get_background_classification_enabled() -> bool:
+    return get_classifier_mode() == CLASSIFIER_MODE_BACKGROUND
+
+
+def get_mcp_fallback_classification_enabled() -> bool:
+    return get_classifier_mode() in {
+        CLASSIFIER_MODE_MCP_FALLBACK_ONLY,
+        CLASSIFIER_MODE_MCP_ON_DEMAND,
+        CLASSIFIER_MODE_BACKGROUND,
+    }
+
+
+def get_local_classifier_configured() -> bool:
+    return bool(get_classifier_api_token())
 
 
 def get_classification_submission_concurrency() -> int:
@@ -182,8 +224,10 @@ def get_classification_retry_backoff_seconds() -> int:
 
 
 def get_classification_targeted_requeue_enabled() -> bool:
-    return (os.getenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "1").strip().lower()
-            not in {"", "0", "false", "no", "off"})
+    return get_background_classification_enabled() and (
+        os.getenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "1").strip().lower()
+        not in {"", "0", "false", "no", "off"}
+    )
 
 
 def get_classification_targeted_requeue_limit() -> int:
@@ -832,6 +876,27 @@ def create_classifier_api_client() -> ClassifierApiClient:
     )
 
 
+def create_mcp_fallback_classifier_api_client() -> ClassifierApiClient:
+    mode = get_classifier_mode()
+    if mode == CLASSIFIER_MODE_DISABLED:
+        raise ClassifierSubmissionNotReadyError(
+            "Local classifier fallback is disabled because CLASSIFIER_MODE=disabled."
+        )
+    if not get_mcp_fallback_classification_enabled():
+        raise ClassifierSubmissionNotReadyError(
+            f"Local classifier fallback is not enabled for CLASSIFIER_MODE={mode}."
+        )
+    api_token = get_classifier_api_token()
+    if not api_token:
+        raise ClassifierSubmissionNotReadyError(
+            "Local classifier fallback is blocked because CLASSIFIER_API_TOKEN is missing."
+        )
+    return ClassifierApiClient(
+        base_url=(os.getenv("CLASSIFIER_API_URL") or DEFAULT_CLASSIFIER_API_URL).strip(),
+        api_token=api_token,
+    )
+
+
 def _extract_record_field(response_payload: dict[str, object], field_name: str) -> object:
     record = response_payload.get("record")
     if isinstance(record, dict):
@@ -885,25 +950,18 @@ def _extract_record_string_list(response_payload: dict[str, object], field_name:
     return cleaned
 
 
-def _persist_completed_classification(
-    session: Session,
+def _apply_completed_response_to_state(
+    state: ClassificationState,
     *,
-    job: ClassificationJob,
-    file_record: FileRecord,
     response_payload: dict[str, object],
-    now: datetime,
-) -> ClassificationJob:
+    submitted_at: datetime,
+    completed_at: datetime,
+) -> dict[str, object]:
     sanitized_response_payload = _sanitize_json_compatible(response_payload)
     if not isinstance(sanitized_response_payload, dict):
         sanitized_response_payload = {}
-    state = _upsert_classification_state(
-        session,
-        file_record=file_record,
-        source_fingerprint=job.source_fingerprint,
-        submission_status=CLASSIFICATION_STATUS_COMPLETED,
-    )
-    state.last_submitted_at = job.claimed_at or now
-    state.last_completed_at = now
+    state.last_submitted_at = submitted_at
+    state.last_completed_at = completed_at
     state.classifier_note_path = _extract_record_text(sanitized_response_payload, "note_path")
     record = sanitized_response_payload.get("record")
     state.classifier_manifest_record = (
@@ -919,16 +977,36 @@ def _persist_completed_classification(
     state.reasoning = _extract_record_text(sanitized_response_payload, "reasoning")
     state.entity_summary = _extract_record_text(sanitized_response_payload, "entity_summary")
     state.topic_summary = _extract_record_text(sanitized_response_payload, "topic_summary")
-    retrieval_terms = _extract_record_string_list(
-        sanitized_response_payload,
-        "retrieval_terms",
-    )
+    retrieval_terms = _extract_record_string_list(sanitized_response_payload, "retrieval_terms")
     state.retrieval_terms_json = (
         json.dumps(retrieval_terms, ensure_ascii=False) if retrieval_terms else None
     )
     state.retrieval_text = _extract_record_text(sanitized_response_payload, "retrieval_text")
     state.response_payload_json = json.dumps(sanitized_response_payload, ensure_ascii=False)
     state.last_error = None
+    return sanitized_response_payload
+
+
+def _persist_completed_classification(
+    session: Session,
+    *,
+    job: ClassificationJob,
+    file_record: FileRecord,
+    response_payload: dict[str, object],
+    now: datetime,
+) -> ClassificationJob:
+    state = _upsert_classification_state(
+        session,
+        file_record=file_record,
+        source_fingerprint=job.source_fingerprint,
+        submission_status=CLASSIFICATION_STATUS_COMPLETED,
+    )
+    sanitized_response_payload = _apply_completed_response_to_state(
+        state,
+        response_payload=response_payload,
+        submitted_at=job.claimed_at or now,
+        completed_at=now,
+    )
 
     job.status = CLASSIFICATION_STATUS_COMPLETED
     job.worker_id = None
@@ -940,6 +1018,50 @@ def _persist_completed_classification(
     job.updated_at = now
     session.commit()
     return job
+
+
+def classify_file_on_mcp_fallback(
+    session: Session,
+    *,
+    file_record: FileRecord,
+    force_reclassify: bool = False,
+    client: ClassifierApiClient | None = None,
+) -> tuple[ClassificationState, bool]:
+    extracted_content = session.scalar(
+        select(ExtractedContent).where(ExtractedContent.file_id == file_record.id)
+    )
+    source_fingerprint = compute_source_fingerprint(
+        file_record=file_record,
+        extracted_content=extracted_content,
+    )
+
+    active_client = client or create_mcp_fallback_classifier_api_client()
+    file_path = resolve_classification_file_path(file_record)
+    if not file_path.exists() or not file_path.is_file():
+        raise RuntimeError(f"Mirrored file is missing for submission: {file_path}")
+    response_payload = active_client.submit_file(
+        file_path=file_path,
+        file_name=file_record.name,
+        source_relative_path=resolve_classification_source_relative_path(file_record),
+        canonical_source_path=str(file_path),
+        canonical_source_hash=compute_file_content_hash(file_path),
+        last_seen_filename=file_record.name,
+    )
+    now = _utc_now()
+    state = _upsert_classification_state(
+        session,
+        file_record=file_record,
+        source_fingerprint=source_fingerprint,
+        submission_status=CLASSIFICATION_STATUS_COMPLETED,
+    )
+    _apply_completed_response_to_state(
+        state,
+        response_payload=response_payload,
+        submitted_at=now,
+        completed_at=now,
+    )
+    session.commit()
+    return state, True
 
 
 def _persist_failed_classification(

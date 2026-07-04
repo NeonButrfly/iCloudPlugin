@@ -85,6 +85,9 @@ describe("generate-chatgpt-app-submission", () => {
       "pause_icloud_index",
       "resume_icloud_index",
       "create_document_vault_note",
+      "classify_file_and_create_document_vault_note_fallback",
+      "batch_classify_files_and_create_document_vault_notes_fallback",
+      "search_files_and_create_document_vault_notes_fallback",
       "delete_icloud_file",
       "restore_icloud_change_set",
       "sync_icloud_manual_feedback_events",
@@ -102,6 +105,7 @@ describe("generate-chatgpt-app-submission", () => {
     expect(formatted).toContain('"refresh_icloud_index"');
     expect(formatted).toContain('"pause_icloud_index"');
     expect(formatted).toContain('"create_document_vault_note"');
+    expect(formatted).toContain('"classify_file_and_create_document_vault_note_fallback"');
     expect(formatted).toContain('"get_icloud_change_set"');
     expect(formatted).toContain('"analyze_icloud_duplicates"');
   });

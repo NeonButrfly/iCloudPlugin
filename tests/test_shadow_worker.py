@@ -14,6 +14,8 @@ def test_run_shadow_worker_once_includes_manual_note_sync(monkeypatch, tmp_path:
         manual_note_feedback_path = tmp_path / "manual-note-feedback.jsonl"
         manual_note_sync_state_path = tmp_path / "manual-note-sync-state.json"
         vault_folder_label_map_path = tmp_path / "vault-folder-labels.json"
+        background_classification_enabled = True
+        classifier_mode = "background"
 
     monkeypatch.setattr(shadow_worker, "load_classifier_runtime_settings", lambda: FakeSettings())
     monkeypatch.setattr(shadow_worker, "load_categories", lambda: ["medical"])
@@ -41,3 +43,19 @@ def test_run_shadow_worker_once_includes_manual_note_sync(monkeypatch, tmp_path:
         "unchanged": 2,
     }
     assert call_order == ["manual", "shadow"]
+
+
+def test_run_shadow_worker_once_stays_dormant_when_classifier_mode_is_not_background(
+    monkeypatch, tmp_path: Path
+):
+    class FakeSettings:
+        background_classification_enabled = False
+        classifier_mode = "mcp_fallback_only"
+
+    monkeypatch.setattr(shadow_worker, "load_classifier_runtime_settings", lambda: FakeSettings())
+
+    result = shadow_worker.run_shadow_worker_once()
+
+    assert result["background_classification_enabled"] is False
+    assert result["queued_jobs_auto_running"] is False
+    assert result["shadow_queue_processed"] is False

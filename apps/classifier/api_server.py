@@ -245,6 +245,8 @@ def maybe_start_shadow_worker() -> None:
     global SHADOW_WORKER_STARTED
     if SHADOW_WORKER_STARTED:
         return
+    if not SETTINGS.background_classification_enabled:
+        return
     if not SHADOW_WORKER_ENABLED:
         return
     if not CLASSIFIER_SCRIPT.exists():
@@ -338,6 +340,11 @@ def health(x_api_key: Optional[str] = Header(default=None)):
         "classification_index": str(INDEX_PATH),
         "manifest": str(MANIFEST_PATH),
         "classifier_script_exists": CLASSIFIER_SCRIPT.exists(),
+        "classifier_mode": SETTINGS.classifier_mode,
+        "background_classification_enabled": SETTINGS.background_classification_enabled,
+        "mcp_fallback_classification_enabled": SETTINGS.mcp_fallback_classification_enabled,
+        "local_classifier_configured": bool(API_TOKEN),
+        "queued_jobs_auto_running": SETTINGS.background_classification_enabled,
         "category_count": len(load_categories()),
         "codex_arbiter": get_codex_arbiter_readiness(),
         **ollama_status,

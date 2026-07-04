@@ -15,9 +15,19 @@ from sqlalchemy.orm import Session
 from apps.classifier.classify_to_obsidian import ensure_vault, write_obsidian_note
 from icloud_index_service.models.change_set import ChangeSet
 from icloud_index_service.models.change_set_item import ChangeSetItem
+from icloud_index_service.models.classification_state import ClassificationState
 from icloud_index_service.models.document_vault_note import DocumentVaultNote
 from icloud_index_service.models.file import FileRecord
+from icloud_index_service.services.classification_submission import (
+    CLASSIFICATION_STATUS_COMPLETED,
+    ClassifierSubmissionNotReadyError,
+    PermanentClassifierSubmissionError,
+    classify_file_on_mcp_fallback,
+    get_classifier_mode,
+    resolve_classification_file_path,
+)
 from icloud_index_service.services.file_access_service import resolve_file_source_path
+from icloud_index_service.services.search_service import search_files
 from icloud_index_service.services.vault_reconciliation import sync_manual_note_feedback
 
 
@@ -30,6 +40,9 @@ class FileNamespace(str, Enum):
     GOOGLE2 = "google2"
     ICLOUD = "icloud"
     DOCUMENT_VAULT = "document_vault"
+
+
+MAX_FALLBACK_BATCH_SIZE = 50
 
 
 def _utc_now() -> datetime:
@@ -635,6 +648,380 @@ def create_document_vault_note(
     if session is not None:
         session.commit()
     return {"note_path": str(note_path), "change_set_id": change_set_id}
+
+
+def _resolve_document_vault_note_path(*, vault_root: Path, note_path_value: str) -> Path | None:
+    cleaned = str(note_path_value or "").strip()
+    if not cleaned:
+        return None
+    candidate = Path(cleaned)
+    if not candidate.is_absolute():
+        candidate = (vault_root / cleaned).resolve()
+    else:
+        candidate = candidate.resolve()
+    if candidate != vault_root and vault_root not in candidate.parents:
+        return None
+    return candidate
+
+
+def _find_active_document_vault_note_for_file(
+    session: Session,
+    *,
+    file_id: int,
+    vault_root: Path,
+) -> tuple[DocumentVaultNote | None, Path | None]:
+    note_record = session.scalar(
+        select(DocumentVaultNote).where(
+            DocumentVaultNote.source_file_record_id == file_id,
+            DocumentVaultNote.is_deleted.is_(False),
+        )
+    )
+    if note_record is None:
+        state = session.scalar(
+            select(ClassificationState).where(ClassificationState.file_id == file_id)
+        )
+        if state is None:
+            return None, None
+        note_path = _resolve_document_vault_note_path(
+            vault_root=vault_root,
+            note_path_value=state.classifier_note_path or "",
+        )
+        return None, note_path
+    note_path = (vault_root / note_record.relative_path).resolve()
+    return note_record, note_path
+
+
+def _note_needs_review(
+    *,
+    note_path: Path | None,
+    primary_label: str | None,
+    confidence: float | None,
+) -> bool:
+    if note_path is not None and "02 Needs Review" in note_path.as_posix():
+        return True
+    if str(primary_label or "").strip() in {"unknown", "needs-review"}:
+        return True
+    if isinstance(confidence, (int, float)) and float(confidence) < 0.70:
+        return True
+    return False
+
+
+def classify_file_and_create_document_vault_note_fallback(
+    *,
+    file_id: int,
+    fallback_reason: str = "manual_fallback",
+    force_reclassify: bool = False,
+    summary_mode: str = "classifier",
+    title_mode: str = "classifier",
+    attach_originals: bool = True,
+    idempotency_key: str | None = None,
+    actor: str = "chatgpt-plugin",
+    session: Session,
+) -> dict[str, object]:
+    del summary_mode, title_mode, idempotency_key
+    file_record = session.get(FileRecord, file_id)
+    if file_record is None:
+        return {
+            "status": "failed",
+            "file_id": file_id,
+            "note_path": None,
+            "change_set_id": None,
+            "fallback_reason": fallback_reason,
+            "used_classifier": False,
+            "classifier_invocation": "mcp_fallback_only",
+            "classifier_status": "file-not-found",
+            "primary_label": None,
+            "confidence": None,
+            "needs_review": False,
+            "source_exists": False,
+            "message": "Indexed file record was not found.",
+        }
+
+    source_exists = False
+    try:
+        source_path = resolve_classification_file_path(file_record)
+        source_exists = source_path.exists() and source_path.is_file()
+    except Exception:
+        source_path = None
+
+    vault_root = resolve_namespace_root(FileNamespace.DOCUMENT_VAULT)
+    ensure_vault(vault_root)
+    _, existing_note_path = _find_active_document_vault_note_for_file(
+        session,
+        file_id=file_id,
+        vault_root=vault_root,
+    )
+    existing_state = session.scalar(
+        select(ClassificationState).where(ClassificationState.file_id == file_id)
+    )
+    if existing_note_path is not None and existing_note_path.exists() and not force_reclassify:
+        _upsert_document_vault_note_record(
+            session,
+            note_path=existing_note_path,
+            vault_root=vault_root,
+        )
+        session.commit()
+        return {
+            "status": "existing",
+            "file_id": file_id,
+            "note_path": str(existing_note_path),
+            "change_set_id": None,
+            "fallback_reason": fallback_reason,
+            "used_classifier": False,
+            "classifier_invocation": "mcp_fallback_only",
+            "classifier_status": (
+                existing_state.submission_status if existing_state is not None else "not-run"
+            ),
+            "primary_label": existing_state.primary_label if existing_state is not None else None,
+            "confidence": existing_state.confidence if existing_state is not None else None,
+            "needs_review": _note_needs_review(
+                note_path=existing_note_path,
+                primary_label=existing_state.primary_label if existing_state is not None else None,
+                confidence=existing_state.confidence if existing_state is not None else None,
+            ),
+            "source_exists": source_exists,
+            "message": "Existing generated note already present; local classifier fallback was not invoked.",
+        }
+
+    try:
+        state, used_classifier = classify_file_on_mcp_fallback(
+            session,
+            file_record=file_record,
+            force_reclassify=force_reclassify,
+        )
+    except ClassifierSubmissionNotReadyError as exc:
+        return {
+            "status": "blocked",
+            "file_id": file_id,
+            "note_path": None,
+            "change_set_id": None,
+            "fallback_reason": fallback_reason,
+            "used_classifier": False,
+            "classifier_invocation": "mcp_fallback_only",
+            "classifier_status": "blocked",
+            "primary_label": None,
+            "confidence": None,
+            "needs_review": False,
+            "source_exists": source_exists,
+            "message": str(exc),
+        }
+    except PermanentClassifierSubmissionError as exc:
+        return {
+            "status": "failed",
+            "file_id": file_id,
+            "note_path": None,
+            "change_set_id": None,
+            "fallback_reason": fallback_reason,
+            "used_classifier": False,
+            "classifier_invocation": "mcp_fallback_only",
+            "classifier_status": "rejected",
+            "primary_label": None,
+            "confidence": None,
+            "needs_review": False,
+            "source_exists": source_exists,
+            "message": str(exc),
+        }
+    except RuntimeError as exc:
+        return {
+            "status": "failed",
+            "file_id": file_id,
+            "note_path": None,
+            "change_set_id": None,
+            "fallback_reason": fallback_reason,
+            "used_classifier": False,
+            "classifier_invocation": "mcp_fallback_only",
+            "classifier_status": "failed",
+            "primary_label": None,
+            "confidence": None,
+            "needs_review": False,
+            "source_exists": source_exists,
+            "message": str(exc),
+        }
+
+    note_path = _resolve_document_vault_note_path(
+        vault_root=vault_root,
+        note_path_value=state.classifier_note_path or "",
+    )
+    if note_path is None or not note_path.exists():
+        return {
+            "status": "failed",
+            "file_id": file_id,
+            "note_path": str(note_path) if note_path is not None else None,
+            "change_set_id": None,
+            "fallback_reason": fallback_reason,
+            "used_classifier": used_classifier,
+            "classifier_invocation": "mcp_fallback_only",
+            "classifier_status": state.submission_status,
+            "primary_label": state.primary_label,
+            "confidence": state.confidence,
+            "needs_review": _note_needs_review(
+                note_path=note_path,
+                primary_label=state.primary_label,
+                confidence=state.confidence,
+            ),
+            "source_exists": source_exists,
+            "message": "Classifier fallback completed without producing a readable note path in document_vault.",
+        }
+
+    note_record_id = _upsert_document_vault_note_record(
+        session,
+        note_path=note_path,
+        vault_root=vault_root,
+    )
+    status = "updated" if existing_note_path is not None and existing_note_path.exists() else "created"
+    change_set_id = uuid4().hex
+    payload = {
+        "change_set_id": change_set_id,
+        "namespace": FileNamespace.DOCUMENT_VAULT.value,
+        "actor": actor,
+        "operation": "update" if status == "updated" else "create",
+        "note_path": str(note_path),
+        "result_path": str(note_path),
+        "status": status,
+        "source_file_record_id": file_id,
+        "classifier_mode": get_classifier_mode(),
+        "fallback_reason": fallback_reason,
+    }
+    _write_change_set_metadata(FileNamespace.DOCUMENT_VAULT, change_set_id, payload)
+    _persist_change_set(
+        session,
+        payload=payload,
+        item_type="document_vault_note",
+        document_note_record_id=note_record_id,
+    )
+    feedback_path = vault_root / "_system" / "training" / "manual-note-feedback.jsonl"
+    state_path = vault_root / "_system" / "training" / "manual-note-sync-state.json"
+    sync_manual_note_feedback(
+        vault_root,
+        feedback_path=feedback_path,
+        state_path=state_path,
+        known_labels=[],
+        folder_label_map_path=None,
+        limit=25,
+    )
+    session.commit()
+    return {
+        "status": status,
+        "file_id": file_id,
+        "note_path": str(note_path),
+        "change_set_id": change_set_id,
+        "fallback_reason": fallback_reason,
+        "used_classifier": used_classifier,
+        "classifier_invocation": "mcp_fallback_only",
+        "classifier_status": state.submission_status,
+        "primary_label": state.primary_label,
+        "confidence": state.confidence,
+        "needs_review": _note_needs_review(
+            note_path=note_path,
+            primary_label=state.primary_label,
+            confidence=state.confidence,
+        ),
+        "source_exists": source_exists,
+        "message": "Local classifier fallback wrote a document_vault note for the requested file.",
+    }
+
+
+def batch_classify_files_and_create_document_vault_notes_fallback(
+    *,
+    file_ids: list[int],
+    fallback_reason: str = "manual_fallback",
+    force_reclassify: bool = False,
+    summary_mode: str = "classifier",
+    title_mode: str = "classifier",
+    attach_originals: bool = True,
+    skip_existing: bool = False,
+    limit: int | None = None,
+    actor: str = "chatgpt-plugin",
+    session: Session,
+) -> dict[str, object]:
+    capped_limit = min(max(limit or len(file_ids), 1), MAX_FALLBACK_BATCH_SIZE)
+    unique_file_ids: list[int] = []
+    seen: set[int] = set()
+    for raw_file_id in file_ids:
+        if raw_file_id in seen:
+            continue
+        seen.add(raw_file_id)
+        unique_file_ids.append(raw_file_id)
+    results = []
+    for file_id in unique_file_ids[:capped_limit]:
+        result = classify_file_and_create_document_vault_note_fallback(
+            file_id=file_id,
+            fallback_reason=fallback_reason,
+            force_reclassify=force_reclassify,
+            summary_mode=summary_mode,
+            title_mode=title_mode,
+            attach_originals=attach_originals,
+            actor=actor,
+            session=session,
+        )
+        if skip_existing and result["status"] == "existing":
+            continue
+        results.append(result)
+
+    buckets = {key: [row for row in results if row["status"] == key] for key in ("created", "updated", "existing", "blocked", "failed")}
+    return {
+        **buckets,
+        "count_created": len(buckets["created"]),
+        "count_updated": len(buckets["updated"]),
+        "count_existing": len(buckets["existing"]),
+        "count_blocked": len(buckets["blocked"]),
+        "count_failed": len(buckets["failed"]),
+    }
+
+
+def search_files_and_create_document_vault_notes_fallback(
+    *,
+    query: str,
+    path_scope: str | None = None,
+    namespace: str | None = None,
+    limit: int = 10,
+    fallback_reason: str = "manual_fallback",
+    force_reclassify: bool = False,
+    skip_existing: bool = False,
+    summary_mode: str = "classifier",
+    title_mode: str = "classifier",
+    actor: str = "chatgpt-plugin",
+    session: Session,
+) -> dict[str, object]:
+    matches = search_files(
+        session,
+        query=query,
+        limit=min(max(limit, 1), MAX_FALLBACK_BATCH_SIZE),
+        path_scope=path_scope,
+    )
+    if namespace:
+        normalized_namespace = namespace.strip().strip("/")
+        matches = [
+            match for match in matches
+            if str(match.get("path", "")).startswith(f"/{normalized_namespace}/")
+        ]
+    file_ids = [int(match["file_id"]) for match in matches if isinstance(match.get("file_id"), int)]
+    batch_payload = batch_classify_files_and_create_document_vault_notes_fallback(
+        file_ids=file_ids,
+        fallback_reason=fallback_reason,
+        force_reclassify=force_reclassify,
+        summary_mode=summary_mode,
+        title_mode=title_mode,
+        attach_originals=True,
+        skip_existing=skip_existing,
+        limit=limit,
+        actor=actor,
+        session=session,
+    )
+    processed_count = (
+        batch_payload["count_created"]
+        + batch_payload["count_updated"]
+        + batch_payload["count_existing"]
+        + batch_payload["count_blocked"]
+        + batch_payload["count_failed"]
+    )
+    return {
+        "status": "ok",
+        "matched_count": len(matches),
+        "processed_count": processed_count,
+        **batch_payload,
+        "message": "Processed fallback document_vault note creation for the matching indexed files.",
+    }
 
 
 def import_duplicate_quarantine_to_changes_backup(

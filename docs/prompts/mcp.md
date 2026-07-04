@@ -1,3 +1,35 @@
+## 2026-07-03 - Keep ChatGPT note writing primary and classifier fallback explicit
+
+- Source prompt: "Do not make the local classifier the primary path." followed
+  by "Best fix: update the iCloud tool to support note creation by file_id
+  instead of passing sensitive source paths/content through the tool
+  arguments." and "also re-enable the local classifier but only when called
+  through the mcp server, do not automate the classifier".
+- Interpreted requirement: preserve the existing ChatGPT-authored
+  `search_icloud_notes_and_files -> create_document_vault_note` workflow as the
+  default note-writing path, but add explicit fallback MCP tools that can
+  create notes by `file_id` through the local classifier only after the normal
+  write path fails, is blocked, or returns a server error.
+- Tracking issue: [#92](https://github.com/NeonButrfly/iCloudPlugin/issues/92)
+- Product requirements:
+  - keep `create_document_vault_note` as the preferred/default write path
+  - add fallback tools:
+    - `classify_file_and_create_document_vault_note_fallback`
+    - `batch_classify_files_and_create_document_vault_notes_fallback`
+    - `search_files_and_create_document_vault_notes_fallback`
+  - fallback calls should use `file_id` and server-side path resolution so
+    sensitive titles, summaries, and source paths do not have to cross the MCP
+    boundary
+  - fallback note creation must be idempotent by `file_id`
+  - status/readiness surfaces must report fallback-only classifier mode
+- Operational constraints:
+  - do not automate classifier runs
+  - do not start background classification at startup
+  - do not classify during sync or metadata refresh
+  - do not auto-drain old queued classifier jobs
+  - only run the local classifier because a fallback MCP tool was explicitly
+    called
+
 ## 2026-05-31 - Complete external ChatGPT / MCP access path with Cloudflare
 
 - Source prompt: "we should put the mcp server in cloudflare" and later "do everything we need to do with the icloudplugin project to make a complete end to end product with all the capabilities we discussed".

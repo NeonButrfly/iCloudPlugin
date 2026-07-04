@@ -15,19 +15,24 @@ from .tool_schemas import (
     ChangeSetId,
     DedupeGroupId,
     ExcerptMaxChars,
+    FallbackReason,
     FileId,
+    FileIdList,
     HydrateLimit,
     NoteMaxChars,
     NamespaceName,
     NamespaceList,
     OptionalCanonicalSourcePath,
     OptionalFileId,
+    OptionalText,
     PathScope,
     RelativeFolder,
     RelativePath,
     SearchLimit,
     SearchQuery,
+    SummaryMode,
     SummaryText,
+    TitleMode,
     VisibleTitle,
     WorkflowLimit,
 )
@@ -206,6 +211,81 @@ def create_document_vault_note(
             file_id=file_id,
             canonical_source_path=canonical_source_path,
             attach_originals=attach_originals,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def classify_file_and_create_document_vault_note_fallback(
+    file_id: FileId,
+    fallback_reason: FallbackReason = "manual_fallback",
+    force_reclassify: bool = False,
+    summary_mode: SummaryMode = "classifier",
+    title_mode: TitleMode = "classifier",
+    attach_originals: bool = True,
+    idempotency_key: OptionalText = None,
+) -> dict[str, Any]:
+    """Use the local classifier only as an explicit MCP fallback after normal ChatGPT-authored note creation fails or is blocked."""
+    with build_service_client_from_env() as client:
+        return client.classify_file_and_create_document_vault_note_fallback(
+            file_id=file_id,
+            fallback_reason=fallback_reason,
+            force_reclassify=force_reclassify,
+            summary_mode=summary_mode,
+            title_mode=title_mode,
+            attach_originals=attach_originals,
+            idempotency_key=idempotency_key,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def batch_classify_files_and_create_document_vault_notes_fallback(
+    file_ids: FileIdList,
+    fallback_reason: FallbackReason = "manual_fallback",
+    force_reclassify: bool = False,
+    summary_mode: SummaryMode = "classifier",
+    title_mode: TitleMode = "classifier",
+    attach_originals: bool = True,
+    skip_existing: bool = False,
+    limit: WorkflowLimit = 25,
+) -> dict[str, Any]:
+    """Run explicit local-classifier fallback note creation only for the requested indexed file ids."""
+    with build_service_client_from_env() as client:
+        return client.batch_classify_files_and_create_document_vault_notes_fallback(
+            file_ids=file_ids,
+            fallback_reason=fallback_reason,
+            force_reclassify=force_reclassify,
+            summary_mode=summary_mode,
+            title_mode=title_mode,
+            attach_originals=attach_originals,
+            skip_existing=skip_existing,
+            limit=limit,
+        )
+
+
+@mcp.tool(annotations=WRITE_ONLY_INTERNAL_TOOL_ANNOTATIONS, structured_output=True)
+def search_files_and_create_document_vault_notes_fallback(
+    query: SearchQuery,
+    path_scope: PathScope = None,
+    namespace: str | None = None,
+    limit: WorkflowLimit = 10,
+    fallback_reason: FallbackReason = "manual_fallback",
+    force_reclassify: bool = False,
+    skip_existing: bool = False,
+    summary_mode: SummaryMode = "classifier",
+    title_mode: TitleMode = "classifier",
+) -> dict[str, Any]:
+    """Search indexed files server-side, then invoke the local classifier only for this explicit fallback MCP call."""
+    with build_service_client_from_env() as client:
+        return client.search_files_and_create_document_vault_notes_fallback(
+            query=query,
+            path_scope=path_scope,
+            namespace=namespace,
+            limit=limit,
+            fallback_reason=fallback_reason,
+            force_reclassify=force_reclassify,
+            skip_existing=skip_existing,
+            summary_mode=summary_mode,
+            title_mode=title_mode,
         )
 
 

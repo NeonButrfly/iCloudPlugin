@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
@@ -16,12 +17,15 @@ from icloud_index_service.services.file_access_service import (
     resolve_file_source_path,
 )
 from icloud_index_service.services.file_mutation_service import (
+    batch_classify_files_and_create_document_vault_notes_fallback,
+    classify_file_and_create_document_vault_note_fallback,
     FileMutationPolicyError,
     FileNamespace,
     create_document_vault_note,
     delete_file_by_path,
     get_change_set_record,
     restore_change_set,
+    search_files_and_create_document_vault_notes_fallback,
 )
 from icloud_index_service.services.workflow_index_service import (
     analyze_duplicate_groups,
@@ -52,6 +56,48 @@ class CreateDocumentVaultNoteRequest(BaseModel):
     file_id: int | None = None
     canonical_source_path: str | None = None
     attach_originals: bool = True
+
+
+FallbackReason = Literal[
+    "chatgpt_payload_blocked",
+    "chatgpt_note_write_failed",
+    "server_500",
+    "manual_fallback",
+    "other",
+]
+
+
+class ClassifyDocumentVaultNoteFallbackRequest(BaseModel):
+    file_id: int
+    fallback_reason: FallbackReason = "manual_fallback"
+    force_reclassify: bool = False
+    summary_mode: Literal["minimal", "classifier", "full_note"] = "classifier"
+    title_mode: Literal["generic", "source_name", "classifier"] = "classifier"
+    attach_originals: bool = True
+    idempotency_key: str | None = None
+
+
+class BatchClassifyDocumentVaultNotesFallbackRequest(BaseModel):
+    file_ids: list[int]
+    fallback_reason: FallbackReason = "manual_fallback"
+    force_reclassify: bool = False
+    summary_mode: Literal["minimal", "classifier", "full_note"] = "classifier"
+    title_mode: Literal["generic", "source_name", "classifier"] = "classifier"
+    attach_originals: bool = True
+    skip_existing: bool = False
+    limit: int | None = None
+
+
+class SearchDocumentVaultNotesFallbackRequest(BaseModel):
+    query: str
+    path_scope: str | None = None
+    namespace: Literal["icloud", "google1", "google2"] | None = None
+    limit: int = 10
+    fallback_reason: FallbackReason = "manual_fallback"
+    force_reclassify: bool = False
+    skip_existing: bool = False
+    summary_mode: Literal["minimal", "classifier", "full_note"] = "classifier"
+    title_mode: Literal["generic", "source_name", "classifier"] = "classifier"
 
 
 class SyncManualFeedbackEventsRequest(BaseModel):
@@ -251,6 +297,81 @@ def create_document_vault_note_route(
             file_id=payload.file_id,
             canonical_source_path=payload.canonical_source_path,
             attach_originals=payload.attach_originals,
+            actor="plugin-api",
+            session=session,
+        )
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/ops/document-vault/note/fallback",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def classify_document_vault_note_fallback_route(
+    payload: ClassifyDocumentVaultNoteFallbackRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        return classify_file_and_create_document_vault_note_fallback(
+            file_id=payload.file_id,
+            fallback_reason=payload.fallback_reason,
+            force_reclassify=payload.force_reclassify,
+            summary_mode=payload.summary_mode,
+            title_mode=payload.title_mode,
+            attach_originals=payload.attach_originals,
+            idempotency_key=payload.idempotency_key,
+            actor="plugin-api",
+            session=session,
+        )
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/ops/document-vault/note/fallback/batch",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def batch_classify_document_vault_notes_fallback_route(
+    payload: BatchClassifyDocumentVaultNotesFallbackRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        return batch_classify_files_and_create_document_vault_notes_fallback(
+            file_ids=payload.file_ids,
+            fallback_reason=payload.fallback_reason,
+            force_reclassify=payload.force_reclassify,
+            summary_mode=payload.summary_mode,
+            title_mode=payload.title_mode,
+            attach_originals=payload.attach_originals,
+            skip_existing=payload.skip_existing,
+            limit=payload.limit,
+            actor="plugin-api",
+            session=session,
+        )
+    except FileMutationPolicyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/ops/document-vault/note/fallback/search",
+    dependencies=[Depends(_ensure_files_database_available), Depends(require_plugin_api_token)],
+)
+def search_document_vault_notes_fallback_route(
+    payload: SearchDocumentVaultNotesFallbackRequest,
+    session: Session = Depends(_get_files_session),
+) -> dict[str, object]:
+    try:
+        return search_files_and_create_document_vault_notes_fallback(
+            query=payload.query,
+            path_scope=payload.path_scope,
+            namespace=payload.namespace,
+            limit=payload.limit,
+            fallback_reason=payload.fallback_reason,
+            force_reclassify=payload.force_reclassify,
+            skip_existing=payload.skip_existing,
+            summary_mode=payload.summary_mode,
+            title_mode=payload.title_mode,
             actor="plugin-api",
             session=session,
         )

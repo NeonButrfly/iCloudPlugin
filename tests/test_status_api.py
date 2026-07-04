@@ -251,6 +251,14 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
         "classify_model": "qwen2.5:3b",
         "vision_model": "qwen2.5vl:3b",
     }
+    assert payload["classifier_runtime"] == {
+        "classifier_mode": "mcp_fallback_only",
+        "background_classification_enabled": False,
+        "mcp_fallback_classification_enabled": True,
+        "local_classifier_configured": False,
+        "queued_classifier_jobs": 1,
+        "queued_jobs_auto_running": False,
+    }
     assert payload["classification_job_counts"] == {"completed": 1, "queued": 1}
     assert payload["classification_state_counts"] == {"completed": 1, "queued": 1}
     assert payload["provider_counts"] == {"google1": 1, "icloud": 1}

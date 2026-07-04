@@ -43,6 +43,9 @@ def test_plugin_server_tools_expose_annotations_and_output_schemas():
 
     for tool_name in {
         "create_document_vault_note",
+        "classify_file_and_create_document_vault_note_fallback",
+        "batch_classify_files_and_create_document_vault_notes_fallback",
+        "search_files_and_create_document_vault_notes_fallback",
         "delete_icloud_file",
         "restore_icloud_change_set",
         "sync_icloud_manual_feedback_events",

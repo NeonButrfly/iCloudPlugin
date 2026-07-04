@@ -25,6 +25,7 @@ from icloud_index_service.services.classification_submission import (
     DEFAULT_CLASSIFICATION_SUBMISSION_CONCURRENCY,
     compute_source_fingerprint,
     create_classifier_api_client,
+    create_mcp_fallback_classifier_api_client,
     enqueue_classification_backfill,
     enqueue_targeted_reclassification_from_manual_feedback,
     get_classification_backfill_enabled,
@@ -706,6 +707,19 @@ def test_create_classifier_api_client_requires_token_when_submission_enabled(
         create_classifier_api_client()
 
 
+def test_create_mcp_fallback_classifier_api_client_blocks_when_mode_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("CLASSIFIER_MODE", "disabled")
+    monkeypatch.setenv("CLASSIFIER_API_TOKEN", "secret")
+
+    with pytest.raises(
+        ClassifierSubmissionNotReadyError,
+        match="CLASSIFIER_MODE=disabled",
+    ):
+        create_mcp_fallback_classifier_api_client()
+
+
 def test_classification_worker_once_processes_up_to_configured_concurrency(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -718,6 +732,7 @@ def test_classification_worker_once_processes_up_to_configured_concurrency(
 
     monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
     monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_MODE", "background")
     monkeypatch.setenv("CLASSIFICATION_SUBMISSION_CONCURRENCY", "2")
 
     session_factory = _build_session_factory(tmp_path)
@@ -821,6 +836,33 @@ def test_classification_worker_once_runs_vault_reconciliation_pass(
     assert reconciliation_calls == [None]
 
 
+def test_classification_worker_once_is_dormant_in_mcp_fallback_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session_factory = _build_session_factory(tmp_path)
+    monkeypatch.setenv("CLASSIFIER_MODE", "mcp_fallback_only")
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.enqueue_classification_backfill",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("backfill should not run")),
+    )
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.enqueue_targeted_reclassification_from_manual_feedback",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("targeted requeue should not run")),
+    )
+    monkeypatch.setattr(
+        "icloud_index_service.classification_worker.run_next_classification_job",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("queued jobs should stay dormant")),
+    )
+
+    processed_count = run_classification_worker_once(
+        session_factory=session_factory,
+        worker_id="classifier-a",
+    )
+
+    assert processed_count == 0
+
+
 def test_classification_worker_once_can_skip_backfill_and_still_seed_targeted_requeue(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -874,6 +916,7 @@ def test_classification_worker_once_can_skip_backfill_and_still_seed_targeted_re
 def test_get_classification_backfill_enabled_defaults_true_and_honors_false_env(
     monkeypatch: pytest.MonkeyPatch,
 ):
+    monkeypatch.setenv("CLASSIFIER_MODE", "background")
     monkeypatch.delenv("CLASSIFICATION_BACKFILL_ENABLED", raising=False)
     assert get_classification_backfill_enabled() is True
 
@@ -914,6 +957,7 @@ def test_enqueue_targeted_reclassification_from_manual_feedback_queues_strong_ge
     monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
     monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
     monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+    monkeypatch.setenv("CLASSIFIER_MODE", "background")
     monkeypatch.setenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "true")
 
     session_factory = _build_session_factory(tmp_path)
@@ -970,6 +1014,7 @@ def test_enqueue_targeted_reclassification_from_manual_feedback_skips_weak_folde
     monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
     monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
     monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+    monkeypatch.setenv("CLASSIFIER_MODE", "background")
     monkeypatch.setenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "true")
 
     folder_map_path = tmp_path / "vault-folder-labels.json"
@@ -1030,6 +1075,7 @@ def test_enqueue_targeted_reclassification_from_manual_feedback_skips_when_feedb
     monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
     monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
     monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+    monkeypatch.setenv("CLASSIFIER_MODE", "background")
     monkeypatch.setenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "true")
 
     session_factory = _build_session_factory(tmp_path)
@@ -1076,6 +1122,7 @@ def test_enqueue_targeted_reclassification_from_manual_feedback_queues_completed
 
     monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
     monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_MODE", "background")
     monkeypatch.setenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "true")
 
     session_factory = _build_session_factory(tmp_path)
@@ -1137,6 +1184,7 @@ def test_enqueue_targeted_reclassification_from_manual_feedback_queues_messenger
 
     monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
     monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_MODE", "background")
     monkeypatch.setenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "true")
 
     session_factory = _build_session_factory(tmp_path)
@@ -1255,6 +1303,7 @@ def test_enqueue_targeted_reclassification_from_manual_feedback_skips_duplicate_
 
     monkeypatch.setenv("ICLOUD_SOURCE_MODE", "filesystem-mirror")
     monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(mirror_root))
+    monkeypatch.setenv("CLASSIFIER_MODE", "background")
     monkeypatch.setenv("CLASSIFICATION_TARGETED_REQUEUE_ENABLED", "true")
 
     session_factory = _build_session_factory(tmp_path)

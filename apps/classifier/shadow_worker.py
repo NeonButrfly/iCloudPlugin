@@ -13,6 +13,16 @@ from packages.runtime import load_classifier_runtime_settings
 
 def run_shadow_worker_once() -> dict:
     settings = load_classifier_runtime_settings()
+    if not settings.background_classification_enabled:
+        return {
+            "ok": True,
+            "classifier_mode": settings.classifier_mode,
+            "background_classification_enabled": False,
+            "queued_jobs_auto_running": False,
+            "shadow_queue_processed": False,
+            "manual_note_sync": {"scanned": 0, "created": 0, "unchanged": 0, "event_ids": []},
+            "message": "Shadow worker is dormant because classifier mode is not background.",
+        }
     categories = load_categories()
     manual_note_result = sync_manual_note_feedback(
         settings.vault_root,

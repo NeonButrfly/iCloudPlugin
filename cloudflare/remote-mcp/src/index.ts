@@ -704,6 +704,204 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
+    name: "classify_file_and_create_document_vault_note_fallback",
+    description:
+      "Use the local classifier only as an explicit fallback after the normal ChatGPT-authored document_vault note path fails or is blocked.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        file_id: { type: "integer", minimum: 1 },
+        fallback_reason: {
+          type: "string",
+          enum: [
+            "chatgpt_payload_blocked",
+            "chatgpt_note_write_failed",
+            "server_500",
+            "manual_fallback",
+            "other",
+          ],
+        },
+        force_reclassify: { type: "boolean" },
+        summary_mode: { type: "string", enum: ["minimal", "classifier", "full_note"] },
+        title_mode: { type: "string", enum: ["generic", "source_name", "classifier"] },
+        attach_originals: { type: "boolean" },
+        idempotency_key: { type: "string", minLength: 1 },
+      },
+      required: ["file_id"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/document-vault/note/fallback", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          file_id: readPositiveInt(args.file_id, "file_id"),
+          fallback_reason:
+            typeof args.fallback_reason === "undefined"
+              ? "manual_fallback"
+              : readString(args.fallback_reason, "fallback_reason"),
+          force_reclassify:
+            typeof args.force_reclassify === "undefined"
+              ? false
+              : readBoolean(args.force_reclassify, "force_reclassify"),
+          summary_mode:
+            typeof args.summary_mode === "undefined"
+              ? "classifier"
+              : readString(args.summary_mode, "summary_mode"),
+          title_mode:
+            typeof args.title_mode === "undefined"
+              ? "classifier"
+              : readString(args.title_mode, "title_mode"),
+          attach_originals:
+            typeof args.attach_originals === "undefined"
+              ? true
+              : readBoolean(args.attach_originals, "attach_originals"),
+          ...(typeof args.idempotency_key === "undefined"
+            ? {}
+            : { idempotency_key: readString(args.idempotency_key, "idempotency_key") }),
+        }),
+      }),
+  },
+  {
+    name: "batch_classify_files_and_create_document_vault_notes_fallback",
+    description:
+      "Run the local classifier only for the explicitly requested file ids as a fallback document_vault note workflow.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        file_ids: { type: "array", minItems: 1, items: { type: "integer", minimum: 1 } },
+        fallback_reason: {
+          type: "string",
+          enum: [
+            "chatgpt_payload_blocked",
+            "chatgpt_note_write_failed",
+            "server_500",
+            "manual_fallback",
+            "other",
+          ],
+        },
+        force_reclassify: { type: "boolean" },
+        summary_mode: { type: "string", enum: ["minimal", "classifier", "full_note"] },
+        title_mode: { type: "string", enum: ["generic", "source_name", "classifier"] },
+        attach_originals: { type: "boolean" },
+        skip_existing: { type: "boolean" },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+      },
+      required: ["file_ids"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) => {
+      if (!Array.isArray(args.file_ids) || args.file_ids.length === 0) {
+        throw new Error("Invalid file_ids; expected a non-empty array.");
+      }
+      return fetchOriginJson(env, "/files/ops/document-vault/note/fallback/batch", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          file_ids: args.file_ids.map((value) => readPositiveInt(value, "file_ids")),
+          fallback_reason:
+            typeof args.fallback_reason === "undefined"
+              ? "manual_fallback"
+              : readString(args.fallback_reason, "fallback_reason"),
+          force_reclassify:
+            typeof args.force_reclassify === "undefined"
+              ? false
+              : readBoolean(args.force_reclassify, "force_reclassify"),
+          summary_mode:
+            typeof args.summary_mode === "undefined"
+              ? "classifier"
+              : readString(args.summary_mode, "summary_mode"),
+          title_mode:
+            typeof args.title_mode === "undefined"
+              ? "classifier"
+              : readString(args.title_mode, "title_mode"),
+          attach_originals:
+            typeof args.attach_originals === "undefined"
+              ? true
+              : readBoolean(args.attach_originals, "attach_originals"),
+          skip_existing:
+            typeof args.skip_existing === "undefined"
+              ? false
+              : readBoolean(args.skip_existing, "skip_existing"),
+          ...(typeof args.limit === "undefined"
+            ? {}
+            : { limit: readPositiveInt(args.limit, "limit") }),
+        }),
+      });
+    },
+  },
+  {
+    name: "search_files_and_create_document_vault_notes_fallback",
+    description:
+      "Search indexed files server-side, then use the local classifier only for this explicit fallback document_vault note request.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", minLength: 1 },
+        path_scope: { type: "string" },
+        namespace: { type: "string", enum: ["icloud", "google1", "google2"] },
+        limit: { type: "integer", minimum: 1, maximum: 200 },
+        fallback_reason: {
+          type: "string",
+          enum: [
+            "chatgpt_payload_blocked",
+            "chatgpt_note_write_failed",
+            "server_500",
+            "manual_fallback",
+            "other",
+          ],
+        },
+        force_reclassify: { type: "boolean" },
+        skip_existing: { type: "boolean" },
+        summary_mode: { type: "string", enum: ["minimal", "classifier", "full_note"] },
+        title_mode: { type: "string", enum: ["generic", "source_name", "classifier"] },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    annotations: WRITE_ANNOTATIONS,
+    outputSchema: GENERIC_OBJECT_SCHEMA,
+    handler: async ({ env }, args) =>
+      fetchOriginJson(env, "/files/ops/document-vault/note/fallback/search", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          query: readString(args.query, "query"),
+          ...(typeof args.path_scope === "undefined"
+            ? {}
+            : { path_scope: readString(args.path_scope, "path_scope") }),
+          ...(typeof args.namespace === "undefined"
+            ? {}
+            : { namespace: readString(args.namespace, "namespace") }),
+          ...(typeof args.limit === "undefined" ? {} : { limit: readPositiveInt(args.limit, "limit") }),
+          fallback_reason:
+            typeof args.fallback_reason === "undefined"
+              ? "manual_fallback"
+              : readString(args.fallback_reason, "fallback_reason"),
+          force_reclassify:
+            typeof args.force_reclassify === "undefined"
+              ? false
+              : readBoolean(args.force_reclassify, "force_reclassify"),
+          skip_existing:
+            typeof args.skip_existing === "undefined"
+              ? false
+              : readBoolean(args.skip_existing, "skip_existing"),
+          summary_mode:
+            typeof args.summary_mode === "undefined"
+              ? "classifier"
+              : readString(args.summary_mode, "summary_mode"),
+          title_mode:
+            typeof args.title_mode === "undefined"
+              ? "classifier"
+              : readString(args.title_mode, "title_mode"),
+        }),
+      }),
+  },
+  {
     name: "delete_icloud_file",
     description:
       "Move a live file into the namespace-specific _CHANGES_BACKUP area and return a reversible change set.",

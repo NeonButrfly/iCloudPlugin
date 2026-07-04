@@ -474,6 +474,86 @@ def test_create_document_vault_note_posts_to_origin_endpoint():
     assert captured_request.read().decode("utf-8").find('"file_id":7') != -1
 
 
+def test_fallback_note_creation_posts_to_origin_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"status": "created", "note_path": "/vault/02 Needs Review/Nursing.md"})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.classify_file_and_create_document_vault_note_fallback(
+            file_id=973,
+            fallback_reason="chatgpt_payload_blocked",
+        )
+    finally:
+        client.close()
+
+    assert payload["status"] == "created"
+    assert captured_request is not None
+    assert str(captured_request.url) == "http://service.test/files/ops/document-vault/note/fallback"
+    assert captured_request.read().decode("utf-8").find('"file_id":973') != -1
+
+
+def test_batch_fallback_note_creation_posts_to_origin_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"count_created": 1, "count_failed": 1})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.batch_classify_files_and_create_document_vault_notes_fallback(
+            file_ids=[7, 8],
+        )
+    finally:
+        client.close()
+
+    assert payload["count_created"] == 1
+    assert captured_request is not None
+    assert str(captured_request.url) == "http://service.test/files/ops/document-vault/note/fallback/batch"
+    assert captured_request.read().decode("utf-8").find('"file_ids":[7,8]') != -1
+
+
+def test_search_fallback_note_creation_posts_to_origin_endpoint():
+    captured_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal captured_request
+        captured_request = request
+        return httpx.Response(200, json={"status": "ok", "processed_count": 2})
+
+    client = ICloudIndexServiceClient(
+        base_url="http://service.test",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        payload = client.search_files_and_create_document_vault_notes_fallback(
+            query="Nursing Progress Note",
+            limit=2,
+        )
+    finally:
+        client.close()
+
+    assert payload["processed_count"] == 2
+    assert captured_request is not None
+    assert str(captured_request.url) == "http://service.test/files/ops/document-vault/note/fallback/search"
+    assert captured_request.read().decode("utf-8").find('"query":"Nursing Progress Note"') != -1
+
+
 def test_delete_file_posts_to_delete_endpoint():
     captured_request: httpx.Request | None = None
 

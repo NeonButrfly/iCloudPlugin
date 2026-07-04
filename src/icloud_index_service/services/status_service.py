@@ -16,6 +16,12 @@ from icloud_index_service.models.classification_state import ClassificationState
 from icloud_index_service.models.change_set import ChangeSet
 from icloud_index_service.models.document_vault_note import DocumentVaultNote
 from icloud_index_service.models.file import FileRecord
+from icloud_index_service.services.classification_submission import (
+    get_background_classification_enabled,
+    get_classifier_mode,
+    get_local_classifier_configured,
+    get_mcp_fallback_classification_enabled,
+)
 from icloud_index_service.services.job_runner import get_refresh_status_snapshot
 from icloud_index_service.services.vault_reconciliation import _iter_generated_notes
 
@@ -359,13 +365,22 @@ def build_status_summary(
     service_health: dict[str, Any],
     auth_status: dict[str, Any],
 ) -> dict[str, Any]:
+    classification_job_counts = collect_classification_job_counts(session)
     return {
         "generated_at": _utc_now_iso(),
         "service_health": service_health,
         "auth_status": auth_status,
         "refresh_status": get_refresh_status_snapshot(session),
         "classifier_health": fetch_classifier_health(),
-        "classification_job_counts": collect_classification_job_counts(session),
+        "classifier_runtime": {
+            "classifier_mode": get_classifier_mode(),
+            "background_classification_enabled": get_background_classification_enabled(),
+            "mcp_fallback_classification_enabled": get_mcp_fallback_classification_enabled(),
+            "local_classifier_configured": get_local_classifier_configured(),
+            "queued_classifier_jobs": classification_job_counts.get("queued", 0),
+            "queued_jobs_auto_running": get_background_classification_enabled(),
+        },
+        "classification_job_counts": classification_job_counts,
         "classification_state_counts": collect_classification_state_counts(session),
         "provider_counts": collect_provider_counts(session),
         "change_set_counts": collect_change_set_counts(session),

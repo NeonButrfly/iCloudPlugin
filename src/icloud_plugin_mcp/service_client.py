@@ -172,6 +172,94 @@ class ICloudIndexServiceClient:
             json_body=json_body,
         )
 
+    def classify_file_and_create_document_vault_note_fallback(
+        self,
+        *,
+        file_id: int,
+        fallback_reason: str = "manual_fallback",
+        force_reclassify: bool = False,
+        summary_mode: str = "classifier",
+        title_mode: str = "classifier",
+        attach_originals: bool = True,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        json_body: dict[str, Any] = {
+            "file_id": file_id,
+            "fallback_reason": fallback_reason,
+            "force_reclassify": force_reclassify,
+            "summary_mode": summary_mode,
+            "title_mode": title_mode,
+            "attach_originals": attach_originals,
+        }
+        if idempotency_key:
+            json_body["idempotency_key"] = idempotency_key
+        return self._request(
+            "POST",
+            "/files/ops/document-vault/note/fallback",
+            json_body=json_body,
+        )
+
+    def batch_classify_files_and_create_document_vault_notes_fallback(
+        self,
+        *,
+        file_ids: list[int],
+        fallback_reason: str = "manual_fallback",
+        force_reclassify: bool = False,
+        summary_mode: str = "classifier",
+        title_mode: str = "classifier",
+        attach_originals: bool = True,
+        skip_existing: bool = False,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        json_body: dict[str, Any] = {
+            "file_ids": file_ids,
+            "fallback_reason": fallback_reason,
+            "force_reclassify": force_reclassify,
+            "summary_mode": summary_mode,
+            "title_mode": title_mode,
+            "attach_originals": attach_originals,
+            "skip_existing": skip_existing,
+        }
+        if limit is not None:
+            json_body["limit"] = limit
+        return self._request(
+            "POST",
+            "/files/ops/document-vault/note/fallback/batch",
+            json_body=json_body,
+        )
+
+    def search_files_and_create_document_vault_notes_fallback(
+        self,
+        *,
+        query: str,
+        path_scope: str | None = None,
+        namespace: str | None = None,
+        limit: int = 10,
+        fallback_reason: str = "manual_fallback",
+        force_reclassify: bool = False,
+        skip_existing: bool = False,
+        summary_mode: str = "classifier",
+        title_mode: str = "classifier",
+    ) -> dict[str, Any]:
+        json_body: dict[str, Any] = {
+            "query": query,
+            "limit": limit,
+            "fallback_reason": fallback_reason,
+            "force_reclassify": force_reclassify,
+            "skip_existing": skip_existing,
+            "summary_mode": summary_mode,
+            "title_mode": title_mode,
+        }
+        if path_scope:
+            json_body["path_scope"] = path_scope
+        if namespace:
+            json_body["namespace"] = namespace
+        return self._request(
+            "POST",
+            "/files/ops/document-vault/note/fallback/search",
+            json_body=json_body,
+        )
+
     def delete_file(self, *, namespace: str, relative_path: str) -> dict[str, Any]:
         return self._request(
             "POST",

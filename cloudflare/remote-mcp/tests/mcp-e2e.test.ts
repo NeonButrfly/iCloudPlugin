@@ -272,6 +272,9 @@ describe("remote MCP worker end-to-end", () => {
     expect(toolNames).toContain("get_icloud_dedupe_group");
     expect(toolNames).toContain("search_icloud_notes_and_files");
     expect(toolNames).toContain("create_document_vault_note");
+    expect(toolNames).toContain("classify_file_and_create_document_vault_note_fallback");
+    expect(toolNames).toContain("batch_classify_files_and_create_document_vault_notes_fallback");
+    expect(toolNames).toContain("search_files_and_create_document_vault_notes_fallback");
     expect(toolNames).toContain("delete_icloud_file");
     expect(toolNames).toContain("restore_icloud_change_set");
     expect(toolNames).toContain("sync_icloud_manual_feedback_events");

@@ -6,6 +6,12 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SUPPORTED_CLASSIFIER_MODES = {
+    "disabled",
+    "mcp_fallback_only",
+    "mcp_on_demand",
+    "background",
+}
 LOCAL_DEFAULTS = {
     "CLASSIFIER_CONFIG_ROOT": REPO_ROOT / "config",
     "CLASSIFIER_OUTPUT_ROOT": REPO_ROOT / ".runtime" / "classifier",
@@ -53,6 +59,15 @@ def _env_flag(name: str, default: str = "0") -> bool:
     return os.getenv(name, default).strip().lower() not in {"", "0", "false", "no", "off"}
 
 
+def _default_classifier_mode() -> str:
+    raw_mode = os.getenv("CLASSIFIER_MODE", "").strip().lower()
+    if raw_mode in SUPPORTED_CLASSIFIER_MODES:
+        return raw_mode
+    if "CLASSIFICATION_SUBMISSION_ENABLED" in os.environ:
+        return "background" if _env_flag("CLASSIFICATION_SUBMISSION_ENABLED", "1") else "disabled"
+    return "mcp_fallback_only"
+
+
 @dataclass(frozen=True)
 class ClassifierRuntimeSettings:
     config_root: Path
@@ -68,9 +83,18 @@ class ClassifierRuntimeSettings:
     vision_model: str
     shadow_worker_enabled: bool
     shadow_worker_interval_seconds: int
+    classifier_mode: str
     codex_arbiter_enabled: bool
     codex_arbiter_command: str
     codex_arbiter_timeout_seconds: int
+
+    @property
+    def background_classification_enabled(self) -> bool:
+        return self.classifier_mode == "background"
+
+    @property
+    def mcp_fallback_classification_enabled(self) -> bool:
+        return self.classifier_mode in {"mcp_fallback_only", "mcp_on_demand", "background"}
 
     def resolve_existing_config_path(self, filename: str, *, include_artifact: bool = True) -> Path | None:
         candidates = []
@@ -236,6 +260,7 @@ def load_classifier_runtime_settings() -> ClassifierRuntimeSettings:
         vision_model=os.getenv("VISION_MODEL", "qwen2.5vl:3b").strip() or "qwen2.5vl:3b",
         shadow_worker_enabled=_env_flag("ENABLE_SHADOW_WORKER", "1"),
         shadow_worker_interval_seconds=shadow_worker_interval_seconds,
+        classifier_mode=_default_classifier_mode(),
         codex_arbiter_enabled=_env_flag("CODEX_ARBITER_ENABLED", "0"),
         codex_arbiter_command=os.getenv("CODEX_ARBITER_COMMAND", "codex exec").strip() or "codex exec",
         codex_arbiter_timeout_seconds=codex_arbiter_timeout_seconds,

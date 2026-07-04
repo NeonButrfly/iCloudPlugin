@@ -232,6 +232,51 @@ export const TOOL_SUBMISSION_DETAILS = {
         "Does not delete or overwrite existing source data; it creates a structured reversible note-side artifact.",
     },
   },
+  classify_file_and_create_document_vault_note_fallback: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Runs the local classifier only for one explicitly requested indexed file and writes a private document_vault note as a fallback, so it changes internal backend state.",
+      open_world_justification:
+        "Only uses private cloud-vault backend services and does not publish or transmit changes to public internet systems.",
+      destructive_justification:
+        "Does not delete source data; it creates or updates a reversible note-side artifact only for the requested file id.",
+    },
+  },
+  batch_classify_files_and_create_document_vault_notes_fallback: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Runs fallback local classification only for an explicit list of indexed file ids and writes private document_vault notes, so it changes internal backend state.",
+      open_world_justification:
+        "Only uses private cloud-vault backend services and does not publish or transmit changes to public internet systems.",
+      destructive_justification:
+        "Does not delete source data; it creates or updates reversible note-side artifacts only for the requested file ids.",
+    },
+  },
+  search_files_and_create_document_vault_notes_fallback: {
+    annotations: {
+      readOnlyHint: false,
+      openWorldHint: false,
+      destructiveHint: false,
+    },
+    justifications: {
+      read_only_justification:
+        "Searches indexed private files and then runs fallback local classification only for the matched request-scoped files, so it changes internal backend state.",
+      open_world_justification:
+        "Only uses private cloud-vault backend services and does not publish or transmit changes to public internet systems.",
+      destructive_justification:
+        "Does not delete source data; it creates or updates reversible note-side artifacts only for this explicit search-scoped request.",
+    },
+  },
   delete_icloud_file: {
     annotations: {
       readOnlyHint: false,
@@ -403,6 +448,16 @@ export const TEST_CASES = [
     tools_triggered: "create_document_vault_note",
     expected_output:
       "Returns the created note path after writing a structured categorizer-compatible Obsidian note.",
+    expected_output_url: null,
+  },
+  {
+    description: "Fallback to local classifier note creation when a sensitive file cannot be safely written through the normal ChatGPT-authored payload.",
+    user_prompt:
+      "The direct note-write path was blocked for this nursing progress note, so use the file id only fallback to create the document_vault note.",
+    file_attachment_urls: null,
+    tools_triggered: "classify_file_and_create_document_vault_note_fallback",
+    expected_output:
+      "Returns fallback note creation metadata for the requested file id without requiring a sensitive title, path, or summary in the tool arguments.",
     expected_output_url: null,
   },
   {

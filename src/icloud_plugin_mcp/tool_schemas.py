@@ -149,3 +149,46 @@ DedupeGroupId = Annotated[
     str,
     Field(min_length=1, description="Indexed duplicate-group identifier."),
 ]
+
+FallbackReason = Annotated[
+    str,
+    Field(
+        pattern="^(chatgpt_payload_blocked|chatgpt_note_write_failed|server_500|manual_fallback|other)$",
+        description="Reason why the explicit local-classifier fallback is being invoked.",
+    ),
+]
+
+FallbackReasonOptional = Annotated[
+    str | None,
+    Field(
+        default=None,
+        pattern="^(chatgpt_payload_blocked|chatgpt_note_write_failed|server_500|manual_fallback|other)$",
+        description="Optional reason for invoking the local-classifier fallback path.",
+    ),
+]
+
+SummaryMode = Annotated[
+    str,
+    Field(
+        pattern="^(minimal|classifier|full_note)$",
+        description="Requested summary style for the fallback note path.",
+    ),
+]
+
+TitleMode = Annotated[
+    str,
+    Field(
+        pattern="^(generic|source_name|classifier)$",
+        description="Requested title style for the fallback note path.",
+    ),
+]
+
+FileIdList = Annotated[
+    list[int],
+    Field(min_length=1, description="Indexed file identifiers to process through the fallback path."),
+]
+
+OptionalText = Annotated[
+    str | None,
+    Field(default=None, min_length=1, description="Optional free-form idempotency or path-scope string."),
+]
