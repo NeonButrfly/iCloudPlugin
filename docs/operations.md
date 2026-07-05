@@ -1266,6 +1266,22 @@ The service role now also receives `CLASSIFIER_API_URL` and
 `CLASSIFIER_API_TOKEN` so `GET /status/summary` can report live classifier
 health instead of falling back to `classifier-api-token-missing`.
 
+Issue [#98](https://github.com/NeonButrfly/iCloudPlugin/issues/98) also tightens
+the visible note-generation status contract:
+
+- `classifier_runtime.classifier_api_token_configured=false` with
+  `classifier_runtime.classifier_health_status="blocked"` means local fallback
+  note generation is intentionally blocked by missing classifier auth, not that
+  the cloud-vault task worker crashed
+- broad `create_document_vault_notes_from_search` tasks now summarize
+  `created`, `existing`, `skipped`, `unsupported`, `blocked`, and `failed`
+  per-file outcomes in the task result
+- a parent task can legitimately finish with `task.status=completed` and
+  `result.status=partial_failed` when the queue drained successfully but one or
+  more files were unsupported, blocked, or failed individually
+- `index_after_create=true` also reindexes reused existing notes instead of
+  only newly written ones
+
 ## Cloudflare remote MCP
 
 Issue [#48](https://github.com/NeonButrfly/iCloudPlugin/issues/48) adds the

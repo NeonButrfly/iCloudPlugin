@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import mimetypes
 import os
 import re
@@ -12,6 +13,7 @@ from shutil import copy2, move
 from uuid import uuid4
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from apps.classifier.classify_to_obsidian import ensure_vault, write_obsidian_note
@@ -24,6 +26,7 @@ from icloud_index_service.services.classification_submission import (
     CLASSIFICATION_STATUS_COMPLETED,
     ClassifierSubmissionNotReadyError,
     PermanentClassifierSubmissionError,
+    SUPPORTED_EXTENSIONS,
     classify_file_on_mcp_fallback,
     get_classifier_mode,
     resolve_classification_file_path,
@@ -49,6 +52,9 @@ class FileNamespace(str, Enum):
 MAX_FALLBACK_BATCH_SIZE = 50
 DEFAULT_EXTERNAL_NOTE_FOLDER = "00 Inbox/ChatGPT Imports"
 SAFE_PATH_SEGMENT_RE = re.compile(r"[^A-Za-z0-9._ -]+")
+NOTE_RESULT_STATUSES = ("created", "updated", "existing", "skipped", "unsupported", "blocked", "failed")
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
@@ -175,6 +181,32 @@ def _content_hash_from_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _normalized_file_extension(*, file_name: str | None, extension: str | None) -> str:
+    raw_extension = str(extension or "").strip().lower().lstrip(".")
+    if raw_extension:
+        return raw_extension
+    normalized_name = str(file_name or "").strip()
+    if "." in normalized_name:
+        return normalized_name.rsplit(".", 1)[1].lower()
+    return ""
+
+
+def _normalize_canonical_source_path_value(value: str | Path | None) -> str:
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return ""
+    return raw_value.replace("\\", "/")
+
+
+def _log_note_event(event: str, **fields: object) -> None:
+    rendered_fields = " ".join(
+        f"{key}={json.dumps(value, ensure_ascii=False)}"
+        for key, value in fields.items()
+        if value is not None
+    )
+    logger.info("document_vault_note %s %s", event, rendered_fields)
 
 
 def _mirror_root() -> Path:
@@ -493,12 +525,13 @@ def _iter_note_paths_for_canonical_source(
     note_paths: list[Path] = []
     if not vault_root.exists():
         return note_paths
+    normalized_canonical_source_path = _normalize_canonical_source_path_value(canonical_source_path)
 
     for note_path in vault_root.rglob("*.md"):
         if any(part.startswith("_") for part in note_path.relative_to(vault_root).parts):
             continue
         metadata = _parse_frontmatter(note_path.read_text(encoding="utf-8", errors="replace"))
-        if metadata.get("canonical_source_path") == canonical_source_path:
+        if _normalize_canonical_source_path_value(metadata.get("canonical_source_path")) == normalized_canonical_source_path:
             note_paths.append(note_path)
     return note_paths
 
@@ -526,6 +559,32 @@ def _sync_note_source_state(
         note_path=note_path,
         vault_root=vault_root,
     )
+
+
+def _apply_document_vault_note_record_fields(
+    note_record: DocumentVaultNote,
+    *,
+    relative_path: str,
+    visible_title: str,
+    note_type: str,
+    metadata: dict[str, str],
+    canonical_source_path: str | None,
+    source_file_record_id: int | None,
+) -> None:
+    note_record.relative_path = relative_path
+    note_record.visible_title = visible_title
+    note_record.note_type = note_type
+    note_record.frontmatter_json = json.dumps(metadata, ensure_ascii=False)
+    note_record.canonical_source_path = canonical_source_path
+    note_record.source_file_record_id = source_file_record_id
+    note_record.attachment_mode = metadata.get("attachment_mode", "") or None
+    note_record.source_link = metadata.get("source_link", "") or None
+    note_record.primary_label = metadata.get("primary_label", "") or None
+    note_record.secondary_labels_json = json.dumps([], ensure_ascii=False)
+    note_record.last_synced_at = _utc_now()
+    note_record.last_observed_at = _utc_now()
+    note_record.is_generated = note_type == "classified-document"
+    note_record.is_deleted = False
 
 
 def _upsert_document_vault_note_record(
@@ -570,29 +629,36 @@ def _upsert_document_vault_note_record(
             relative_path=relative_path,
             visible_title=visible_title,
             note_type=note_type,
-            frontmatter_json=json.dumps(metadata, ensure_ascii=False),
+        )
+        _apply_document_vault_note_record_fields(
+            note_record,
+            relative_path=relative_path,
+            visible_title=visible_title,
+            note_type=note_type,
+            metadata=metadata,
             canonical_source_path=canonical_source_path,
             source_file_record_id=source_file_record_id,
-            attachment_mode=metadata.get("attachment_mode", "") or None,
-            source_link=metadata.get("source_link", "") or None,
-            primary_label=metadata.get("primary_label", "") or None,
-            secondary_labels_json=json.dumps([], ensure_ascii=False),
-            is_generated=note_type == "classified-document",
-            is_deleted=False,
         )
-        session.add(note_record)
-    else:
-        note_record.visible_title = visible_title
-        note_record.note_type = note_type
-        note_record.frontmatter_json = json.dumps(metadata, ensure_ascii=False)
-        note_record.canonical_source_path = canonical_source_path
-        note_record.source_file_record_id = source_file_record_id
-        note_record.attachment_mode = metadata.get("attachment_mode", "") or None
-        note_record.source_link = metadata.get("source_link", "") or None
-        note_record.primary_label = metadata.get("primary_label", "") or None
-        note_record.last_synced_at = _utc_now()
-        note_record.last_observed_at = _utc_now()
-        note_record.is_deleted = False
+        try:
+            with session.begin_nested():
+                session.add(note_record)
+                session.flush()
+        except IntegrityError:
+            session.expunge(note_record)
+            note_record = session.scalar(
+                select(DocumentVaultNote).where(DocumentVaultNote.relative_path == relative_path)
+            )
+            if note_record is None:
+                raise
+    _apply_document_vault_note_record_fields(
+        note_record,
+        relative_path=relative_path,
+        visible_title=visible_title,
+        note_type=note_type,
+        metadata=metadata,
+        canonical_source_path=canonical_source_path,
+        source_file_record_id=source_file_record_id,
+    )
     session.flush()
     return note_record.id
 
@@ -980,6 +1046,41 @@ def create_document_vault_note(
         source_path = Path(canonical_source_path).resolve()
     else:
         raise FileMutationPolicyError("Either file_id or canonical_source_path is required.")
+    existing_note_path: Path | None = None
+    if file_id is not None and session is not None:
+        _, existing_note_path = _find_active_document_vault_note_for_file(
+            session,
+            file_id=file_id,
+            vault_root=vault_root,
+        )
+    elif canonical_source_path:
+        existing_note_paths = _iter_note_paths_for_canonical_source(
+            vault_root=vault_root,
+            canonical_source_path=str(source_path),
+        )
+        existing_note_path = existing_note_paths[0] if existing_note_paths else None
+    if existing_note_path is not None and existing_note_path.exists():
+        note_record_id = _upsert_document_vault_note_record(
+            session,
+            note_path=existing_note_path,
+            vault_root=vault_root,
+        )
+        _log_note_event(
+            "existing_chatgpt_note",
+            file_id=file_id,
+            canonical_source_path=str(source_path),
+            relative_path=existing_note_path.relative_to(vault_root).as_posix(),
+            extension=source_path.suffix.lower(),
+            selected_path="existing",
+        )
+        if session is not None:
+            session.commit()
+        return {
+            "status": "existing",
+            "note_path": str(existing_note_path.resolve()),
+            "change_set_id": None,
+            "document_note_record_id": note_record_id,
+        }
     folder_parts = [part for part in relative_folder.replace("\\", "/").split("/") if part]
     primary_hint = folder_parts[-1] if folder_parts else "unknown"
     note_path = write_obsidian_note(
@@ -1041,7 +1142,15 @@ def create_document_vault_note(
     )
     if session is not None:
         session.commit()
-    return {"note_path": str(note_path), "change_set_id": change_set_id}
+    _log_note_event(
+        "created_chatgpt_note",
+        file_id=file_id,
+        canonical_source_path=str(source_path),
+        relative_path=note_path.relative_to(vault_root).as_posix(),
+        extension=source_path.suffix.lower(),
+        selected_path="created",
+    )
+    return {"status": "created", "note_path": str(note_path), "change_set_id": change_set_id}
 
 
 def _resolve_document_vault_note_path(*, vault_root: Path, note_path_value: str) -> Path | None:
@@ -1137,6 +1246,7 @@ def classify_file_and_create_document_vault_note_fallback(
         source_exists = source_path.exists() and source_path.is_file()
     except Exception:
         source_path = None
+    extension = _normalized_file_extension(file_name=file_record.name, extension=file_record.extension)
 
     vault_root = resolve_namespace_root(FileNamespace.DOCUMENT_VAULT)
     ensure_vault(vault_root)
@@ -1176,6 +1286,30 @@ def classify_file_and_create_document_vault_note_fallback(
             "source_exists": source_exists,
             "message": "Existing generated note already present; local classifier fallback was not invoked.",
         }
+    if extension not in SUPPORTED_EXTENSIONS:
+        _log_note_event(
+            "unsupported_classifier_extension",
+            file_id=file_id,
+            canonical_source_path=str(source_path) if source_path is not None else None,
+            relative_path=file_record.path,
+            extension=extension,
+            selected_path="unsupported",
+        )
+        return {
+            "status": "unsupported",
+            "file_id": file_id,
+            "note_path": None,
+            "change_set_id": None,
+            "fallback_reason": fallback_reason,
+            "used_classifier": False,
+            "classifier_invocation": "mcp_fallback_only",
+            "classifier_status": "unsupported",
+            "primary_label": existing_state.primary_label if existing_state is not None else None,
+            "confidence": existing_state.confidence if existing_state is not None else None,
+            "needs_review": False,
+            "source_exists": source_exists,
+            "message": f"Unsupported classifier extension: .{extension or 'unknown'}",
+        }
 
     try:
         state, used_classifier = classify_file_on_mcp_fallback(
@@ -1184,6 +1318,14 @@ def classify_file_and_create_document_vault_note_fallback(
             force_reclassify=force_reclassify,
         )
     except ClassifierSubmissionNotReadyError as exc:
+        _log_note_event(
+            "blocked_classifier_fallback",
+            file_id=file_id,
+            canonical_source_path=str(source_path) if source_path is not None else None,
+            relative_path=file_record.path,
+            extension=extension,
+            selected_path="blocked",
+        )
         return {
             "status": "blocked",
             "file_id": file_id,
@@ -1200,6 +1342,14 @@ def classify_file_and_create_document_vault_note_fallback(
             "message": str(exc),
         }
     except PermanentClassifierSubmissionError as exc:
+        _log_note_event(
+            "failed_classifier_fallback",
+            file_id=file_id,
+            canonical_source_path=str(source_path) if source_path is not None else None,
+            relative_path=file_record.path,
+            extension=extension,
+            selected_path="failed",
+        )
         return {
             "status": "failed",
             "file_id": file_id,
@@ -1216,6 +1366,14 @@ def classify_file_and_create_document_vault_note_fallback(
             "message": str(exc),
         }
     except RuntimeError as exc:
+        _log_note_event(
+            "failed_classifier_fallback",
+            file_id=file_id,
+            canonical_source_path=str(source_path) if source_path is not None else None,
+            relative_path=file_record.path,
+            extension=extension,
+            selected_path="failed",
+        )
         return {
             "status": "failed",
             "file_id": file_id,
@@ -1237,6 +1395,14 @@ def classify_file_and_create_document_vault_note_fallback(
         note_path_value=state.classifier_note_path or "",
     )
     if note_path is None or not note_path.exists():
+        _log_note_event(
+            "unreadable_classifier_note_path",
+            file_id=file_id,
+            canonical_source_path=str(source_path) if source_path is not None else None,
+            relative_path=file_record.path,
+            extension=extension,
+            selected_path="failed",
+        )
         return {
             "status": "failed",
             "file_id": file_id,
@@ -1294,6 +1460,14 @@ def classify_file_and_create_document_vault_note_fallback(
         limit=25,
     )
     session.commit()
+    _log_note_event(
+        "completed_classifier_fallback",
+        file_id=file_id,
+        canonical_source_path=str(source_path) if source_path is not None else None,
+        relative_path=file_record.path,
+        extension=extension,
+        selected_path=status,
+    )
     return {
         "status": status,
         "file_id": file_id,
@@ -1349,15 +1523,22 @@ def batch_classify_files_and_create_document_vault_notes_fallback(
             session=session,
         )
         if skip_existing and result["status"] == "existing":
-            continue
+            result = {
+                **result,
+                "status": "skipped",
+                "message": "Skipped existing generated note because skip_existing=true.",
+            }
         results.append(result)
 
-    buckets = {key: [row for row in results if row["status"] == key] for key in ("created", "updated", "existing", "blocked", "failed")}
+    buckets = {key: [row for row in results if row["status"] == key] for key in NOTE_RESULT_STATUSES}
     return {
         **buckets,
+        "results": results,
         "count_created": len(buckets["created"]),
         "count_updated": len(buckets["updated"]),
         "count_existing": len(buckets["existing"]),
+        "count_skipped": len(buckets["skipped"]),
+        "count_unsupported": len(buckets["unsupported"]),
         "count_blocked": len(buckets["blocked"]),
         "count_failed": len(buckets["failed"]),
     }
@@ -1406,6 +1587,8 @@ def search_files_and_create_document_vault_notes_fallback(
         batch_payload["count_created"]
         + batch_payload["count_updated"]
         + batch_payload["count_existing"]
+        + batch_payload["count_skipped"]
+        + batch_payload["count_unsupported"]
         + batch_payload["count_blocked"]
         + batch_payload["count_failed"]
     )

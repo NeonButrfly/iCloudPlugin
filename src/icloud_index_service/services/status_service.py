@@ -21,6 +21,7 @@ from icloud_index_service.services.cloud_vault_task_service import collect_cloud
 from icloud_index_service.services.cloud_vault_task_service import get_cloud_vault_task_worker_enabled
 from icloud_index_service.services.classification_submission import (
     get_background_classification_enabled,
+    get_classifier_api_token,
     get_classifier_mode,
     get_local_classifier_configured,
     get_mcp_fallback_classification_enabled,
@@ -386,18 +387,28 @@ def build_status_summary(
     classification_job_counts = collect_classification_job_counts(session)
     cloud_vault_task_counts = collect_cloud_vault_task_counts(session)
     import_roots = _configured_import_roots()
+    classifier_health = fetch_classifier_health()
+    classifier_token_configured = bool(get_classifier_api_token())
+    if classifier_health.get("ok") is True:
+        classifier_health_status = "ok"
+    elif classifier_health.get("error") == "classifier-api-token-missing":
+        classifier_health_status = "blocked"
+    else:
+        classifier_health_status = "degraded"
     return {
         "generated_at": _utc_now_iso(),
         "service_health": service_health,
         "auth_status": auth_status,
         "refresh_status": get_refresh_status_snapshot(session),
-        "classifier_health": fetch_classifier_health(),
+        "classifier_health": classifier_health,
         "classifier_runtime": {
             "classifier_mode": get_classifier_mode(),
             "background_classification_enabled": get_background_classification_enabled(),
             "mcp_fallback_classification_enabled": get_mcp_fallback_classification_enabled(),
             "classifier_fallback_available": get_mcp_fallback_classification_enabled(),
             "local_classifier_configured": get_local_classifier_configured(),
+            "classifier_api_token_configured": classifier_token_configured,
+            "classifier_health_status": classifier_health_status,
             "queued_classifier_jobs": classification_job_counts.get("queued", 0),
             "queued_jobs_auto_running": get_background_classification_enabled(),
             "queued_cloud_vault_tasks": cloud_vault_task_counts.get("queued", 0),

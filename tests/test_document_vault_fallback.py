@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from icloud_index_service.models.base import Base
 from icloud_index_service.models.classification_state import ClassificationState
 from icloud_index_service.models.file import FileRecord
+from icloud_index_service.services.classification_submission import ClassifierSubmissionNotReadyError
 from icloud_index_service.services import file_mutation_service
 
 
@@ -195,3 +196,88 @@ def test_batch_fallback_handles_mixed_valid_and_invalid_file_ids(monkeypatch, tm
 
     assert result["count_created"] == 1
     assert result["count_failed"] == 1
+
+
+def test_fallback_returns_unsupported_without_invoking_classifier(monkeypatch, tmp_path: Path):
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    vault_root = tmp_path / "document-vault"
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+
+    file_record = FileRecord(
+        external_id="ext-config",
+        name="settings.json",
+        path="/icloud/Configs/settings.json",
+        mime_type="application/json",
+        extension="json",
+        size_bytes=128,
+    )
+    session.add(file_record)
+    session.commit()
+    session.refresh(file_record)
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("classifier fallback should not run for unsupported extensions")
+
+    monkeypatch.setattr(file_mutation_service, "classify_file_on_mcp_fallback", fail_if_called)
+
+    result = file_mutation_service.classify_file_and_create_document_vault_note_fallback(
+        file_id=file_record.id,
+        session=session,
+    )
+
+    assert result["status"] == "unsupported"
+    assert result["classifier_status"] == "unsupported"
+    assert result["note_path"] is None
+    assert "Unsupported classifier extension" in result["message"]
+
+
+def test_batch_fallback_counts_unsupported_blocked_and_skipped(monkeypatch, tmp_path: Path):
+    session_factory = _build_session_factory(tmp_path)
+    session = session_factory()
+    vault_root = tmp_path / "document-vault"
+    monkeypatch.setenv("CLASSIFIER_VAULT_ROOT", str(vault_root))
+
+    created_file = _add_file(session, name="Receipt.pdf", path="/icloud/Receipts/Receipt.pdf")
+    existing_file = _add_file(session, name="Appeal.pdf", path="/icloud/Appeals/Appeal.pdf")
+    unsupported_file = FileRecord(
+        external_id="ext-json",
+        name="payload.json",
+        path="/icloud/Configs/payload.json",
+        mime_type="application/json",
+        extension="json",
+        size_bytes=10,
+    )
+    blocked_file = _add_file(session, name="Plan.pdf", path="/icloud/Plans/Plan.pdf")
+    session.add(unsupported_file)
+    session.commit()
+    session.refresh(unsupported_file)
+
+    def fake_single(*, file_id, **kwargs):
+        if file_id == created_file.id:
+            return {"status": "created", "file_id": file_id, "note_path": "a.md", "classifier_status": "completed"}
+        if file_id == existing_file.id:
+            return {"status": "existing", "file_id": file_id, "note_path": "b.md", "classifier_status": "completed"}
+        if file_id == unsupported_file.id:
+            return {"status": "unsupported", "file_id": file_id, "note_path": None, "classifier_status": "unsupported"}
+        if file_id == blocked_file.id:
+            return {"status": "blocked", "file_id": file_id, "note_path": None, "classifier_status": "blocked"}
+        raise ClassifierSubmissionNotReadyError("unexpected")
+
+    monkeypatch.setattr(
+        file_mutation_service,
+        "classify_file_and_create_document_vault_note_fallback",
+        fake_single,
+    )
+
+    result = file_mutation_service.batch_classify_files_and_create_document_vault_notes_fallback(
+        file_ids=[created_file.id, existing_file.id, unsupported_file.id, blocked_file.id],
+        skip_existing=True,
+        session=session,
+    )
+
+    assert result["count_created"] == 1
+    assert result["count_existing"] == 0
+    assert result["count_skipped"] == 1
+    assert result["count_unsupported"] == 1
+    assert result["count_blocked"] == 1

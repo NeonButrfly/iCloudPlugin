@@ -76,6 +76,7 @@ SUPPORTED_TASK_TYPES = {
 DEFAULT_IMPORT_NOTE_FOLDER = "00 Inbox/ChatGPT Imports"
 DEFAULT_CLOUD_VAULT_TASK_WORKER_ENABLED = True
 DEFAULT_CLOUD_VAULT_TASK_WORKER_LIMIT = 1
+NOTE_RESULT_STATUSES = ("created", "updated", "existing", "skipped", "unsupported", "blocked", "failed")
 
 
 def _utc_now() -> datetime:
@@ -197,11 +198,28 @@ def _maybe_reindex_note_result(
     if not enabled:
         return
     note_scope = _reindex_scope_for_note_path(str(result.get("note_path") or "") or None)
+    if not note_scope and not str(result.get("note_path") or "").strip():
+        return
     result["reindex"] = reindex_document_vault_notes(
         session,
         path_scope=note_scope,
         limit=limit,
     )
+
+
+def _summarize_note_results(results: list[dict[str, object]]) -> dict[str, object]:
+    counts = {
+        f"count_{status}": sum(1 for row in results if str(row.get("status") or "") == status)
+        for status in NOTE_RESULT_STATUSES
+    }
+    nonfatal_problem_count = (
+        counts["count_unsupported"] + counts["count_blocked"] + counts["count_failed"]
+    )
+    summary_status = "partial_failed" if nonfatal_problem_count else "completed"
+    return {
+        "status": summary_status,
+        **counts,
+    }
 
 
 def _schedule_refresh_job(session: Session) -> dict[str, object]:
@@ -564,33 +582,44 @@ def _run_search_notes(session: Session, *, task: CloudVaultTask) -> dict[str, ob
         if file_record is None:
             results.append({"file_id": file_id, "status": "failed", "message": "File not found."})
             continue
-        if note_mode == "classifier_fallback":
-            result = classify_file_and_create_document_vault_note_fallback(
-                file_id=file_id,
-                fallback_reason="manual_fallback",
-                force_reclassify=False,
-                summary_mode="classifier",
-                title_mode="classifier",
-                attach_originals=True,
-                actor="queued-task",
-                session=session,
-            )
-        else:
-            result = create_document_vault_note(
-                relative_folder=_derive_note_folder(primary_label=str(file_record.name).split(".")[0]),
-                visible_title=_derive_note_title(file_record=file_record),
-                summary=_derive_note_summary(file_record=file_record),
-                file_id=file_id,
-                attach_originals=True,
-                actor="queued-task",
-                session=session,
-            )
+        try:
+            if note_mode == "classifier_fallback":
+                result = classify_file_and_create_document_vault_note_fallback(
+                    file_id=file_id,
+                    fallback_reason="manual_fallback",
+                    force_reclassify=False,
+                    summary_mode="classifier",
+                    title_mode="classifier",
+                    attach_originals=True,
+                    actor="queued-task",
+                    session=session,
+                )
+            else:
+                result = create_document_vault_note(
+                    relative_folder=_derive_note_folder(primary_label=str(file_record.name).split(".")[0]),
+                    visible_title=_derive_note_title(file_record=file_record),
+                    summary=_derive_note_summary(file_record=file_record),
+                    file_id=file_id,
+                    attach_originals=True,
+                    actor="queued-task",
+                    session=session,
+                )
+        except Exception as exc:
+            result = {
+                "file_id": file_id,
+                "status": "failed",
+                "message": str(exc),
+            }
+        _maybe_reindex_note_result(
+            session,
+            result=result,
+            enabled=bool(payload.get("index_after_create")),
+        )
         results.append(result)
     cursor = min(cursor + batch_size, len(file_ids))
     completed = cursor >= len(file_ids)
     post_processing: dict[str, object] = {}
-    if completed and bool(payload.get("index_after_create")):
-        post_processing["reindex"] = reindex_document_vault_notes(session, limit=200)
+    summary = _summarize_note_results(results)
     task.progress_json = _dumps(
         {
             **progress,
@@ -599,12 +628,14 @@ def _run_search_notes(session: Session, *, task: CloudVaultTask) -> dict[str, ob
             "results": results,
             "matched_count": len(file_ids),
             "processed_count": len(results),
+            **summary,
             **({"post_processing": post_processing} if post_processing else {}),
         }
     )
     if cursor < len(file_ids):
         task.result_json = _dumps(
             {
+                **summary,
                 "matched_count": len(file_ids),
                 "processed_count": len(results),
                 "results": results,
@@ -617,6 +648,7 @@ def _run_search_notes(session: Session, *, task: CloudVaultTask) -> dict[str, ob
         payload_result["message"] = "Processed a bounded search-note task chunk."
         return payload_result
     return {
+        **summary,
         "matched_count": len(file_ids),
         "processed_count": len(results),
         "results": results,

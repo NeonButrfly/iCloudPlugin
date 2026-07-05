@@ -257,6 +257,8 @@ def test_status_summary_returns_live_counts_and_vault_counts(tmp_path, monkeypat
         "mcp_fallback_classification_enabled": True,
         "classifier_fallback_available": True,
         "local_classifier_configured": False,
+        "classifier_api_token_configured": False,
+        "classifier_health_status": "ok",
         "queued_classifier_jobs": 1,
         "queued_jobs_auto_running": False,
         "queued_cloud_vault_tasks": 0,
@@ -453,3 +455,22 @@ def test_fetch_classifier_health_handles_httpx_client_init_failure(monkeypatch):
         "error": "classifier-health-client-init-failed",
         "detail": "missing CA bundle",
     }
+
+
+def test_build_status_summary_surfaces_missing_classifier_token_as_blocked(tmp_path, monkeypatch):
+    session_factory = _build_session_factory(tmp_path)
+    monkeypatch.delenv("CLASSIFIER_API_TOKEN", raising=False)
+
+    with session_factory() as session:
+        payload = status_service_module.build_status_summary(
+            session,
+            service_health={"status": "ok", "database": "ok"},
+            auth_status={"status": "configured", "database": "ok"},
+        )
+
+    assert payload["classifier_health"] == {
+        "ok": False,
+        "error": "classifier-api-token-missing",
+    }
+    assert payload["classifier_runtime"]["classifier_api_token_configured"] is False
+    assert payload["classifier_runtime"]["classifier_health_status"] == "blocked"

@@ -109,6 +109,18 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - the intended repair is to let the existing worker advance a bounded number
     of cloud-vault tasks per poll so dedupe progress keeps moving under the
     same healthy worker that already heartbeats refresh
+- issue [#98](https://github.com/NeonButrfly/iCloudPlugin/issues/98) now tracks
+  the broad document-vault note-generation repair:
+  - chatgpt-first note creation is now duplicate-safe for existing generated
+    notes and reuses the note with `status=existing` instead of overwriting
+    user-edited content
+  - unsupported classifier extensions such as `.json` and `.js` now return
+    `status=unsupported` before any classifier API call
+  - missing `CLASSIFIER_API_TOKEN` is surfaced as a visible blocked fallback
+    state in `/status/summary` and per-file note results
+  - broad search tasks now continue across per-file problems and can finish as
+    `task.status=completed` with `result.status=partial_failed` when only some
+    files were blocked, unsupported, or failed
 - `tichuml1` is the authoritative live monitor target for cloud-vault refresh
   and backlog checks
 - `kayraspi` no longer serves the live local `/refresh/status` listener; it now

@@ -1,3 +1,28 @@
+## 2026-07-04 - Make broad iCloud note generation resumable and duplicate-safe
+
+- Source prompt: "Fix the note-generation workflow so broad iCloud note
+  creation is resumable, idempotent, duplicate-safe, and does not fail the
+  whole task when one file already has a generated note or cannot be
+  classified."
+- Interpreted requirement: broad `queue_create_document_vault_notes_from_search`
+  runs must tolerate existing notes, unsupported classifier extensions, and
+  blocked classifier readiness without crashing the parent task.
+- Tracking issue: [#98](https://github.com/NeonButrfly/iCloudPlugin/issues/98)
+- Product requirements:
+  - chatgpt-first note creation must return `status=existing` when a generated
+    note already exists for the source file and must not overwrite user-edited
+    note content
+  - broad search tasks must continue after per-file problems and summarize
+    `created | existing | skipped | unsupported | blocked | failed` counts
+  - known nonfatal mixed outcomes must end with `task.status=completed` and
+    `result.status=partial_failed`
+  - unsupported extensions such as `.json` and `.js` must be detected before
+    classifier submission
+  - missing `CLASSIFIER_API_TOKEN` must surface as a visible blocked fallback
+    condition instead of a task crash
+  - `index_after_create=true` must still reindex existing notes that were
+    reused instead of newly written
+
 ## 2026-07-04 - Replace synchronous duplicate scans with resumable MCP jobs
 
 - Source prompt: "The MCP tool `analyze_icloud_duplicates` is unusable for
