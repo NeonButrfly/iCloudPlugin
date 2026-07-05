@@ -797,6 +797,9 @@ def continue_cloud_vault_task(session: Session, *, task_id: str) -> dict[str, ob
         payload["message"] = "Cloud-vault task was canceled."
         return payload
     task.status = TASK_STATUS_RUNNING
+    task.error_message = None
+    task.completed_at = None
+    task.canceled_at = None
     task.started_at = task.started_at or _utc_now()
     task.heartbeat_at = _utc_now()
     task.updated_at = _utc_now()
