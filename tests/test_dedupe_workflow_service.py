@@ -210,6 +210,32 @@ def test_content_hash_strategy_uses_extracted_content_in_chunks(tmp_path: Path, 
     assert payload["count"] == 1
 
 
+def test_large_duplicate_group_totals_are_preserved_for_multi_gb_matches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session_factory = _build_session_factory(tmp_path)
+    monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(tmp_path / "mirrors"))
+    session = session_factory()
+    try:
+        _write_live_file(tmp_path, "icloud", "Docs/A.iso", b"same")
+        _write_live_file(tmp_path, "icloud", "Docs/B.iso", b"same")
+        first = _add_file(session, namespace="icloud", relative_path="Docs/A.iso", content=b"same")
+        second = _add_file(session, namespace="icloud", relative_path="Docs/B.iso", content=b"same")
+        first.size_bytes = 3_274_047_984
+        second.size_bytes = 3_274_047_984
+        session.commit()
+        start = start_dedupe_job(session, namespaces=["icloud"], strategy="exact_hash", chunk_size=10)
+        payload = continue_dedupe_job(session, job_id=str(start["job_id"]), chunk_size=10, max_runtime_seconds=20)
+        group = session.scalar(select(DedupeGroup).where(DedupeGroup.dedupe_job_id.is_not(None)))
+    finally:
+        session.close()
+
+    assert payload["status"] == "complete"
+    assert group is not None
+    assert group.total_size_bytes == 6_548_095_968
+
+
 def test_apply_dedupe_group_dry_run_moves_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     session_factory = _build_session_factory(tmp_path)
     monkeypatch.setenv("ICLOUD_MIRROR_ROOT", str(tmp_path / "mirrors"))

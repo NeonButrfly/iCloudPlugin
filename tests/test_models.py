@@ -171,6 +171,8 @@ def test_manual_feedback_and_dedupe_models_capture_indexed_learning_and_candidat
     assert len(DedupeGroup.__table__.c.dedupe_job_id.foreign_keys) == 1
     assert len(DedupeGroupItem.__table__.c.dedupe_group_id.foreign_keys) == 1
     assert DedupeGroupItem.__table__.c.source_exists.nullable is True
+    assert isinstance(DedupeGroup.__table__.c.total_size_bytes.type, BigInteger)
+    assert isinstance(DedupeGroupItem.__table__.c.size_bytes.type, BigInteger)
     assert (
         next(iter(DedupeGroupItem.__table__.c.dedupe_group_id.foreign_keys)).target_fullname
         == "dedupe_groups.id"
@@ -223,6 +225,9 @@ def test_initial_migration_captures_authoritative_schema_rules():
     assert "ADD COLUMN recommended_keep_file_record_id INTEGER" in result.stdout
     assert "Running upgrade 0009_repair_dedupe_workflow_schema -> 0010_repair_dedupe_group_item_source_exists" in result.stdout
     assert "ALTER TABLE dedupe_group_items ADD COLUMN source_exists BOOLEAN" in result.stdout
+    assert "Running upgrade 0010_repair_dedupe_group_item_source_exists -> 0011_promote_dedupe_size_columns_to_bigint" in result.stdout
+    assert "ALTER TABLE dedupe_groups ALTER COLUMN total_size_bytes TYPE BIGINT" in result.stdout
+    assert "ALTER TABLE dedupe_group_items ALTER COLUMN size_bytes TYPE BIGINT" in result.stdout
 
 
 def test_retrieval_metadata_migration_hardens_alembic_version_column_for_long_revision_ids():
