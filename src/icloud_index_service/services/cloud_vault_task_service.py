@@ -32,6 +32,7 @@ from icloud_index_service.services.file_mutation_service import (
     resolve_namespace_root,
     restore_change_set,
 )
+from icloud_index_service.services.file_access_service import resolve_file_source_path
 from icloud_index_service.services.job_runner import enqueue_metadata_refresh
 from icloud_index_service.services.search_service import search_files
 from icloud_index_service.services.workflow_index_service import (
@@ -219,6 +220,22 @@ def _summarize_note_results(results: list[dict[str, object]]) -> dict[str, objec
     return {
         "status": summary_status,
         **counts,
+    }
+
+
+def _missing_source_note_result(*, file_id: int, file_record: FileRecord) -> dict[str, object]:
+    return {
+        "status": "skipped",
+        "file_id": file_id,
+        "note_path": None,
+        "change_set_id": None,
+        "source_exists": False,
+        "message": (
+            "Indexed file record exists, but the source file is missing. "
+            "Skipped this file and continued the batch."
+        ),
+        "path": file_record.path,
+        "name": file_record.name,
     }
 
 
@@ -576,11 +593,16 @@ def _run_search_notes(session: Session, *, task: CloudVaultTask) -> dict[str, ob
     cursor = int(progress.get("cursor") or 0)
     batch_size = min(max(int(payload.get("batch_size") or 10), 1), 25)
     note_mode = str(payload.get("note_mode") or "minimal").strip()
+    fallback_enabled = bool(payload.get("fallback_enabled"))
     results = list(progress.get("results") or [])
     for file_id in file_ids[cursor : cursor + batch_size]:
         file_record = session.get(FileRecord, file_id)
         if file_record is None:
             results.append({"file_id": file_id, "status": "failed", "message": "File not found."})
+            continue
+        resolved_source_path = resolve_file_source_path(session, file_id=file_id)
+        if resolved_source_path is None or not resolved_source_path.exists() or not resolved_source_path.is_file():
+            results.append(_missing_source_note_result(file_id=file_id, file_record=file_record))
             continue
         try:
             if note_mode == "classifier_fallback":
@@ -594,6 +616,30 @@ def _run_search_notes(session: Session, *, task: CloudVaultTask) -> dict[str, ob
                     actor="queued-task",
                     session=session,
                 )
+            elif note_mode == "chatgpt_first":
+                try:
+                    result = create_document_vault_note(
+                        relative_folder=_derive_note_folder(primary_label=str(file_record.name).split(".")[0]),
+                        visible_title=_derive_note_title(file_record=file_record),
+                        summary=_derive_note_summary(file_record=file_record),
+                        file_id=file_id,
+                        attach_originals=True,
+                        actor="queued-task",
+                        session=session,
+                    )
+                except FileMutationPolicyError:
+                    if not fallback_enabled:
+                        raise
+                    result = classify_file_and_create_document_vault_note_fallback(
+                        file_id=file_id,
+                        fallback_reason="manual_fallback",
+                        force_reclassify=False,
+                        summary_mode="classifier",
+                        title_mode="classifier",
+                        attach_originals=True,
+                        actor="queued-task",
+                        session=session,
+                    )
             else:
                 result = create_document_vault_note(
                     relative_folder=_derive_note_folder(primary_label=str(file_record.name).split(".")[0]),
