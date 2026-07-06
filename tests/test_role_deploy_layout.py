@@ -226,7 +226,8 @@ def test_cloudsync_live_status_helper_covers_compute_only_status_surfaces():
     assert "classification_job_counts_sql()" in script_text
     assert "classification_state_counts_sql()" in script_text
     assert "classification_state_status_by_path_sql()" in script_text
-    assert 'export CLASSIFICATION_STATE_PATH_STATUS_JSON_PAYLOAD="${CLASSIFICATION_STATE_PATH_STATUS_JSON}"' in script_text
+    assert 'state_json_file="$(mktemp)"' in script_text
+    assert 'printf \'%s\' "${CLASSIFICATION_STATE_PATH_STATUS_JSON}" > "${state_json_file}"' in script_text
     assert "provider_counts_sql()" in script_text
     assert "collect_vault_counts_json()" in script_text
     assert "collect_generated_note_context_json()" in script_text
