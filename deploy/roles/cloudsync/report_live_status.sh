@@ -383,6 +383,7 @@ EOF
 }
 
 collect_generated_note_context_json() {
+  export CLASSIFICATION_STATE_PATH_STATUS_JSON_PAYLOAD="${CLASSIFICATION_STATE_PATH_STATUS_JSON}"
   "${JSON_PYTHON}" - <<PY
 import json
 import os
@@ -391,7 +392,7 @@ from pathlib import Path, PurePosixPath
 
 vault_root = Path(${VAULT_ROOT@Q}).resolve()
 mirror_root = Path(${MIRROR_ROOT@Q}).resolve()
-state_rows = json.loads(${CLASSIFICATION_STATE_PATH_STATUS_JSON@Q} or "[]")
+state_rows = json.loads(os.environ.get("CLASSIFICATION_STATE_PATH_STATUS_JSON_PAYLOAD", "[]") or "[]")
 
 statuses_by_path = defaultdict(list)
 if isinstance(state_rows, list):
