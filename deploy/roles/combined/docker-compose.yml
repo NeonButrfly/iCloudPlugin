@@ -116,7 +116,7 @@ services:
     command: uv run python -m icloud_index_service.worker
     volumes:
       - ../../..:/app
-      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}:/srv/cloud-vault:ro
+      - ${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}:/srv/cloud-vault
     depends_on:
       postgres:
         condition: service_healthy

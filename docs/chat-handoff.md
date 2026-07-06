@@ -119,6 +119,17 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - the remaining repo-side follow-up is to keep helper defaults and operator
     docs aligned with the canonical `cloudsync` compose project so ad hoc runs
     do not recreate the overlap
+- issue [#100](https://github.com/NeonButrfly/iCloudPlugin/issues/100) now
+  tracks the remaining deploy-checkout hygiene on `tichuml1`:
+  - `/opt/iCloudPlugin` had a tracked local compose edit making the cloudsync
+    worker vault mount writable, plus untracked vault artifacts created inside
+    the repo checkout during earlier runtime overlap
+  - that worker mount change is now intentional source-of-truth behavior
+    because the worker drains note-writing cloud-vault tasks in addition to
+    refresh work
+  - the live cleanup path is to reconcile the compose file with `main`, move
+    repo-local vault artifacts out of the checkout, and keep `/status/summary`
+    healthy throughout
 - issue [#98](https://github.com/NeonButrfly/iCloudPlugin/issues/98) now tracks
   the broad document-vault note-generation repair:
   - chatgpt-first note creation is now duplicate-safe for existing generated
