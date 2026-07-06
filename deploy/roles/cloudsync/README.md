@@ -178,6 +178,7 @@ That helper prints one JSON report covering:
 
 - cloudsync `/health`
 - cloudsync `/refresh/status`
+- non-secret token drift state for cloudsync versus classifier role env/runtime
 - cloud-vault mirror sync status from `cloud-vault-sync-status.json`
 - classifier `/health`
 - `classification_jobs` counts
@@ -198,6 +199,14 @@ The refresh-status payload now includes mid-batch timing/liveness fields such as
 
 On long OCR-heavy batches, those fields let operators confirm that the worker
 is still advancing even before `batch_count` changes.
+
+The live-status JSON now also includes a `token_config` block so operators can
+see whether:
+
+- the cloudsync env has a classifier token
+- the classifier role env has a classifier token
+- the running service and classifier containers each have a token loaded
+- the env-level and container-level tokens appear aligned
 
 It supports both the preferred local-Postgres split-host deployment and the
 legacy remote-Postgres fallback by using the same direct `postgres:16` client

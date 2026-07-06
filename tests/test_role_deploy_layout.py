@@ -216,7 +216,13 @@ def test_cloudsync_live_status_helper_covers_compute_only_status_surfaces():
     assert 'postgres:16 \\' in script_text
     assert 'capture_service_json "/health"' in script_text
     assert 'capture_service_json "/refresh/status"' in script_text
-    assert 'CLASSIFIER_HEALTH_JSON="$(capture_http_json "${CLASSIFIER_HEALTH_URL}" -H "X-API-Key: ${CLASSIFIER_API_TOKEN}")"' in script_text
+    assert "read_env_value()" in script_text
+    assert 'ENV_FILE_CLASSIFIER_API_TOKEN="$(read_env_value "${ENV_FILE}" "CLASSIFIER_API_TOKEN")"' in script_text
+    assert 'CLASSIFIER_ENV_FILE_CLASSIFIER_API_TOKEN="$(read_env_value "${CLASSIFIER_ENV_FILE}" "CLASSIFIER_API_TOKEN")"' in script_text
+    assert 'EFFECTIVE_CLASSIFIER_API_TOKEN="${CLASSIFIER_ENV_FILE_CLASSIFIER_API_TOKEN:-${ENV_FILE_CLASSIFIER_API_TOKEN:-${CLASSIFIER_API_TOKEN:-}}}"' in script_text
+    assert 'CLASSIFIER_HEALTH_JSON="$(capture_http_json "${CLASSIFIER_HEALTH_URL}" -H "X-API-Key: ${EFFECTIVE_CLASSIFIER_API_TOKEN}")"' in script_text
+    assert "collect_token_config_json()" in script_text
+    assert 'TOKEN_CONFIG_JSON="$(collect_token_config_json)"' in script_text
     assert "classification_job_counts_sql()" in script_text
     assert "classification_state_counts_sql()" in script_text
     assert "classification_state_status_by_path_sql()" in script_text
@@ -226,6 +232,7 @@ def test_cloudsync_live_status_helper_covers_compute_only_status_surfaces():
     assert 'MIRROR_ROOT="${MIRROR_ROOT:-${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}/mirrors}"' in script_text
     assert "--mirror-root" in script_text
     assert '"generated_note_context_gaps": parse_json_env("GENERATED_NOTE_CONTEXT_JSON")' in script_text
+    assert '"token_config": parse_json_env("TOKEN_CONFIG_JSON")' in script_text
     assert 'CLOUD_VAULT_SYNC_STATUS_PATH="${CLOUD_VAULT_SYNC_STATUS_PATH:-/mnt/cloud-vault/logs/cloud-vault-sync-status.json}"' in script_text
     assert "collect_sync_status_json()" in script_text
     assert '"cloud_vault_sync": parse_json_env("CLOUD_VAULT_SYNC_STATUS_JSON")' in script_text
@@ -268,7 +275,7 @@ def test_reindex_helpers_match_role_based_cloudsync_runtime():
     powershell_text = powershell_helper.read_text(encoding="utf-8")
 
     assert 'ENV_FILE="${ENV_FILE:-${REPO_ROOT}/deploy/roles/cloudsync/.env.live}"' in shell_text
-    assert 'COMPOSE_PROJECT="${COMPOSE_PROJECT:-icloudplugin}"' in shell_text
+    assert 'COMPOSE_PROJECT="${COMPOSE_PROJECT:-cloudsync}"' in shell_text
     assert 'COMPOSE_FILE="${COMPOSE_FILE:-${REPO_ROOT}/deploy/roles/cloudsync/docker-compose.yml}"' in shell_text
     assert 'SUDO_PASSWORD="${SUDO_PASSWORD:-}"' in shell_text
     assert "docker_command()" in shell_text
@@ -289,6 +296,7 @@ def test_reindex_helpers_match_role_based_cloudsync_runtime():
 
     assert 'deploy/roles/cloudsync/.env.live' in powershell_text
     assert 'deploy/roles/cloudsync/docker-compose.yml' in powershell_text
+    assert '$script:ComposeProject = if ($ComposeProject) { $ComposeProject } else { "cloudsync" }' in powershell_text
     assert 'classification-worker' in powershell_text
     assert 'TRUNCATE TABLE classification_jobs, classification_states, extracted_contents, files, jobs, sync_runs RESTART IDENTITY CASCADE;' in powershell_text
     assert 'Authorization: Bearer $script:PluginApiToken' in powershell_text
@@ -382,13 +390,13 @@ def test_cloudsync_role_compose_targets_sync_side_services_only():
     assert "classifier-api" not in services
 
 
-def test_cloudsync_role_service_mount_is_writable_for_document_vault_mutations():
+def test_cloudsync_role_service_and_worker_mounts_are_writable_for_document_vault_mutations():
     repo_root = Path(__file__).resolve().parents[1]
     role_compose = repo_root / "deploy" / "roles" / "cloudsync" / "docker-compose.yml"
     compose_text = role_compose.read_text(encoding="utf-8")
 
     assert '${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}:/srv/cloud-vault\n' in compose_text
-    assert '${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}:/srv/cloud-vault:ro' in compose_text
+    assert '${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}:/srv/cloud-vault:ro' not in compose_text
 
 
 def test_root_and_combined_service_mounts_are_writable_for_document_vault_mutations():

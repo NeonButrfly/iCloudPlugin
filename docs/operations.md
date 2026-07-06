@@ -546,6 +546,7 @@ For a bounded reconciliation-only proof of legacy-note context repair:
   - the helper prints one JSON report covering:
     - service `/health`
     - `/refresh/status`
+    - non-secret `token_config` state for cloudsync and classifier-role token drift
     - mirror sync status from `cloud-vault-sync-status.json`
     - classifier `/health`
     - `classification_jobs` counts
@@ -570,6 +571,12 @@ For a bounded reconciliation-only proof of legacy-note context repair:
   - `classification_jobs` counts are cumulative history, so interpret them
     alongside `classification_states` and classifier `/readiness` when judging
     the live backlog
+  - when classifier fallback behaves unexpectedly, inspect `token_config` first
+    to confirm whether:
+    - the cloudsync env file has a classifier token
+    - the classifier env file has a classifier token
+    - the running service and classifier containers each have a token loaded
+    - the env-side and container-side tokens appear aligned
 
 - if a bounded run is interrupted, or a long file is intentionally stopped
   mid-pass, recover stale `running` jobs before the next batch:

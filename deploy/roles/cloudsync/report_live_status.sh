@@ -24,6 +24,9 @@ SUDO_PASSWORD="${SUDO_PASSWORD:-}"
 
 PLUGIN_API_TOKEN="${PLUGIN_API_TOKEN:-}"
 CLASSIFIER_API_TOKEN="${CLASSIFIER_API_TOKEN:-}"
+ENV_FILE_CLASSIFIER_API_TOKEN="${ENV_FILE_CLASSIFIER_API_TOKEN:-}"
+CLASSIFIER_ENV_FILE_CLASSIFIER_API_TOKEN="${CLASSIFIER_ENV_FILE_CLASSIFIER_API_TOKEN:-}"
+EFFECTIVE_CLASSIFIER_API_TOKEN="${EFFECTIVE_CLASSIFIER_API_TOKEN:-}"
 SERVICE_HEALTH_JSON='{}'
 REFRESH_STATUS_JSON='{}'
 CLASSIFIER_HEALTH_JSON='{}'
@@ -34,6 +37,7 @@ PROVIDER_COUNTS_JSON='{}'
 VAULT_COUNTS_JSON='{}'
 GENERATED_NOTE_CONTEXT_JSON='{}'
 CLOUD_VAULT_SYNC_STATUS_JSON='{}'
+TOKEN_CONFIG_JSON='{}'
 
 usage() {
   cat <<'EOF'
@@ -97,6 +101,78 @@ load_env_file() {
   # shellcheck disable=SC1090
   source <(tr -d '\r' < "${path}")
   set +a
+}
+
+read_env_value() {
+  local path="$1"
+  local key="$2"
+  if [[ ! -f "${path}" ]]; then
+    return 0
+  fi
+
+  "${JSON_PYTHON}" - <<PY
+from pathlib import Path
+
+path = Path(${path@Q})
+key = ${key@Q}
+value = ""
+for raw_line in path.read_text(encoding="utf-8").splitlines():
+    line = raw_line.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        continue
+    name, raw_value = line.split("=", 1)
+    if name.strip() != key:
+        continue
+    value = raw_value.strip().strip("'\"")
+    break
+print(value)
+PY
+}
+
+collect_token_config_json() {
+  local service_token_present=0
+  local classifier_env_token_present=0
+  local classifier_container_token_present=0
+  local service_container_token_present=0
+  local env_tokens_match=0
+  local container_tokens_match=0
+  local classifier_container_token=""
+  local service_container_token=""
+
+  [[ -n "${ENV_FILE_CLASSIFIER_API_TOKEN}" ]] && service_token_present=1
+  [[ -n "${CLASSIFIER_ENV_FILE_CLASSIFIER_API_TOKEN}" ]] && classifier_env_token_present=1
+
+  service_container_token="$(
+    docker_command inspect cloudsync-service-1 --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null |
+      awk -F= '/^CLASSIFIER_API_TOKEN=/{sub(/^CLASSIFIER_API_TOKEN=/,""); print; exit}'
+  )"
+  classifier_container_token="$(
+    docker_command inspect cloud-vault-classifier-api --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null |
+      awk -F= '/^CLASSIFIER_API_TOKEN=/{sub(/^CLASSIFIER_API_TOKEN=/,""); print; exit}'
+  )"
+
+  [[ -n "${service_container_token}" ]] && service_container_token_present=1
+  [[ -n "${classifier_container_token}" ]] && classifier_container_token_present=1
+
+  if [[ -n "${ENV_FILE_CLASSIFIER_API_TOKEN}" && -n "${CLASSIFIER_ENV_FILE_CLASSIFIER_API_TOKEN}" && "${ENV_FILE_CLASSIFIER_API_TOKEN}" == "${CLASSIFIER_ENV_FILE_CLASSIFIER_API_TOKEN}" ]]; then
+    env_tokens_match=1
+  fi
+  if [[ -n "${service_container_token}" && -n "${classifier_container_token}" && "${service_container_token}" == "${classifier_container_token}" ]]; then
+    container_tokens_match=1
+  fi
+
+  "${JSON_PYTHON}" - <<PY
+import json
+print(json.dumps({
+    "cloudsync_env_token_present": ${service_token_present@Q} == "1",
+    "classifier_env_token_present": ${classifier_env_token_present@Q} == "1",
+    "service_container_token_present": ${service_container_token_present@Q} == "1",
+    "classifier_container_token_present": ${classifier_container_token_present@Q} == "1",
+    "env_tokens_match": ${env_tokens_match@Q} == "1",
+    "container_tokens_match": ${container_tokens_match@Q} == "1",
+    "effective_token_present": bool(${EFFECTIVE_CLASSIFIER_API_TOKEN@Q}),
+}))
+PY
 }
 
 postgres_service_running() {
@@ -506,18 +582,22 @@ main() {
   require_command docker
   require_command "${JSON_PYTHON}"
 
+  ENV_FILE_CLASSIFIER_API_TOKEN="$(read_env_value "${ENV_FILE}" "CLASSIFIER_API_TOKEN")"
+  CLASSIFIER_ENV_FILE_CLASSIFIER_API_TOKEN="$(read_env_value "${CLASSIFIER_ENV_FILE}" "CLASSIFIER_API_TOKEN")"
+
   load_env_file "${ENV_FILE}"
   load_env_file "${CLASSIFIER_ENV_FILE}"
 
   SERVICE_URL="${SERVICE_URL:-http://127.0.0.1:${SERVICE_PORT:-8080}}"
   CLASSIFIER_HEALTH_URL="${CLASSIFIER_HEALTH_URL:-${CLASSIFIER_API_URL:-http://127.0.0.1:4319}/health}"
   MIRROR_ROOT="${MIRROR_ROOT:-${ICLOUD_MIRROR_MOUNT_SOURCE:-/mnt/cloud-vault}/mirrors}"
+  EFFECTIVE_CLASSIFIER_API_TOKEN="${CLASSIFIER_ENV_FILE_CLASSIFIER_API_TOKEN:-${ENV_FILE_CLASSIFIER_API_TOKEN:-${CLASSIFIER_API_TOKEN:-}}}"
 
   SERVICE_HEALTH_JSON="$(capture_service_json "/health")"
   REFRESH_STATUS_JSON="$(capture_service_json "/refresh/status")"
 
-  if [[ -n "${CLASSIFIER_API_TOKEN}" ]]; then
-    CLASSIFIER_HEALTH_JSON="$(capture_http_json "${CLASSIFIER_HEALTH_URL}" -H "X-API-Key: ${CLASSIFIER_API_TOKEN}")"
+  if [[ -n "${EFFECTIVE_CLASSIFIER_API_TOKEN}" ]]; then
+    CLASSIFIER_HEALTH_JSON="$(capture_http_json "${CLASSIFIER_HEALTH_URL}" -H "X-API-Key: ${EFFECTIVE_CLASSIFIER_API_TOKEN}")"
   else
     CLASSIFIER_HEALTH_JSON="$("${JSON_PYTHON}" - <<'PY'
 import json
@@ -525,6 +605,7 @@ print(json.dumps({"ok": False, "error": "classifier-api-token-missing"}))
 PY
 )"
   fi
+  TOKEN_CONFIG_JSON="$(collect_token_config_json)"
 
   CLASSIFICATION_JOB_COUNTS_JSON="$(capture_db_json "$(classification_job_counts_sql)")"
   CLASSIFICATION_STATE_COUNTS_JSON="$(capture_db_json "$(classification_state_counts_sql)")"
@@ -537,7 +618,7 @@ PY
   export SERVICE_URL CLASSIFIER_HEALTH_URL VAULT_ROOT MIRROR_ROOT SUMMARY_JSON_PATH
   export SERVICE_HEALTH_JSON REFRESH_STATUS_JSON CLASSIFIER_HEALTH_JSON
   export CLASSIFICATION_JOB_COUNTS_JSON CLASSIFICATION_STATE_COUNTS_JSON
-  export PROVIDER_COUNTS_JSON VAULT_COUNTS_JSON GENERATED_NOTE_CONTEXT_JSON CLOUD_VAULT_SYNC_STATUS_JSON
+  export PROVIDER_COUNTS_JSON VAULT_COUNTS_JSON GENERATED_NOTE_CONTEXT_JSON CLOUD_VAULT_SYNC_STATUS_JSON TOKEN_CONFIG_JSON
 
   "${JSON_PYTHON}" - <<'PY'
 import json
@@ -563,6 +644,7 @@ summary = {
     "service_health": parse_json_env("SERVICE_HEALTH_JSON"),
     "refresh_status": parse_json_env("REFRESH_STATUS_JSON"),
     "classifier_health": parse_json_env("CLASSIFIER_HEALTH_JSON"),
+    "token_config": parse_json_env("TOKEN_CONFIG_JSON"),
     "classification_job_counts": parse_json_env("CLASSIFICATION_JOB_COUNTS_JSON"),
     "classification_state_counts": parse_json_env("CLASSIFICATION_STATE_COUNTS_JSON"),
     "provider_counts": parse_json_env("PROVIDER_COUNTS_JSON"),

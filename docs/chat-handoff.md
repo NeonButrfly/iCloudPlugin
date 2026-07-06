@@ -130,6 +130,14 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - the live cleanup path is to reconcile the compose file with `main`, move
     repo-local vault artifacts out of the checkout, and keep `/status/summary`
     healthy throughout
+- issue [#101](https://github.com/NeonButrfly/iCloudPlugin/issues/101) now
+  tracks classifier token drift visibility and role-env reconciliation:
+  - `cloudsync` can have a working `CLASSIFIER_API_TOKEN` while the classifier
+    role env file is blank, which makes operator diagnosis harder
+  - the live-status helper now needs to report non-secret token presence and
+    env/runtime alignment for cloudsync versus classifier roles separately
+  - the live classifier env on `tichuml1` should carry the same classifier API
+    token as the active cloudsync service so helper output and runtime match
 - issue [#98](https://github.com/NeonButrfly/iCloudPlugin/issues/98) now tracks
   the broad document-vault note-generation repair:
   - chatgpt-first note creation is now duplicate-safe for existing generated
