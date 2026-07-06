@@ -112,7 +112,7 @@ function Wait-ForServiceHealth {
 $script:RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $script:EnvFile = if ($EnvFile) { $EnvFile } else { Join-Path $script:RepoRoot "deploy/roles/cloudsync/.env.live" }
 $script:ComposeFile = if ($ComposeFile) { $ComposeFile } else { Join-Path $script:RepoRoot "deploy/roles/cloudsync/docker-compose.yml" }
-$script:ComposeProject = if ($ComposeProject) { $ComposeProject } else { "icloudplugin" }
+$script:ComposeProject = if ($ComposeProject) { $ComposeProject } else { "cloudsync" }
 
 Set-Location $script:RepoRoot
 Load-EnvFile -Path $script:EnvFile

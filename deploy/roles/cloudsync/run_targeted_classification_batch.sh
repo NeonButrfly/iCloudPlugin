@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/../../.." && pwd)}"
-COMPOSE_PROJECT="${COMPOSE_PROJECT:-icloudplugin}"
+COMPOSE_PROJECT="${COMPOSE_PROJECT:-cloudsync}"
 ENV_FILE="${ENV_FILE:-${REPO_ROOT}/.env}"
 COMPOSE_FILE="${COMPOSE_FILE:-${REPO_ROOT}/deploy/roles/cloudsync/docker-compose.yml}"
 CLASSIFICATION_SERVICE="${CLASSIFICATION_SERVICE:-classification-worker}"

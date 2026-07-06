@@ -99,16 +99,26 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
     columns required by the current resumable dedupe workflow
   - the repair path is a forward migration so already-upgraded hosts can add
     the missing dedupe tables/columns without rebaselining the database
-- issue [#96](https://github.com/NeonButrfly/iCloudPlugin/issues/96) tracks the
-  follow-on live dedupe stall discovered on `tichuml1` on 2026-07-04 AKDT:
-  - resumable dedupe analysis can stop after the first bounded chunk while the
-    task record still says `running`
-  - the current root cause is that the deployed `cloudsync-worker` loop drains
-    metadata refresh jobs but does not yet drain queued/running
-    `cloud_vault_tasks`
-  - the intended repair is to let the existing worker advance a bounded number
-    of cloud-vault tasks per poll so dedupe progress keeps moving under the
-    same healthy worker that already heartbeats refresh
+- issue [#96](https://github.com/NeonButrfly/iCloudPlugin/issues/96) is now
+  verified fixed live on `tichuml1` on 2026-07-05 AKDT:
+  - authenticated `/status/summary` returned
+    `queued_cloud_vault_tasks_auto_running=true`
+  - authenticated task-list output showed live completion for
+    `dedupe_analysis`, `create_document_vault_notes_from_search`,
+    `create_document_vault_note_from_file_id_chatgpt_first`, and
+    `classifier_fallback_note_from_file_id`
+  - the active live service is the `cloudsync-*` stack, and the queue was
+    drained at verification time
+- issue [#99](https://github.com/NeonButrfly/iCloudPlugin/issues/99) now tracks
+  the follow-on deploy/runtime hygiene repair on `tichuml1`:
+  - a stale duplicate `icloudplugin-*` runtime had been started in parallel
+    with the active `cloudsync-*` stack and was competing for port `8080`
+  - the stale `icloudplugin-service-1`, `worker-1`, `migrate-1`,
+    `classification-worker-1`, `postgres-1`, and its unused Postgres volume
+    were removed on 2026-07-05 AKDT
+  - the remaining repo-side follow-up is to keep helper defaults and operator
+    docs aligned with the canonical `cloudsync` compose project so ad hoc runs
+    do not recreate the overlap
 - issue [#98](https://github.com/NeonButrfly/iCloudPlugin/issues/98) now tracks
   the broad document-vault note-generation repair:
   - chatgpt-first note creation is now duplicate-safe for existing generated

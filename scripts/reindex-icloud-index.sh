@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 ENV_FILE="${ENV_FILE:-${REPO_ROOT}/deploy/roles/cloudsync/.env.live}"
-COMPOSE_PROJECT="${COMPOSE_PROJECT:-icloudplugin}"
+COMPOSE_PROJECT="${COMPOSE_PROJECT:-cloudsync}"
 COMPOSE_FILE="${COMPOSE_FILE:-${REPO_ROOT}/deploy/roles/cloudsync/docker-compose.yml}"
 POSTGRES_SERVICE="${POSTGRES_SERVICE:-postgres}"
 POSTGRES_HOST="${POSTGRES_HOST:-postgres}"
@@ -39,7 +39,7 @@ Options:
 Environment:
   ENV_FILE                  Cloudsync env file. Default: deploy/roles/cloudsync/.env.live
   COMPOSE_FILE              Cloudsync compose file. Default: deploy/roles/cloudsync/docker-compose.yml
-  COMPOSE_PROJECT           Compose project name. Default: icloudplugin
+  COMPOSE_PROJECT           Compose project name. Default: cloudsync
   POSTGRES_HOST             PostgreSQL host. Default: postgres
   POSTGRES_PORT             PostgreSQL port. Default: 5432
   POSTGRES_USER             PostgreSQL user. Default: icloud

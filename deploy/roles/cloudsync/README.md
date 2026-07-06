@@ -76,8 +76,9 @@ For the preferred clean split-host deployment on `tichuml1`:
   cadence for image-heavy or OCR-heavy workloads:
   - `ICLOUD_REFRESH_PROGRESS_HEARTBEAT_SECONDS`
   - `ICLOUD_REFRESH_PROGRESS_HEARTBEAT_ITEMS`
-- prefer `docker compose -p icloudplugin --env-file deploy/roles/cloudsync/.env.live`
-  so the cloudsync project name remains stable during cutover
+- prefer `docker compose -p cloudsync --env-file deploy/roles/cloudsync/.env.live`
+  so the cloudsync project name remains stable and does not overlap with the
+  separate classifier-role compose project
 
 Legacy fallback:
 

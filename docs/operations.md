@@ -424,15 +424,15 @@ bash ./deploy/roles/classifier/run_codex_arbiter_smoke.sh \
     - `pdftotext|unknown`
 - on `kayraspi`, ad hoc `docker compose` runs for the `cloudsync` role should
   use the live project name explicitly:
-  - use `-p icloudplugin`
-  - otherwise Docker Compose derives `cloudsync` from the role directory and
-    tries to start a second `postgres` container on host port `5432`
+  - use `-p cloudsync`
+  - keep the cloudsync role on one canonical compose project instead of
+    overlapping with the separate classifier-role project
 - for a bounded live backfill pass, prefer a one-shot worker run instead of
   enabling the long-running service immediately:
 
 ```powershell
 Set-Location /opt/iCloudPlugin
-sudo docker compose -p icloudplugin --env-file .env `
+sudo docker compose -p cloudsync --env-file .env `
   -f deploy/roles/cloudsync/docker-compose.yml run --rm --no-deps `
   -e CLASSIFICATION_SUBMISSION_CONCURRENCY=2 `
   classification-worker `
@@ -447,7 +447,7 @@ from `kayraspi2`:
 cd /opt/iCloudPlugin
 cp deploy/roles/cloudsync/.env.tichuml1.example deploy/roles/cloudsync/.env.live
 # then set the real secrets in deploy/roles/cloudsync/.env.live
-sudo docker compose -p icloudplugin \
+sudo docker compose -p cloudsync \
   --env-file deploy/roles/cloudsync/.env.live \
   -f deploy/roles/cloudsync/docker-compose.yml \
   up -d --build postgres migrate service worker
@@ -576,7 +576,7 @@ For a bounded reconciliation-only proof of legacy-note context repair:
 
 ```powershell
 Set-Location /opt/iCloudPlugin
-sudo docker compose -p icloudplugin --env-file .env `
+sudo docker compose -p cloudsync --env-file .env `
   -f deploy/roles/cloudsync/docker-compose.yml run --rm --no-deps `
   classification-worker `
   uv run python -c "from icloud_index_service.db import get_session_factory; from icloud_index_service.services.classification_submission import recover_stale_running_classification_jobs; session = get_session_factory()(); print(recover_stale_running_classification_jobs(session, stale_after_seconds=0)); session.close()"
@@ -1639,6 +1639,8 @@ The reindex helpers:
 - default to the role-based cloudsync deployment shape under:
   - `deploy/roles/cloudsync/.env.live`
   - `deploy/roles/cloudsync/docker-compose.yml`
+- default to `COMPOSE_PROJECT=cloudsync` so helper runs target the same live
+  sync/index/API stack that owns `cloudsync-service-1` and `cloudsync-worker-1`
 - load the live env file before choosing runtime defaults
 - can print a safe plan first with `--dry-run --yes` or `-DryRun -Yes`
 - require explicit destructive confirmation with `--yes` or `-Yes`
