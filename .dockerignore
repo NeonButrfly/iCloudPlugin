@@ -1,0 +1,28 @@
+.git
+.github
+.pytest_cache/
+.runtime/
+.codex-backups/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Live env files and host-side backups are not needed in the image build context.
+deploy/roles/cloudsync/.env.live
+deploy/roles/cloudsync/.env.live.bak-*
+deploy/roles/cloudsync/.env.live.repair-bak-*
+deploy/roles/cloudsync/.env.live.repair2-bak-*
+deploy/roles/classifier/.env.live
+deploy/roles/classifier/.env.live.bak-*
+deploy/roles/classifier/output/
+deploy/roles/classifier/ollama/
+
+# Host-only vault artifacts can appear under /opt/iCloudPlugin during live ops.
+.obsidian/
+01 Classified/
+90 Attachments/
+_CHANGES_BACKUP/
+_system/
+Home.md
+
+uv.lock
