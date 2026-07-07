@@ -34,6 +34,7 @@ Primary services in `docker-compose.yml`:
 Related host-level sync assets:
 
 - `deploy/roles/cloudsync/cloud-vault-sync.sh`
+- `deploy/roles/cloudsync/export_gmail_messages.py`
 - `deploy/roles/cloudsync/install_storage_host_sync_assets.sh`
 - `deploy/roles/cloudsync/run_targeted_classification_batch.sh`
 - `deploy/roles/cloudsync/report_live_status.sh`
@@ -46,6 +47,11 @@ folders:
 - `icloud:` <-> `/srv/cloud-vault/mirrors/icloud`
 - `gdrive1:` <-> `/srv/cloud-vault/mirrors/google1`
 - `gdrive2:` <-> `/srv/cloud-vault/mirrors/google2`
+
+Optional Gmail mailbox export can now land alongside those Drive mirrors:
+
+- `kaymayers9@gmail.com` -> `/srv/cloud-vault/mirrors/google1/Gmail`
+- `keifmayers@gmail.com` -> `/srv/cloud-vault/mirrors/google2/Gmail`
 
 The sync/index/classifier-facing mirror root should point at:
 
@@ -100,6 +106,18 @@ The script is intentionally resilient:
   intentional dedupe-driven mass deletes are not blocked for:
   - `gdrive1`
   - `gdrive2`
+- when `GMAIL_EXPORT_ENABLED=true`, the same storage-host run can also export
+  Gmail message markdown plus optional attachments into the corresponding
+  `google1/Gmail` and `google2/Gmail` trees
+- Gmail export expects a per-account Google authorized-user JSON file:
+  - `GMAIL_GOOGLE_1_AUTH_FILE`
+  - `GMAIL_GOOGLE_2_AUTH_FILE`
+- Gmail export defaults:
+  - `GMAIL_GOOGLE_1_ACCOUNT=kaymayers9@gmail.com`
+  - `GMAIL_GOOGLE_2_ACCOUNT=keifmayers@gmail.com`
+  - `GMAIL_EXPORT_QUERY=-in:chats -in:spam -in:trash`
+  - `GMAIL_DOWNLOAD_ATTACHMENTS=true`
+  - `GMAIL_MAX_RESULTS_PER_RUN=500`
 - iCloud stays on the safer default without `--force`
 - dangling Google Drive shortcuts are skipped because rclone cannot read them
   as source objects
@@ -164,6 +182,7 @@ To install or refresh the storage-host sync assets on `kayraspi2`, use:
 That helper:
 
 - installs `cloud-vault-sync.sh` to `/usr/local/bin`
+- installs `export_gmail_messages.py` to `/usr/local/bin/cloud-vault-gmail-export.py`
 - installs the systemd service and timer under `/etc/systemd/system`
 - reloads systemd
 - enables the timer

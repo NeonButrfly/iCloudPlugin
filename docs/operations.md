@@ -99,6 +99,12 @@ Canonical host-side mappings:
 - `gdrive1:` <-> `/srv/cloud-vault/mirrors/google1`
 - `gdrive2:` <-> `/srv/cloud-vault/mirrors/google2`
 
+Optional Gmail mailbox exports can also be materialized into those same
+provider trees:
+
+- `kaymayers9@gmail.com` -> `/srv/cloud-vault/mirrors/google1/Gmail`
+- `keifmayers@gmail.com` -> `/srv/cloud-vault/mirrors/google2/Gmail`
+
 Classifier and indexing source-of-truth:
 
 - point `ICLOUD_MIRROR_ROOT` at the aggregate root `/srv/cloud-vault/mirrors`
@@ -113,6 +119,7 @@ Classifier and indexing source-of-truth:
 Recommended live assets:
 
 - `deploy/roles/cloudsync/cloud-vault-sync.sh`
+- `deploy/roles/cloudsync/export_gmail_messages.py`
 - `deploy/roles/cloudsync/install_storage_host_sync_assets.sh`
 - `deploy/roles/cloudsync/cloud-vault-sync.service`
 - `deploy/roles/cloudsync/cloud-vault-sync.timer`
@@ -127,6 +134,18 @@ Behavior:
 - after issue `#83`, Google remotes now default `--force` during bisync so
   intentional dedupe-driven mass deletes are not blocked for `gdrive1` and
   `gdrive2`
+- when `GMAIL_EXPORT_ENABLED=true`, the same storage-host sync pass can also
+  export Gmail message markdown and optional attachments into:
+  - `/srv/cloud-vault/mirrors/google1/Gmail`
+  - `/srv/cloud-vault/mirrors/google2/Gmail`
+- Gmail export uses Google authorized-user JSON files and these env vars:
+  - `GMAIL_GOOGLE_1_AUTH_FILE`
+  - `GMAIL_GOOGLE_2_AUTH_FILE`
+  - `GMAIL_GOOGLE_1_ACCOUNT`
+  - `GMAIL_GOOGLE_2_ACCOUNT`
+  - `GMAIL_EXPORT_QUERY`
+  - `GMAIL_DOWNLOAD_ATTACHMENTS`
+  - `GMAIL_MAX_RESULTS_PER_RUN`
 - iCloud remains on the safer default without `--force`
 - remotes that are missing or unauthenticated are logged and skipped instead of
   failing the entire timer run
@@ -186,6 +205,8 @@ Current Google Drive expectation:
 
 - `gdrive1` should map to `kaymayers9@gmail.com`
 - `gdrive2` should map to `keifmayers@gmail.com`
+- `google1/Gmail` should map to `kaymayers9@gmail.com`
+- `google2/Gmail` should map to `keifmayers@gmail.com`
 
 If a Google Drive remote exists without a valid OAuth token, `rclone` will not
 be able to access it. Complete the one-time `rclone config reconnect` or

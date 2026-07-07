@@ -4,10 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/../../.." && pwd)}"
 SYNC_SCRIPT_SOURCE="${SYNC_SCRIPT_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.sh}"
+GMAIL_EXPORT_SCRIPT_SOURCE="${GMAIL_EXPORT_SCRIPT_SOURCE:-${SCRIPT_DIR}/export_gmail_messages.py}"
 SYNC_SERVICE_SOURCE="${SYNC_SERVICE_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.service}"
 SYNC_TIMER_SOURCE="${SYNC_TIMER_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.timer}"
 
 SCRIPT_TARGET="${SCRIPT_TARGET:-/usr/local/bin/cloud-vault-sync.sh}"
+GMAIL_EXPORT_SCRIPT_TARGET="${GMAIL_EXPORT_SCRIPT_TARGET:-/usr/local/bin/cloud-vault-gmail-export.py}"
 SERVICE_TARGET="${SERVICE_TARGET:-/etc/systemd/system/cloud-vault-sync.service}"
 TIMER_TARGET="${TIMER_TARGET:-/etc/systemd/system/cloud-vault-sync.timer}"
 SUDO_PASSWORD="${SUDO_PASSWORD:-}"
@@ -106,6 +108,7 @@ main() {
   log_line "Repo root: ${REPO_ROOT}"
 
   install_asset "${SYNC_SCRIPT_SOURCE}" "${SCRIPT_TARGET}" 755
+  install_asset "${GMAIL_EXPORT_SCRIPT_SOURCE}" "${GMAIL_EXPORT_SCRIPT_TARGET}" 755
   install_asset "${SYNC_SERVICE_SOURCE}" "${SERVICE_TARGET}" 644
   install_asset "${SYNC_TIMER_SOURCE}" "${TIMER_TARGET}" 644
 
@@ -118,6 +121,7 @@ main() {
 
   log_line "Installed asset hashes (target source_sha installed_sha):"
   print_installed_hashes "${SYNC_SCRIPT_SOURCE}" "${SCRIPT_TARGET}"
+  print_installed_hashes "${GMAIL_EXPORT_SCRIPT_SOURCE}" "${GMAIL_EXPORT_SCRIPT_TARGET}"
   print_installed_hashes "${SYNC_SERVICE_SOURCE}" "${SERVICE_TARGET}"
   print_installed_hashes "${SYNC_TIMER_SOURCE}" "${TIMER_TARGET}"
 

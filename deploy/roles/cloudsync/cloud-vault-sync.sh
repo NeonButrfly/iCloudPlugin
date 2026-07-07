@@ -2,6 +2,7 @@
 set -euo pipefail
 
 VAULT_MOUNT="${VAULT_MOUNT:-/srv/cloud-vault}"
+REPO_ROOT="${REPO_ROOT:-/opt/iCloudPlugin}"
 LOG_DIR="${LOG_DIR:-${VAULT_MOUNT}/logs}"
 STATUS_DIR="${STATUS_DIR:-${LOG_DIR}}"
 STATUS_FILE="${STATUS_FILE:-${STATUS_DIR}/cloud-vault-sync-status.json}"
@@ -9,6 +10,15 @@ LOCK_DIR="${LOCK_DIR:-${VAULT_MOUNT}/.locks}"
 LOCK_FILE="${LOCK_FILE:-${LOCK_DIR}/sync.lock}"
 STATE_DIR="${STATE_DIR:-${VAULT_MOUNT}/.rclone-bisync}"
 STATUS_PYTHON="${STATUS_PYTHON:-python3}"
+GMAIL_EXPORT_ENABLED="${GMAIL_EXPORT_ENABLED:-false}"
+GMAIL_EXPORT_SCRIPT="${GMAIL_EXPORT_SCRIPT:-/usr/local/bin/cloud-vault-gmail-export.py}"
+GMAIL_EXPORT_QUERY="${GMAIL_EXPORT_QUERY:--in:chats -in:spam -in:trash}"
+GMAIL_DOWNLOAD_ATTACHMENTS="${GMAIL_DOWNLOAD_ATTACHMENTS:-true}"
+GMAIL_MAX_RESULTS_PER_RUN="${GMAIL_MAX_RESULTS_PER_RUN:-500}"
+GMAIL_GOOGLE_1_ACCOUNT="${GMAIL_GOOGLE_1_ACCOUNT:-kaymayers9@gmail.com}"
+GMAIL_GOOGLE_2_ACCOUNT="${GMAIL_GOOGLE_2_ACCOUNT:-keifmayers@gmail.com}"
+GMAIL_GOOGLE_1_AUTH_FILE="${GMAIL_GOOGLE_1_AUTH_FILE:-}"
+GMAIL_GOOGLE_2_AUTH_FILE="${GMAIL_GOOGLE_2_AUTH_FILE:-}"
 
 REMOTE_ICLOUD="${REMOTE_ICLOUD:-icloud}"
 REMOTE_GOOGLE_1="${REMOTE_GOOGLE_1:-gdrive1}"
@@ -237,6 +247,69 @@ run_bisync() {
   record_sync_status "${remote_name}" "${required_flag}" "ok" "${log_file}" "rclone bisync finished"
 }
 
+run_gmail_export() {
+  local remote_name="$1"
+  local account_email="$2"
+  local auth_file="$3"
+  local dest_path="$4"
+  local log_file="$5"
+  local required_flag="${6:-false}"
+  local attachment_flag=()
+
+  if ! is_truthy "${GMAIL_EXPORT_ENABLED}"; then
+    return 0
+  fi
+
+  if [[ -z "${auth_file}" ]]; then
+    local detail="Gmail export is enabled but no auth file was configured for ${account_email}. Skipping."
+    log_line "${log_file}" "${detail}"
+    record_sync_status "${remote_name}" "${required_flag}" "not-configured" "${log_file}" "${detail}"
+    record_remote_failure "${required_flag}"
+    return 0
+  fi
+
+  if [[ ! -f "${auth_file}" ]]; then
+    local detail="Configured Gmail auth file ${auth_file} was not found for ${account_email}. Skipping."
+    log_line "${log_file}" "${detail}"
+    record_sync_status "${remote_name}" "${required_flag}" "not-configured" "${log_file}" "${detail}"
+    record_remote_failure "${required_flag}"
+    return 0
+  fi
+
+  if [[ ! -f "${GMAIL_EXPORT_SCRIPT}" ]]; then
+    local detail="Configured Gmail export helper ${GMAIL_EXPORT_SCRIPT} was not found."
+    log_line "${log_file}" "${detail}"
+    record_sync_status "${remote_name}" "${required_flag}" "failed" "${log_file}" "${detail}"
+    record_remote_failure "${required_flag}"
+    return 0
+  fi
+
+  mkdir -p "${dest_path}"
+  if is_truthy "${GMAIL_DOWNLOAD_ATTACHMENTS}"; then
+    attachment_flag+=(--download-attachments)
+  else
+    attachment_flag+=(--skip-attachments)
+  fi
+
+  log_line "${log_file}" "===== ${remote_name} Gmail export started for ${account_email} ====="
+  if ! REPO_ROOT="${REPO_ROOT}" "${STATUS_PYTHON}" "${GMAIL_EXPORT_SCRIPT}" \
+    --account-email "${account_email}" \
+    --authorized-user-file "${auth_file}" \
+    --output-root "${dest_path}" \
+    --query "${GMAIL_EXPORT_QUERY}" \
+    --max-results "${GMAIL_MAX_RESULTS_PER_RUN}" \
+    "${attachment_flag[@]}" >> "${log_file}" 2>&1; then
+    local detail="Gmail export failed for ${account_email}."
+    log_line "${log_file}" "${detail}"
+    record_sync_status "${remote_name}" "${required_flag}" "failed" "${log_file}" "${detail}"
+    record_remote_failure "${required_flag}"
+    return 0
+  fi
+
+  log_line "${log_file}" "===== ${remote_name} Gmail export finished for ${account_email} ====="
+  record_sync_status "${remote_name}" "${required_flag}" "ok" "${log_file}" "Gmail export finished"
+}
+
 compute_run_exit_code() {
   if (( REQUIRED_REMOTE_FAILURE_COUNT > 0 )); then
     printf '10'
@@ -265,6 +338,8 @@ fi
   run_bisync "${REMOTE_ICLOUD}" "${REMOTE_ICLOUD}:" "${VAULT_MOUNT}/mirrors/icloud" "${LOG_DIR}/icloud.log" "${REMOTE_ICLOUD_INITIAL_RESYNC_MODE}" "${REMOTE_ICLOUD_REQUIRED}" "${REMOTE_ICLOUD_ALLOW_MASS_DELETE}"
   run_bisync "${REMOTE_GOOGLE_1}" "${REMOTE_GOOGLE_1}:" "${VAULT_MOUNT}/mirrors/google1" "${LOG_DIR}/google1.log" "${REMOTE_GOOGLE_1_INITIAL_RESYNC_MODE}" "${REMOTE_GOOGLE_1_REQUIRED}" "${REMOTE_GOOGLE_1_ALLOW_MASS_DELETE}"
   run_bisync "${REMOTE_GOOGLE_2}" "${REMOTE_GOOGLE_2}:" "${VAULT_MOUNT}/mirrors/google2" "${LOG_DIR}/google2.log" "${REMOTE_GOOGLE_2_INITIAL_RESYNC_MODE}" "${REMOTE_GOOGLE_2_REQUIRED}" "${REMOTE_GOOGLE_2_ALLOW_MASS_DELETE}"
+  run_gmail_export "gmail-google1" "${GMAIL_GOOGLE_1_ACCOUNT}" "${GMAIL_GOOGLE_1_AUTH_FILE}" "${VAULT_MOUNT}/mirrors/google1/Gmail" "${LOG_DIR}/google1-gmail.log"
+  run_gmail_export "gmail-google2" "${GMAIL_GOOGLE_2_ACCOUNT}" "${GMAIL_GOOGLE_2_AUTH_FILE}" "${VAULT_MOUNT}/mirrors/google2/Gmail" "${LOG_DIR}/google2-gmail.log"
   final_exit_code="$(compute_run_exit_code)"
   write_sync_status_file "${final_exit_code}"
   if [[ "${final_exit_code}" != "0" ]]; then

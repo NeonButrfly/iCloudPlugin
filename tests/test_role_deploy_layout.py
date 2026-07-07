@@ -39,6 +39,7 @@ def test_cloudsync_role_sync_assets_exist():
     repo_root = Path(__file__).resolve().parents[1]
     expected = [
         repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh",
+        repo_root / "deploy" / "roles" / "cloudsync" / "export_gmail_messages.py",
         repo_root / "deploy" / "roles" / "cloudsync" / "install_storage_host_sync_assets.sh",
         repo_root / "deploy" / "roles" / "cloudsync" / "run_targeted_classification_batch.sh",
         repo_root / "deploy" / "roles" / "cloudsync" / "report_live_status.sh",
@@ -117,6 +118,23 @@ def test_cloudsync_sync_script_writes_machine_readable_status_artifact():
     assert '"required_failures_present": bool(required_failures)' in script_text
 
 
+def test_cloudsync_sync_script_can_export_gmail_mailboxes_into_google_mirrors():
+    repo_root = Path(__file__).resolve().parents[1]
+    sync_script = repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh"
+    script_text = sync_script.read_text(encoding="utf-8")
+
+    assert 'GMAIL_EXPORT_ENABLED="${GMAIL_EXPORT_ENABLED:-false}"' in script_text
+    assert 'GMAIL_EXPORT_SCRIPT="${GMAIL_EXPORT_SCRIPT:-/usr/local/bin/cloud-vault-gmail-export.py}"' in script_text
+    assert 'GMAIL_GOOGLE_1_ACCOUNT="${GMAIL_GOOGLE_1_ACCOUNT:-kaymayers9@gmail.com}"' in script_text
+    assert 'GMAIL_GOOGLE_2_ACCOUNT="${GMAIL_GOOGLE_2_ACCOUNT:-keifmayers@gmail.com}"' in script_text
+    assert 'GMAIL_GOOGLE_1_AUTH_FILE="${GMAIL_GOOGLE_1_AUTH_FILE:-}"' in script_text
+    assert 'GMAIL_GOOGLE_2_AUTH_FILE="${GMAIL_GOOGLE_2_AUTH_FILE:-}"' in script_text
+    assert 'GMAIL_DOWNLOAD_ATTACHMENTS="${GMAIL_DOWNLOAD_ATTACHMENTS:-true}"' in script_text
+    assert "run_gmail_export()" in script_text
+    assert 'run_gmail_export "gmail-google1" "${GMAIL_GOOGLE_1_ACCOUNT}" "${GMAIL_GOOGLE_1_AUTH_FILE}" "${VAULT_MOUNT}/mirrors/google1/Gmail"' in script_text
+    assert 'run_gmail_export "gmail-google2" "${GMAIL_GOOGLE_2_ACCOUNT}" "${GMAIL_GOOGLE_2_AUTH_FILE}" "${VAULT_MOUNT}/mirrors/google2/Gmail"' in script_text
+
+
 def test_cloudsync_storage_host_installer_covers_sync_assets_and_systemd_flow():
     repo_root = Path(__file__).resolve().parents[1]
     installer = (
@@ -125,15 +143,18 @@ def test_cloudsync_storage_host_installer_covers_sync_assets_and_systemd_flow():
     script_text = installer.read_text(encoding="utf-8")
 
     assert 'SYNC_SCRIPT_SOURCE="${SYNC_SCRIPT_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.sh}"' in script_text
+    assert 'GMAIL_EXPORT_SCRIPT_SOURCE="${GMAIL_EXPORT_SCRIPT_SOURCE:-${SCRIPT_DIR}/export_gmail_messages.py}"' in script_text
     assert 'SYNC_SERVICE_SOURCE="${SYNC_SERVICE_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.service}"' in script_text
     assert 'SYNC_TIMER_SOURCE="${SYNC_TIMER_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.timer}"' in script_text
     assert 'SCRIPT_TARGET="${SCRIPT_TARGET:-/usr/local/bin/cloud-vault-sync.sh}"' in script_text
+    assert 'GMAIL_EXPORT_SCRIPT_TARGET="${GMAIL_EXPORT_SCRIPT_TARGET:-/usr/local/bin/cloud-vault-gmail-export.py}"' in script_text
     assert 'SERVICE_TARGET="${SERVICE_TARGET:-/etc/systemd/system/cloud-vault-sync.service}"' in script_text
     assert 'TIMER_TARGET="${TIMER_TARGET:-/etc/systemd/system/cloud-vault-sync.timer}"' in script_text
     assert 'SUDO_PASSWORD="${SUDO_PASSWORD:-}"' in script_text
     assert "sudo_command()" in script_text
     assert 'printf \'%s\\n\' "${SUDO_PASSWORD}" | sudo -S "$@"' in script_text
     assert 'sudo_command install -m "${mode}" "${source_path}" "${target_path}"' in script_text
+    assert 'install_asset "${GMAIL_EXPORT_SCRIPT_SOURCE}" "${GMAIL_EXPORT_SCRIPT_TARGET}" 755' in script_text
     assert 'sudo_command systemctl daemon-reload' in script_text
     assert 'sudo_command systemctl enable --now "$(basename "${TIMER_TARGET}")"' in script_text
     assert "--run-sync-after-install" in script_text
