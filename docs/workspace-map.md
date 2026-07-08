@@ -10,11 +10,13 @@ This repo is the canonical workspace for the cloud-vault platform work.
 ## Live Host Roles
 
 - `kayraspi` (`192.168.50.232`)
+  - canonical LAN address on Ethernet
   - transitional legacy `iCloudPlugin` host
   - should not host the live cloudsync Postgres database after the clean split-host cutover
   - repo path: `/opt/iCloudPlugin`
 
 - `tichuml1` (`192.168.50.196`)
+  - canonical LAN address on Ethernet
   - live classifier host
   - live sync/index/API compute host
   - target live cloudsync Postgres host
@@ -23,12 +25,28 @@ This repo is the canonical workspace for the cloud-vault platform work.
   - classifier API port: `4319`
 
 - `kayraspi2` (`192.168.50.86`)
+  - canonical LAN address on Ethernet
   - shared storage, NFS/SMB, proxy, iCloud mirror, iPhone backup host
   - storage root: `/srv/cloud-vault`
 
 - `tichuml` (`192.168.50.36`)
+  - canonical LAN address on Ethernet
   - Tichu backend/Postgres host
   - not part of the cloud-vault runtime path
+
+## Canonical LAN Addressing
+
+Use the wired LAN addresses below as the source of truth for on-prem routing,
+mounts, service URLs, and operator instructions:
+
+- `kayraspi2` -> `192.168.50.86`
+- `tichuml1` -> `192.168.50.196`
+- `kayraspi` -> `192.168.50.232`
+- `tichuml` -> `192.168.50.36`
+
+Do not introduce alternate Wi-Fi-era or otherwise non-canonical LAN addresses
+into current docs or helper defaults. Issue `#88` is the tracking record for
+the `tichuml1` wired-address standardization work.
 
 ## Canonical Artifacts
 

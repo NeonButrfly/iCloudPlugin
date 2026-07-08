@@ -26,6 +26,15 @@ Not probed because preconditions were not met:
 - `192.168.50.83`
 - `192.168.50.128`
 
+These should now be treated as non-canonical historical addresses rather than
+current operator targets. Use the Ethernet-backed LAN addresses for active host
+mapping instead:
+
+- `kayraspi2` -> `192.168.50.86`
+- `tichuml1` -> `192.168.50.196`
+- `kayraspi` -> `192.168.50.232`
+- `tichuml` -> `192.168.50.36`
+
 ## Services Discovered
 
 ### Confirmed live
@@ -104,3 +113,5 @@ Not probed because preconditions were not met:
    `tichuml1` has write access; `kayraspi` has read-only access
 7. Add an operations note for `cloud-vault-sync.service`:
    observed failed during this discovery, root cause not investigated
+8. Mark the Ethernet LAN addresses above as canonical and retire stale
+   wireless-era addresses from operator guidance

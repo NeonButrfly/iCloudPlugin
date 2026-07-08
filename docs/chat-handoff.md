@@ -11,12 +11,14 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
 ## Live Host Layout
 
 - `kayraspi` (`192.168.50.232`)
+  - canonical LAN address on Ethernet
   - transitional legacy `iCloudPlugin` host
   - still hosts the live cloudsync Postgres database during the compute-only cutover
   - repo path: `/opt/iCloudPlugin`
   - mounts `/srv/cloud-vault` from `kayraspi2` as read-only NFS
 
 - `tichuml1` (`192.168.50.196`)
+  - canonical LAN address on Ethernet
   - live classifier host
   - live sync/index/API compute host
   - repo path: `/opt/iCloudPlugin`
@@ -25,13 +27,29 @@ Canonical workspace is `C:\Code\iCloudPlugin`.
   - mounts shared vault from `kayraspi2` at `/mnt/cloud-vault`
 
 - `kayraspi2` (`192.168.50.86`)
+  - canonical LAN address on Ethernet
   - storage/share/proxy host
   - local storage root: `/srv/cloud-vault`
   - runs NFS, SMB, Caddy, iCloud mirror sync, and iPhone backup timers
 
 - `tichuml` (`192.168.50.36`)
+  - canonical LAN address on Ethernet
   - Tichu backend/Postgres host
   - not part of the cloud-vault runtime path
+
+## Canonical Ethernet Address Map
+
+For current operator instructions, use these wired LAN addresses as the
+authoritative map:
+
+- `kayraspi2` -> `192.168.50.86`
+- `tichuml1` -> `192.168.50.196`
+- `kayraspi` -> `192.168.50.232`
+- `tichuml` -> `192.168.50.36`
+
+Retire any stale Wi-Fi-era or alternate local addresses from handoff notes,
+mount examples, and helper walkthroughs. The original cutover tracking remains
+in issue `#88`.
 
 ## Important Paths
 
