@@ -59,6 +59,14 @@ def _env_flag(name: str, default: str = "0") -> bool:
     return os.getenv(name, default).strip().lower() not in {"", "0", "false", "no", "off"}
 
 
+def _default_ollama_url() -> str:
+    if "OLLAMA_URL" in os.environ:
+        return os.environ["OLLAMA_URL"].strip() or "http://ollama:11434"
+    if os.name == "nt":
+        return "http://localhost:11434"
+    return "http://ollama:11434"
+
+
 def _default_classifier_mode() -> str:
     raw_mode = os.getenv("CLASSIFIER_MODE", "").strip().lower()
     if raw_mode in SUPPORTED_CLASSIFIER_MODES:
@@ -255,9 +263,9 @@ def load_classifier_runtime_settings() -> ClassifierRuntimeSettings:
         source_root=_default_path("CLASSIFIER_SOURCE_ROOT", "/source"),
         vault_root=_default_path("CLASSIFIER_VAULT_ROOT", "/vault"),
         api_token=os.getenv("CLASSIFIER_API_TOKEN", ""),
-        ollama_url=os.getenv("OLLAMA_URL", "http://ollama:11434").strip() or "http://ollama:11434",
-        classify_model=os.getenv("CLASSIFY_MODEL", "qwen2.5:3b").strip() or "qwen2.5:3b",
-        vision_model=os.getenv("VISION_MODEL", "qwen2.5vl:3b").strip() or "qwen2.5vl:3b",
+        ollama_url=_default_ollama_url(),
+        classify_model=os.getenv("CLASSIFY_MODEL", "qwen2.5:7b").strip() or "qwen2.5:7b",
+        vision_model=os.getenv("VISION_MODEL", "qwen2.5vl:7b").strip() or "qwen2.5vl:7b",
         shadow_worker_enabled=_env_flag("ENABLE_SHADOW_WORKER", "1"),
         shadow_worker_interval_seconds=shadow_worker_interval_seconds,
         classifier_mode=_default_classifier_mode(),

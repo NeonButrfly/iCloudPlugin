@@ -28,10 +28,12 @@ def test_classifier_runtime_paths_default_to_existing_locations(monkeypatch):
     assert settings.output_root == expected_output
     assert settings.input_root == expected_input
     assert settings.vault_root == expected_vault
+    expected_ollama_url = "http://localhost:11434" if os.name == "nt" else "http://ollama:11434"
     assert settings.manifest_path == expected_output / "manifest.jsonl"
     assert settings.readiness_report_path == expected_output / "readiness-report.json"
-    assert settings.classify_model == "qwen2.5:3b"
-    assert settings.vision_model == "qwen2.5vl:3b"
+    assert settings.ollama_url == expected_ollama_url
+    assert settings.classify_model == "qwen2.5:7b"
+    assert settings.vision_model == "qwen2.5vl:7b"
     assert settings.codex_arbiter_enabled is False
 
 

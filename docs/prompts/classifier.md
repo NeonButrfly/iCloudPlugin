@@ -8,6 +8,14 @@
 - Interpreted requirement: make classifier-generated notes read like human-facing Obsidian notes first, keep only system-required fields in frontmatter, move low-value machine metadata lower in the note, and prevent malformed date-like labels from becoming top-level folder names by promoting a known canonical category when one exists.
 - Affected systems: classifier note rendering, label normalization, vault folder placement, regression tests, operator docs.
 
+## 2026-07-10 - Safe generated-note reset and stronger default Qwen models
+
+- Issue: [#111](https://github.com/NeonButrfly/iCloudPlugin/issues/111)
+- Source prompt: "ok clean out the notes, make sure hueristics, lightgmb, and qwen are on latest models and ready to start indexing and note writing"
+- Interpreted requirement: add a bounded reset/prep path that clears only generated classifier note outputs and runtime state, then rebuilds readiness artifacts and checks the required Qwen runtime models; also promote the repo default classifier model pair from `qwen2.5:3b` / `qwen2.5vl:3b` to `qwen2.5:7b` / `qwen2.5vl:7b`.
+- Scope note: the safe reset remains limited to generated outputs only and must not touch human-authored vault content outside `01 Classified`, `02 Needs Review`, `90 Attachments`, `_system/classifications`, `_system/extracted-markdown`, and `Classification Index.md`.
+- Affected systems: classifier runtime settings, reset/prep helper, compose defaults, readiness expectations, operator docs.
+
 ## 2026-05-25 - Stratified LightGBM seed from live index
 
 - Issue: [#21](https://github.com/NeonButrfly/iCloudPlugin/issues/21)

@@ -34,8 +34,8 @@ def run_shadow_worker_once() -> dict:
     shadow_result = process_shadow_queue_command(
         categories=categories,
         ollama_url=settings.ollama_url,
-        model=os.getenv("CLASSIFY_MODEL", "qwen2.5:3b"),
-        vision_model=os.getenv("VISION_MODEL", "qwen2.5vl:3b"),
+        model=os.getenv("CLASSIFY_MODEL", "qwen2.5:7b"),
+        vision_model=os.getenv("VISION_MODEL", "qwen2.5vl:7b"),
         max_chars=int(os.getenv("CLASSIFIER_MAX_CHARS", "50000")),
     )
     return {

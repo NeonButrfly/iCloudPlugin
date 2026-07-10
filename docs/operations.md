@@ -570,6 +570,23 @@ For a bounded reconciliation-only proof of legacy-note context repair:
 - if the classifier returns a malformed non-category primary label such as a
   date token, runtime note generation now promotes a known canonical secondary
   label when available instead of creating a new folder path from the bad label.
+- for a bounded local prep/reset before a fresh indexing or note-writing run,
+  use:
+
+```bash
+PYTHONPATH='src;.' python -m apps.classifier.reset_runtime --reset-generated-notes
+```
+
+  - this removes only generated classifier outputs and runtime state:
+    `01 Classified`, `02 Needs Review`, `90 Attachments`,
+    `_system/classifications`, `_system/extracted-markdown`,
+    `Classification Index.md`, `shadow-queue`, `shadow-comparisons.jsonl`,
+    `manifest.jsonl`, and `readiness-report.json`
+  - it then re-creates the vault scaffold, bootstraps runtime artifacts,
+    ensures the LightGBM model is present, refreshes readiness, and checks for
+    the required Qwen Ollama models
+  - current repo defaults now expect `CLASSIFY_MODEL=qwen2.5:7b` and
+    `VISION_MODEL=qwen2.5vl:7b`
 
 ```bash
   cd /opt/iCloudPlugin
