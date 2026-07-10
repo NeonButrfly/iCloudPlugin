@@ -800,6 +800,45 @@ def test_run_next_job_persists_file_records_and_extracted_content_from_refresh_r
     assert stored_content.content_text == "Quarterly budget draft"
 
 
+def test_run_next_job_persists_long_external_ids_from_deep_mirror_paths(tmp_path):
+    session_factory = _build_session_factory(tmp_path, create_schema=True)
+    session = session_factory()
+    long_external_id = (
+        "filesystem::/icloud/_DUPLICATE_QUARANTINE/Facebook/messages/archived_threads/"
+        + ("stevethe100lbpropanetankfilledwithpropaneneverusedotherthanfillingbestoffersaccepted_" * 3)
+        + ".json"
+    )
+
+    try:
+        enqueue_metadata_refresh(session)
+        completed_job = run_next_job(
+            session,
+            client=FakeICloudWebClient(
+                [
+                    {
+                        "id": long_external_id,
+                        "name": "thread.json",
+                        "path": "/_DUPLICATE_QUARANTINE/Facebook/messages/archived_threads/thread.json",
+                        "extension": "json",
+                        "contentType": "application/json",
+                        "size": 12,
+                    }
+                ]
+            ),
+        )
+        stored_file = session.scalar(
+            select(FileRecord).where(FileRecord.external_id == long_external_id)
+        )
+    finally:
+        session.close()
+
+    assert len(long_external_id) > 255
+    assert completed_job is not None
+    assert completed_job.status == JOB_STATUS_COMPLETED
+    assert stored_file is not None
+    assert stored_file.external_id == long_external_id
+
+
 def test_run_next_job_marks_missing_files_as_deleted_when_they_disappear_from_refresh(
     tmp_path,
 ):

@@ -11,7 +11,7 @@ from icloud_index_service.models.base import Base
 class FileRecord(Base):
     __tablename__ = "files"
 
-    external_id: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    external_id: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     path: Mapped[str] = mapped_column(Text, nullable=False)
     mime_type: Mapped[str] = mapped_column(String(255), nullable=False)

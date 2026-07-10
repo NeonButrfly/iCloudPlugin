@@ -7,7 +7,7 @@ from pathlib import Path
 import importlib.util
 
 import pytest
-from sqlalchemy import BigInteger
+from sqlalchemy import BigInteger, Text
 from sqlalchemy.exc import IntegrityError
 
 from icloud_index_service.models.auth_session import AuthSession
@@ -50,6 +50,13 @@ def test_file_record_defaults_to_active():
     )
 
     assert record.is_deleted is False
+
+
+def test_file_record_allows_long_external_ids_for_deep_mirror_paths():
+    external_id_column = FileRecord.__table__.c.external_id
+
+    assert isinstance(external_id_column.type, Text)
+    assert external_id_column.nullable is False
 
 
 def test_file_record_uses_bigint_for_multi_gb_sizes():
@@ -191,6 +198,7 @@ def test_initial_migration_captures_authoritative_schema_rules():
     )
 
     assert result.returncode == 0
+    assert "external_id VARCHAR(255) NOT NULL" in result.stdout
     assert "is_deleted BOOLEAN DEFAULT false NOT NULL" in result.stdout
     assert "size_bytes BIGINT" in result.stdout
     assert "UNIQUE (file_id)" in result.stdout
@@ -228,6 +236,11 @@ def test_initial_migration_captures_authoritative_schema_rules():
     assert "Running upgrade 0010_repair_dedupe_group_item_source_exists -> 0011_promote_dedupe_size_columns_to_bigint" in result.stdout
     assert "ALTER TABLE dedupe_groups ALTER COLUMN total_size_bytes TYPE BIGINT" in result.stdout
     assert "ALTER TABLE dedupe_group_items ALTER COLUMN size_bytes TYPE BIGINT" in result.stdout
+    assert (
+        "Running upgrade 0011_promote_dedupe_size_columns_to_bigint -> "
+        "0012_widen_files_external_id_for_long_paths" in result.stdout
+    )
+    assert "ALTER TABLE files ALTER COLUMN external_id TYPE TEXT" in result.stdout
 
 
 def test_retrieval_metadata_migration_hardens_alembic_version_column_for_long_revision_ids():

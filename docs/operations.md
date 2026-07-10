@@ -1710,6 +1710,8 @@ The reindex helpers:
   remote Postgres host instead of the compose `postgres` service
 - truncate `classification_jobs`, `classification_states`,
   `extracted_contents`, `files`, `jobs`, and `sync_runs`
+- include migration `0012_widen_files_external_id_for_long_paths` so deep
+  mirror identifiers tracked in issue `#102` no longer abort refresh
 - queue a fresh refresh run with bearer auth when `PLUGIN_API_TOKEN` is set
 - print the current `/refresh/status` payload
 
