@@ -556,6 +556,21 @@ For a bounded reconciliation-only proof of legacy-note context repair:
 
 - for one unified live operator status read on the compute host, use:
 
+- classifier-generated vault notes now keep frontmatter to the fields the
+  system still consumes for reconciliation, search, and attachment handling.
+  Human-facing sections come first in the note body:
+  - `Summary`
+  - `Original File`
+  - `Extracted Markdown`
+  - `Extracted Markdown Preview`
+  - `Classification`
+  - `Retrieval`
+  - `Reason`
+  - `System Metadata`
+- if the classifier returns a malformed non-category primary label such as a
+  date token, runtime note generation now promotes a known canonical secondary
+  label when available instead of creating a new folder path from the bad label.
+
 ```bash
   cd /opt/iCloudPlugin
   ENV_FILE=/opt/iCloudPlugin/deploy/roles/cloudsync/.env.live \

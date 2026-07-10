@@ -137,8 +137,8 @@ def test_write_obsidian_note_prefers_canonical_filename_over_staged_upload_name(
         assert "326d39e1bebd4d9aaac79a91206320ec" not in note_path.name
         assert "326d39e1bebd4d9aaac79a91206320ec" not in note_text
         assert 'attachment_mode: "copied-compatibility"' in note_text
-        assert "entity_summary:" in note_text
-        assert "retrieval_terms:" in note_text
+        assert "## Retrieval" in note_text
+        assert "| Retrieval terms | `none` |" in note_text
         assert "[[90 Attachments/medical/appeals/Aetna Life Insurance Company - APPEAL 1 FFS.docx]]" in note_text
         assert attachment.exists()
         assert extracted.exists()
@@ -295,6 +295,86 @@ def test_write_obsidian_note_persists_source_parser_and_heuristic_hint():
         assert 'source_parser: "pdf-ocr-tesseract"' in note_text
         assert 'heuristic_primary_hint: "unknown"' in note_text
         assert 'hybrid_live_source: "manual-correction-override"' in note_text
+
+
+def test_write_obsidian_note_keeps_frontmatter_minimal_and_human_sections_first():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        vault = root / "vault"
+        source_path = root / "Inbox" / "Treatment Plan.pdf"
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_bytes(b"plan")
+        ensure_vault(vault)
+
+        note_path = write_obsidian_note(
+            vault=vault,
+            source_path=source_path,
+            file_hash="abcdef1234567890",
+            markdown="Treatment plan preview",
+            classification={
+                "primary_label": "medical-estimate",
+                "secondary_labels": ["insurance", "medical"],
+                "confidence": 0.91,
+                "summary": "Dental treatment plan with estimated patient and insurance amounts.",
+                "reason": "Treatment plan and estimate language matched medical-estimate.",
+                "sensitive_flags": ["financial"],
+                "recommended_action": "retain",
+                "file_date_guess": "2025-02-08",
+                "language": "English",
+                "entity_summary": "provider: Muldoon Dental; patient: Kay Mayers",
+                "topic_summary": "dental treatment estimate",
+                "retrieval_topics": ["dental", "estimate"],
+                "retrieval_terms": ["treatment plan", "estimate"],
+            },
+            attach_originals=False,
+        )
+
+        note_text = note_path.read_text(encoding="utf-8")
+
+        assert "entity_summary:" not in note_text
+        assert "topic_summary:" not in note_text
+        assert "retrieval_topics:" not in note_text
+        assert "retrieval_terms:" not in note_text
+        assert note_text.index("## Original File") < note_text.index("## Classification")
+        assert note_text.index("## Extracted Markdown Preview") < note_text.index("## Classification")
+        assert "## System Metadata" in note_text
+
+
+def test_write_obsidian_note_promotes_known_secondary_when_primary_is_not_a_category():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        vault = root / "vault"
+        source_path = root / "Inbox" / "2025 Tax Form.pdf"
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_bytes(b"tax-form")
+        ensure_vault(vault)
+
+        note_path = write_obsidian_note(
+            vault=vault,
+            source_path=source_path,
+            file_hash="abcdef1234567890",
+            markdown="Tax form preview",
+            classification={
+                "primary_label": "2025-02-08",
+                "secondary_labels": ["tax-form", "financial"],
+                "confidence": 0.94,
+                "summary": "Tax form summary.",
+                "reason": "The model returned a date-like primary label, but the secondary labels contain the real category.",
+                "sensitive_flags": [],
+                "recommended_action": "retain",
+                "file_date_guess": "2025-02-08",
+                "language": "English",
+            },
+            attach_originals=False,
+        )
+
+        note_text = note_path.read_text(encoding="utf-8")
+
+        assert note_path.parent.relative_to(vault).as_posix() == "01 Classified/tax-form"
+        assert note_path.name == "2025 Tax Form - tax-form.md"
+        assert 'primary_label: "tax-form"' in note_text
+        assert 'secondary_labels: ["financial"]' in note_text
+        assert "2025-02-08" not in note_path.parent.relative_to(vault).as_posix()
 
 
 def test_write_obsidian_note_collapses_existing_duplicate_note_for_same_canonical_source():

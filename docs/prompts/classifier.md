@@ -1,5 +1,13 @@
 # Classifier Prompts
 
+## 2026-07-10 - Human-first note layout and canonical folder fallback
+
+- Issue: [#110](https://github.com/NeonButrfly/iCloudPlugin/issues/110)
+- Source prompt: "ok I really dont like the format of the notes, there is a lot of stuff in them that appears none useful for actual humans. I'd like human stuff first" plus "it appears the classification is spreading stuff all over like I found a tax form from 2025 stuffed into its own folder with just thee date as the folder name rather than taxes."
+- Example file: `02082025_deNTALa.pdf`
+- Interpreted requirement: make classifier-generated notes read like human-facing Obsidian notes first, keep only system-required fields in frontmatter, move low-value machine metadata lower in the note, and prevent malformed date-like labels from becoming top-level folder names by promoting a known canonical category when one exists.
+- Affected systems: classifier note rendering, label normalization, vault folder placement, regression tests, operator docs.
+
 ## 2026-05-25 - Stratified LightGBM seed from live index
 
 - Issue: [#21](https://github.com/NeonButrfly/iCloudPlugin/issues/21)

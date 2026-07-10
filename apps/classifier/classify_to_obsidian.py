@@ -150,11 +150,14 @@ def normalize_vault_classification(
 ) -> Dict[str, Any]:
     normalized = dict(classification or {})
     allowed_categories = {obsidian_tag(item) for item in (candidate_categories or []) if str(item).strip()}
+    if not allowed_categories:
+        allowed_categories = {obsidian_tag(item) for item in load_categories() if str(item).strip()}
     fallback_confidence_value = _coerce_float(fallback_confidence, 0.0)
     fallback_primary_tag = obsidian_tag(fallback_primary or "")
     primary = obsidian_tag(str(normalized.get("primary_label", "") or ""))
     secondary = _coerce_secondary_labels(normalized.get("secondary_labels", []))
     recovered_from_fallback = False
+    recovered_from_secondary = False
 
     def is_allowed(label: str) -> bool:
         return not allowed_categories or label in allowed_categories
@@ -164,13 +167,25 @@ def normalize_vault_classification(
             normalized["primary_label"] = fallback_primary_tag
             primary = fallback_primary_tag
             recovered_from_fallback = True
-        elif "needs-review" in allowed_categories:
-            normalized["primary_label"] = "needs-review"
-            primary = "needs-review"
-            recovered_from_fallback = True
         else:
-            normalized["primary_label"] = "unknown"
-            primary = "unknown"
+            for candidate in secondary + list(fallback_secondary or []):
+                candidate_tag = obsidian_tag(candidate)
+                if candidate_tag in {"", "unknown", "needs-review"}:
+                    continue
+                if is_allowed(candidate_tag):
+                    normalized["primary_label"] = candidate_tag
+                    primary = candidate_tag
+                    recovered_from_fallback = True
+                    recovered_from_secondary = True
+                    break
+        if primary in {"", "unknown"} or not is_allowed(primary):
+            if "needs-review" in allowed_categories:
+                normalized["primary_label"] = "needs-review"
+                primary = "needs-review"
+                recovered_from_fallback = True
+            else:
+                normalized["primary_label"] = "unknown"
+                primary = "unknown"
 
     secondary_tags: List[str] = []
     seen_secondary: set[str] = set()
@@ -199,7 +214,8 @@ def normalize_vault_classification(
     if recovered_from_fallback:
         if confidence <= 0:
             confidence = fallback_confidence_value if fallback_confidence_value > 0 else 0.55
-        confidence = min(confidence, 0.69)
+        if not recovered_from_secondary:
+            confidence = min(confidence, 0.69)
         normalized["confidence"] = round(confidence, 4)
         normalized.setdefault(
             "summary",
@@ -209,7 +225,8 @@ def normalize_vault_classification(
             "reason",
             "Recovered a structured label from hybrid hints because the model response omitted required label fields.",
         )
-        normalized["recommended_action"] = "review"
+        if not recovered_from_secondary:
+            normalized["recommended_action"] = "review"
         normalized.setdefault("sensitive_flags", ["none"])
         normalized.setdefault("file_date_guess", "unknown")
         normalized.setdefault("language", "unknown")
@@ -1924,12 +1941,6 @@ source_parser: {json.dumps(str(source_parser or ""), ensure_ascii=False)}
 heuristic_primary_hint: {json.dumps(str(heuristic_primary_hint or ""), ensure_ascii=False)}
 hybrid_live_source: {json.dumps(str(hybrid_live_source or ""), ensure_ascii=False)}
 classified_at: {json.dumps(now_ak())}
-file_date_guess: {json.dumps(file_date_guess, ensure_ascii=False)}
-language: {json.dumps(language, ensure_ascii=False)}
-entity_summary: {json.dumps(entity_summary, ensure_ascii=False)}
-topic_summary: {json.dumps(topic_summary, ensure_ascii=False)}
-retrieval_topics: {yaml_list(retrieval_topics)}
-retrieval_terms: {yaml_list(retrieval_terms)}
 sensitive_flags: {yaml_list(sensitive_flags)}
 recommended_action: {json.dumps(recommended_action, ensure_ascii=False)}
 attachment: {json.dumps(attachment_link, ensure_ascii=False)}
@@ -1944,6 +1955,18 @@ tags:
 
 {summary}
 
+## Original File
+
+{attachment_link if attachment_link else "Original file was not copied into the vault. Re-run with `--attach-originals` if desired."}
+
+## Extracted Markdown File
+
+{extracted_link if extracted_link else "No extracted Markdown file was written."}
+
+## Extracted Markdown Preview
+
+{markdown[:20000] if markdown else "_No Markdown extraction available for this file._"}
+
 ## Classification
 
 | Field | Value |
@@ -1957,10 +1980,6 @@ tags:
 | Language | `{language}` |
 | SHA-256 | `{file_hash}` |
 
-## Reason
-
-{reason}
-
 ## Retrieval
 
 | Field | Value |
@@ -1969,17 +1988,19 @@ tags:
 | Entities | `{entity_summary or "none"}` |
 | Retrieval terms | `{", ".join(map(str, retrieval_terms)) or "none"}` |
 
-## Original File
+## Reason
 
-{attachment_link if attachment_link else "Original file was not copied into the vault. Re-run with `--attach-originals` if desired."}
+{reason}
 
-## Extracted Markdown File
+## System Metadata
 
-{extracted_link if extracted_link else "No extracted Markdown file was written."}
-
-## Extracted Markdown Preview
-
-{markdown[:20000] if markdown else "_No Markdown extraction available for this file._"}
+| Field | Value |
+|---|---|
+| Attachment mode | `{note_contract["attachment_mode"]}` |
+| Compatibility attachment path | `{note_contract["compatibility_attachment_path"] or "none"}` |
+| Source parser | `{str(source_parser or "") or "unknown"}` |
+| Heuristic primary hint | `{str(heuristic_primary_hint or "") or "unknown"}` |
+| Hybrid live source | `{str(hybrid_live_source or "") or "unknown"}` |
 """
 
     note_path.write_text(note_body, encoding="utf-8")
