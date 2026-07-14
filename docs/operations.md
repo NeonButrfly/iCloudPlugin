@@ -120,6 +120,7 @@ Recommended live assets:
 
 - `deploy/roles/cloudsync/cloud-vault-sync.sh`
 - `deploy/roles/cloudsync/export_gmail_messages.py`
+- `deploy/roles/cloudsync/create_gmail_authorized_user.py`
 - `deploy/roles/cloudsync/install_storage_host_sync_assets.sh`
 - `deploy/roles/cloudsync/cloud-vault-sync.service`
 - `deploy/roles/cloudsync/cloud-vault-sync.timer`
@@ -153,6 +154,11 @@ Behavior:
     Drive-scoped and Gmail returns `403 ACCESS_TOKEN_SCOPE_INSUFFICIENT`
   - Gmail export therefore needs dedicated Gmail-authorized user JSON files
     with `https://www.googleapis.com/auth/gmail.readonly`
+- local helper for creating those files:
+  - `python deploy/roles/cloudsync/create_gmail_authorized_user.py --client-secret-file <google-client-secret.json> --account-email <gmail-address> --output-file <authorized-user.json>`
+- current live target paths on `kayraspi2`:
+  - `/home/kay/.config/cloud-vault/google1-gmail-authorized-user.json`
+  - `/home/kay/.config/cloud-vault/google2-gmail-authorized-user.json`
 - iCloud remains on the safer default without `--force`
 - remotes that are missing or unauthenticated are logged and skipped instead of
   failing the entire timer run

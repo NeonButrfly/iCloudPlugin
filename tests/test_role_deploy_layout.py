@@ -40,6 +40,7 @@ def test_cloudsync_role_sync_assets_exist():
     expected = [
         repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.sh",
         repo_root / "deploy" / "roles" / "cloudsync" / "export_gmail_messages.py",
+        repo_root / "deploy" / "roles" / "cloudsync" / "create_gmail_authorized_user.py",
         repo_root / "deploy" / "roles" / "cloudsync" / "install_storage_host_sync_assets.sh",
         repo_root / "deploy" / "roles" / "cloudsync" / "run_targeted_classification_batch.sh",
         repo_root / "deploy" / "roles" / "cloudsync" / "report_live_status.sh",
@@ -171,6 +172,17 @@ def test_cloudsync_storage_host_service_loads_optional_env_file():
     service_text = service_path.read_text(encoding="utf-8")
 
     assert "EnvironmentFile=-/etc/default/cloud-vault-sync" in service_text
+
+
+def test_cloudsync_docs_reference_local_gmail_authorized_user_helper():
+    repo_root = Path(__file__).resolve().parents[1]
+    helper_path = repo_root / "deploy" / "roles" / "cloudsync" / "create_gmail_authorized_user.py"
+    role_readme = repo_root / "deploy" / "roles" / "cloudsync" / "README.md"
+    operations_doc = repo_root / "docs" / "operations.md"
+
+    assert helper_path.exists()
+    assert "create_gmail_authorized_user.py" in role_readme.read_text(encoding="utf-8")
+    assert "create_gmail_authorized_user.py" in operations_doc.read_text(encoding="utf-8")
 
 
 def test_cloudsync_targeted_batch_helper_restores_queue_state():

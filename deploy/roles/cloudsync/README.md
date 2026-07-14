@@ -35,6 +35,7 @@ Related host-level sync assets:
 
 - `deploy/roles/cloudsync/cloud-vault-sync.sh`
 - `deploy/roles/cloudsync/export_gmail_messages.py`
+- `deploy/roles/cloudsync/create_gmail_authorized_user.py`
 - `deploy/roles/cloudsync/install_storage_host_sync_assets.sh`
 - `deploy/roles/cloudsync/run_targeted_classification_batch.sh`
 - `deploy/roles/cloudsync/report_live_status.sh`
@@ -52,6 +53,11 @@ Optional Gmail mailbox export can now land alongside those Drive mirrors:
 
 - `kaymayers9@gmail.com` -> `/srv/cloud-vault/mirrors/google1/Gmail`
 - `keifmayers@gmail.com` -> `/srv/cloud-vault/mirrors/google2/Gmail`
+
+To create the Gmail authorized-user JSON files locally, use:
+
+- `python deploy/roles/cloudsync/create_gmail_authorized_user.py --client-secret-file <google-client-secret.json> --account-email kaymayers9@gmail.com --output-file C:\tmp\google1-gmail-authorized-user.json`
+- `python deploy/roles/cloudsync/create_gmail_authorized_user.py --client-secret-file <google-client-secret.json> --account-email keifmayers@gmail.com --output-file C:\tmp\google2-gmail-authorized-user.json`
 
 The sync/index/classifier-facing mirror root should point at:
 
