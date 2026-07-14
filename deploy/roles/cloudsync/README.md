@@ -110,8 +110,12 @@ The script is intentionally resilient:
   Gmail message markdown plus optional attachments into the corresponding
   `google1/Gmail` and `google2/Gmail` trees
 - Gmail export expects a per-account Google authorized-user JSON file:
+  - storage-host systemd loads optional overrides from:
+    - `/etc/default/cloud-vault-sync`
   - `GMAIL_GOOGLE_1_AUTH_FILE`
   - `GMAIL_GOOGLE_2_AUTH_FILE`
+- the existing `gdrive1` and `gdrive2` `rclone` tokens are not enough by
+  themselves for Gmail export when they only carry Drive scopes
 - Gmail export defaults:
   - `GMAIL_GOOGLE_1_ACCOUNT=kaymayers9@gmail.com`
   - `GMAIL_GOOGLE_2_ACCOUNT=keifmayers@gmail.com`
@@ -183,6 +187,8 @@ That helper:
 
 - installs `cloud-vault-sync.sh` to `/usr/local/bin`
 - installs `export_gmail_messages.py` to `/usr/local/bin/cloud-vault-gmail-export.py`
+- installs the example storage-host env file to `/etc/default/cloud-vault-sync`
+  when that file does not already exist
 - installs the systemd service and timer under `/etc/systemd/system`
 - reloads systemd
 - enables the timer

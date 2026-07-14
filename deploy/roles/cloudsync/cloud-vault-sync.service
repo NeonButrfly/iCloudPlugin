@@ -8,4 +8,5 @@ Wants=network-online.target
 Type=oneshot
 User=kay
 Group=kay
+EnvironmentFile=-/etc/default/cloud-vault-sync
 ExecStart=/usr/local/bin/cloud-vault-sync.sh

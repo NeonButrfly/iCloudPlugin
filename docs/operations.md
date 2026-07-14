@@ -139,6 +139,8 @@ Behavior:
   - `/srv/cloud-vault/mirrors/google1/Gmail`
   - `/srv/cloud-vault/mirrors/google2/Gmail`
 - Gmail export uses Google authorized-user JSON files and these env vars:
+  - live storage-host systemd now loads optional overrides from:
+    - `/etc/default/cloud-vault-sync`
   - `GMAIL_GOOGLE_1_AUTH_FILE`
   - `GMAIL_GOOGLE_2_AUTH_FILE`
   - `GMAIL_GOOGLE_1_ACCOUNT`
@@ -146,6 +148,11 @@ Behavior:
   - `GMAIL_EXPORT_QUERY`
   - `GMAIL_DOWNLOAD_ATTACHMENTS`
   - `GMAIL_MAX_RESULTS_PER_RUN`
+- the current live blocker for issue `#106` is OAuth scope:
+  - existing `gdrive1` and `gdrive2` `rclone` tokens on `kayraspi2` are
+    Drive-scoped and Gmail returns `403 ACCESS_TOKEN_SCOPE_INSUFFICIENT`
+  - Gmail export therefore needs dedicated Gmail-authorized user JSON files
+    with `https://www.googleapis.com/auth/gmail.readonly`
 - iCloud remains on the safer default without `--force`
 - remotes that are missing or unauthenticated are logged and skipped instead of
   failing the entire timer run

@@ -144,21 +144,33 @@ def test_cloudsync_storage_host_installer_covers_sync_assets_and_systemd_flow():
 
     assert 'SYNC_SCRIPT_SOURCE="${SYNC_SCRIPT_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.sh}"' in script_text
     assert 'GMAIL_EXPORT_SCRIPT_SOURCE="${GMAIL_EXPORT_SCRIPT_SOURCE:-${SCRIPT_DIR}/export_gmail_messages.py}"' in script_text
+    assert 'ENV_EXAMPLE_SOURCE="${ENV_EXAMPLE_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.env.example}"' in script_text
     assert 'SYNC_SERVICE_SOURCE="${SYNC_SERVICE_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.service}"' in script_text
     assert 'SYNC_TIMER_SOURCE="${SYNC_TIMER_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.timer}"' in script_text
     assert 'SCRIPT_TARGET="${SCRIPT_TARGET:-/usr/local/bin/cloud-vault-sync.sh}"' in script_text
     assert 'GMAIL_EXPORT_SCRIPT_TARGET="${GMAIL_EXPORT_SCRIPT_TARGET:-/usr/local/bin/cloud-vault-gmail-export.py}"' in script_text
+    assert 'ENV_TARGET="${ENV_TARGET:-/etc/default/cloud-vault-sync}"' in script_text
     assert 'SERVICE_TARGET="${SERVICE_TARGET:-/etc/systemd/system/cloud-vault-sync.service}"' in script_text
     assert 'TIMER_TARGET="${TIMER_TARGET:-/etc/systemd/system/cloud-vault-sync.timer}"' in script_text
     assert 'SUDO_PASSWORD="${SUDO_PASSWORD:-}"' in script_text
     assert "sudo_command()" in script_text
     assert 'printf \'%s\\n\' "${SUDO_PASSWORD}" | sudo -S "$@"' in script_text
     assert 'sudo_command install -m "${mode}" "${source_path}" "${target_path}"' in script_text
+    assert "install_env_example_if_missing()" in script_text
     assert 'install_asset "${GMAIL_EXPORT_SCRIPT_SOURCE}" "${GMAIL_EXPORT_SCRIPT_TARGET}" 755' in script_text
+    assert 'install_env_example_if_missing "${ENV_EXAMPLE_SOURCE}" "${ENV_TARGET}"' in script_text
     assert 'sudo_command systemctl daemon-reload' in script_text
     assert 'sudo_command systemctl enable --now "$(basename "${TIMER_TARGET}")"' in script_text
     assert "--run-sync-after-install" in script_text
     assert 'sudo_command systemctl start "$(basename "${SERVICE_TARGET}")"' in script_text
+
+
+def test_cloudsync_storage_host_service_loads_optional_env_file():
+    repo_root = Path(__file__).resolve().parents[1]
+    service_path = repo_root / "deploy" / "roles" / "cloudsync" / "cloud-vault-sync.service"
+    service_text = service_path.read_text(encoding="utf-8")
+
+    assert "EnvironmentFile=-/etc/default/cloud-vault-sync" in service_text
 
 
 def test_cloudsync_targeted_batch_helper_restores_queue_state():

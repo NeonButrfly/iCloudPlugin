@@ -5,11 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/../../.." && pwd)}"
 SYNC_SCRIPT_SOURCE="${SYNC_SCRIPT_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.sh}"
 GMAIL_EXPORT_SCRIPT_SOURCE="${GMAIL_EXPORT_SCRIPT_SOURCE:-${SCRIPT_DIR}/export_gmail_messages.py}"
+ENV_EXAMPLE_SOURCE="${ENV_EXAMPLE_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.env.example}"
 SYNC_SERVICE_SOURCE="${SYNC_SERVICE_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.service}"
 SYNC_TIMER_SOURCE="${SYNC_TIMER_SOURCE:-${SCRIPT_DIR}/cloud-vault-sync.timer}"
 
 SCRIPT_TARGET="${SCRIPT_TARGET:-/usr/local/bin/cloud-vault-sync.sh}"
 GMAIL_EXPORT_SCRIPT_TARGET="${GMAIL_EXPORT_SCRIPT_TARGET:-/usr/local/bin/cloud-vault-gmail-export.py}"
+ENV_TARGET="${ENV_TARGET:-/etc/default/cloud-vault-sync}"
 SERVICE_TARGET="${SERVICE_TARGET:-/etc/systemd/system/cloud-vault-sync.service}"
 TIMER_TARGET="${TIMER_TARGET:-/etc/systemd/system/cloud-vault-sync.timer}"
 SUDO_PASSWORD="${SUDO_PASSWORD:-}"
@@ -70,6 +72,17 @@ install_asset() {
   sudo_command install -m "${mode}" "${source_path}" "${target_path}"
 }
 
+install_env_example_if_missing() {
+  local source_path="$1"
+  local target_path="$2"
+  [[ -f "${source_path}" ]] || fail "Missing source asset: ${source_path}"
+  if sudo_command test -f "${target_path}"; then
+    log_line "Environment file already exists at ${target_path}; leaving it unchanged."
+    return 0
+  fi
+  sudo_command install -D -m 600 "${source_path}" "${target_path}"
+}
+
 print_installed_hashes() {
   local source_path="$1"
   local target_path="$2"
@@ -109,6 +122,7 @@ main() {
 
   install_asset "${SYNC_SCRIPT_SOURCE}" "${SCRIPT_TARGET}" 755
   install_asset "${GMAIL_EXPORT_SCRIPT_SOURCE}" "${GMAIL_EXPORT_SCRIPT_TARGET}" 755
+  install_env_example_if_missing "${ENV_EXAMPLE_SOURCE}" "${ENV_TARGET}"
   install_asset "${SYNC_SERVICE_SOURCE}" "${SERVICE_TARGET}" 644
   install_asset "${SYNC_TIMER_SOURCE}" "${TIMER_TARGET}" 644
 
@@ -122,6 +136,9 @@ main() {
   log_line "Installed asset hashes (target source_sha installed_sha):"
   print_installed_hashes "${SYNC_SCRIPT_SOURCE}" "${SCRIPT_TARGET}"
   print_installed_hashes "${GMAIL_EXPORT_SCRIPT_SOURCE}" "${GMAIL_EXPORT_SCRIPT_TARGET}"
+  if sudo_command test -f "${ENV_TARGET}"; then
+    print_installed_hashes "${ENV_EXAMPLE_SOURCE}" "${ENV_TARGET}" || true
+  fi
   print_installed_hashes "${SYNC_SERVICE_SOURCE}" "${SERVICE_TARGET}"
   print_installed_hashes "${SYNC_TIMER_SOURCE}" "${TIMER_TARGET}"
 
